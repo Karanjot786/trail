@@ -1,0 +1,29 @@
+# Copy to fly.toml, set `app`, then:
+#   fly launch --no-deploy --copy-config
+#   fly volumes create trail_data --size 1
+#   fly secrets set TRAIL_PASSWORD=... TRAIL_SITES=mysite=example.com
+#   fly deploy
+app = "your-trail-app"
+primary_region = "sin"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  TRAIL_DB = "/data/trail.db"
+  TRAIL_ADDR = ":8080"
+  TRAIL_TZ = "Asia/Kolkata"
+
+[mounts]
+  source = "trail_data"
+  destination = "/data"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "off"
+  min_machines_running = 1
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"
