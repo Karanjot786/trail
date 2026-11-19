@@ -151,4 +151,4 @@ The tracker is built from `tracker/t.ts` into `internal/ingest/t.js` and embedde
 
 ## License
 
-TBD
+MIT, see [LICENSE](LICENSE).
