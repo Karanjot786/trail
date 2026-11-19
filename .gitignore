@@ -1,0 +1,9 @@
+*.db
+*.db-*
+node_modules
+web/dist/*
+!web/dist/.keep
+*.mmdb
+/trail
+test-results
+playwright-report
