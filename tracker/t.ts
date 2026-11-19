@@ -119,7 +119,7 @@ declare const FULL: boolean;
   w.trail = api_;
   q.forEach((c: any) => (api_ as any)[c[0]]?.(c[1], c[2]));
 
-  addEventListener('visibilitychange', hide);
+  d.addEventListener('visibilitychange', hide); // document, not window: Safari doesn't bubble it to window
   addEventListener('pagehide', eng);
   addEventListener('scroll', scroll, { passive: true });
   addEventListener('popstate', nav);
@@ -161,7 +161,7 @@ declare const FULL: boolean;
       ob('layout-shift', (e) => e.hadRecentInput || (m.CLS += e.value));
       ob('event', (e) => e.interactionId && e.duration > m.INP && (m.INP = e.duration), { durationThreshold: 40 });
       let done = 0;
-      addEventListener('visibilitychange', () => {
+      d.addEventListener('visibilitychange', () => {
         if (!vis() && !done) {
           done = 1;
           for (const k in m) m[k] && send('vital', { n: k, d: { value: +m[k].toFixed(3) } });

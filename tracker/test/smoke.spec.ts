@@ -21,7 +21,7 @@ async function capture(page: Page) {
 const hide = (page: Page) =>
   page.evaluate(() => {
     Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' });
-    document.dispatchEvent(new Event('visibilitychange'));
+    document.dispatchEvent(new Event('visibilitychange')); // non-bubbling on purpose: tracker must listen on document
   });
 
 test('pageview on load: wire contract, text/plain, keepalive transport', async ({ page }) => {
