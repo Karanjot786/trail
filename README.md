@@ -83,6 +83,21 @@ Then add the script:
 
 `data-site` must match an id in `TRAIL_SITES`. The tracker does nothing on `localhost` unless `data-dev` is set.
 
+### With npm
+
+```sh
+npm i trail-analytics
+```
+
+```tsx
+// app/layout.tsx (Next.js App Router)
+import { Analytics } from 'trail-analytics/next';
+// ...
+<Analytics site="mysite" />
+```
+
+It injects the script, computes route patterns like `/blog/[slug]`, and exports typed `track`, `identify`, `reset`, `pageview`. See [packages/trail-analytics](packages/trail-analytics). The `/_t/*` rewrite above is still required.
+
 ### Tracker API
 
 ```js
