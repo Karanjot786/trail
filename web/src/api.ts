@@ -1,0 +1,170 @@
+// Typed fetchers for the Trail dashboard wire contract (plan: "Wire contracts → Dashboard API").
+// This is the only module that knows about mock mode (VITE_MOCK=1 → fixtures from mock.ts).
+
+export type Env = 'production' | 'preview' | 'all'
+export type Metric = 'visitors' | 'pageviews' | 'bounce'
+export type Dim =
+  | 'path'
+  | 'route'
+  | 'host'
+  | 'referrer'
+  | 'utm_source'
+  | 'utm_medium'
+  | 'utm_campaign'
+  | 'country'
+  | 'device'
+  | 'browser'
+  | 'os'
+  | 'event'
+
+export interface Site {
+  id: string
+  domain: string
+}
+export interface Totals {
+  visitors: number
+  pageviews: number
+  bounce: number
+}
+export interface Stats extends Totals {
+  prev: Totals
+  online: number
+}
+export interface Point {
+  t: number
+  v: number
+}
+export interface Series {
+  bucket: 'hour' | 'day'
+  points: Point[]
+}
+export interface BreakdownRow {
+  key: string
+  visitors: number
+  pageviews: number
+  total: number
+}
+export interface Visitor {
+  person: string
+  identified: boolean
+  firstSeen: number
+  lastSeen: number
+  visits: number
+  country: string
+  device: string
+  source: string
+}
+export type StepType = 'pageview' | 'engage' | 'event' | 'identify' | 'error' | 'outbound' | 'form' | 'vital'
+export interface Step {
+  ts: number
+  type: StepType
+  path: string
+  name: string
+  engagedMs: number
+  scrollPct: number
+  props: Record<string, string>
+}
+export interface Session {
+  sessionId: string
+  start: number
+  source: string
+  steps: Step[]
+}
+
+/** Common query: site, range (unix ms), env and dashboard-wide filters (dim → value). */
+export interface Query {
+  site: string
+  from: number
+  to: number
+  env: Env
+  filters: Partial<Record<Dim, string>>
+}
+
+export class Unauthorized extends Error {
+  constructor() {
+    super('unauthorized')
+  }
+}
+
+const MOCK = import.meta.env.VITE_MOCK === '1'
+const mock = MOCK ? import('./mock') : null
+
+function params(q: Query, extra: Record<string, string | number | undefined> = {}) {
+  const p = new URLSearchParams({ site: q.site, from: String(q.from), to: String(q.to), env: q.env })
+  for (const [dim, value] of Object.entries(q.filters)) if (value != null) p.append('f', `${dim}:${value}`)
+  for (const [k, v] of Object.entries(extra)) if (v !== undefined && v !== '') p.set(k, String(v))
+  return p
+}
+
+async function get<T>(path: string, p: URLSearchParams, signal?: AbortSignal): Promise<T> {
+  const res = await fetch(`${path}?${p}`, { signal, credentials: 'same-origin' })
+  if (res.status === 401) throw new Unauthorized()
+  if (!res.ok) throw new Error(`${path}: ${res.status}`)
+  return res.json() as Promise<T>
+}
+
+/** Props may arrive as an object or as the stored JSON string; normalise to a flat string map. */
+function normProps(p: unknown): Record<string, string> {
+  if (!p) return {}
+  if (typeof p === 'string') {
+    try {
+      return normProps(JSON.parse(p))
+    } catch {
+      return {}
+    }
+  }
+  if (typeof p !== 'object') return {}
+  return Object.fromEntries(Object.entries(p as Record<string, unknown>).map(([k, v]) => [k, String(v)]))
+}
+
+export const api = {
+  async login(password: string): Promise<boolean> {
+    if (mock) return true
+    const res = await fetch('/api/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password }),
+    })
+    return res.ok
+  },
+
+  async sites(signal?: AbortSignal): Promise<Site[]> {
+    if (mock) return (await mock).sites()
+    return get('/api/sites', new URLSearchParams(), signal)
+  },
+
+  async stats(q: Query, signal?: AbortSignal): Promise<Stats> {
+    if (mock) return (await mock).stats(q)
+    return get('/api/stats', params(q), signal)
+  },
+
+  async series(q: Query, metric: Metric, signal?: AbortSignal): Promise<Series> {
+    if (mock) return (await mock).series(q, metric)
+    return get('/api/series', params(q, { metric }), signal)
+  },
+
+  async breakdown(
+    q: Query,
+    dim: Dim,
+    opts: { limit?: number; q?: string } = {},
+    signal?: AbortSignal,
+  ): Promise<BreakdownRow[]> {
+    if (mock) return (await mock).breakdown(q, dim, opts.q ?? '', opts.limit ?? 10)
+    return get('/api/breakdown', params(q, { dim, limit: opts.limit, q: opts.q }), signal)
+  },
+
+  async visitors(q: Query, opts: { limit?: number; q?: string } = {}, signal?: AbortSignal): Promise<Visitor[]> {
+    if (mock) return (await mock).visitors(q, opts.q ?? '', opts.limit ?? 100)
+    return get('/api/visitors', params(q, { limit: opts.limit, q: opts.q }), signal)
+  },
+
+  async journey(site: string, person: string, signal?: AbortSignal): Promise<Session[]> {
+    const raw = mock
+      ? await (await mock).journey(site, person)
+      : await get<Session[]>('/api/journey', new URLSearchParams({ site, person }), signal)
+    return (raw ?? []).map((s) => ({
+      ...s,
+      steps: (s.steps ?? []).map((st) => ({ ...st, props: normProps(st.props) })),
+    }))
+  },
+}

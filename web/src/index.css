@@ -1,0 +1,193 @@
+@import 'tailwindcss';
+
+@theme {
+  --font-sans: 'Geist Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'Geist Mono Variable', ui-monospace, monospace;
+
+  --color-bg: #000;
+  --color-card: #0a0a0a;
+  --color-raised: #111111;
+  --color-bar: #141414;
+  --color-hover: #1c1c1c;
+  --color-border: #1f1f1f;
+  --color-border-strong: #2e2e2e;
+  --color-fg: #ededed;
+  --color-muted: #a1a1a1;
+  --color-subtle: #707070;
+  --color-ring: #3b82f6;
+  --color-chart: #0a72ef;
+  --color-link: #3b9eff;
+  --color-good: #45d483;
+  --color-good-bg: #0f2417;
+  --color-bad: #ff4d4f;
+  --color-bad-bg: #2a1215;
+
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-ui: cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body {
+  background: var(--color-bg);
+  color: var(--color-fg);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  overflow-x: hidden;
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Press feedback on anything pressable. */
+.pressable {
+  transition-property: scale, background-color, border-color, color, opacity;
+  transition-duration: 150ms;
+  transition-timing-function: var(--ease-ui);
+}
+.pressable:active {
+  scale: 0.96;
+}
+
+/* Sliding underline for tab strips (transform only). */
+.slider {
+  transition: transform 180ms var(--ease-out), width 0ms;
+  will-change: transform;
+}
+
+/* Popovers: origin-aware scale+fade from the trigger. */
+.pop {
+  transform-origin: var(--radix-popper-transform-origin, var(--radix-select-content-transform-origin, top));
+}
+.pop[data-state='open'] {
+  animation: pop-in 160ms var(--ease-ui);
+}
+.pop[data-state='closed'] {
+  animation: fade-out 100ms ease-out;
+}
+.tip {
+  transform-origin: var(--radix-tooltip-content-transform-origin);
+}
+.tip[data-state='delayed-open'] {
+  animation: pop-in 140ms var(--ease-ui);
+}
+
+/* Modal: centered scale 0.96 → 1 plus fade, 200ms. */
+.modal[data-state='open'] {
+  animation: modal-in 200ms var(--ease-ui);
+}
+.modal[data-state='closed'] {
+  animation: modal-out 140ms ease-out;
+}
+.overlay[data-state='open'] {
+  animation: fade-in 200ms ease-out;
+}
+.overlay[data-state='closed'] {
+  animation: fade-out 140ms ease-out;
+}
+
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+@keyframes modal-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+@keyframes modal-out {
+  to {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
+/* Top rows of a panel fade out at the bottom. */
+.fade-bottom {
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 96px), transparent);
+}
+
+/* Hover pill: a collapsed outline that opens into the action pill on panel hover/focus. */
+.pill-wrap .pill-actions {
+  opacity: 0;
+  scale: 0.92;
+  pointer-events: none;
+  transition-property: opacity, scale;
+  transition-duration: 160ms;
+  transition-timing-function: var(--ease-ui);
+}
+.pill-wrap .pill-stub {
+  transition: opacity 120ms ease-out;
+}
+.pill-wrap:hover .pill-actions,
+.pill-wrap:focus-within .pill-actions,
+.pill-wrap[data-open='true'] .pill-actions {
+  opacity: 1;
+  scale: 1;
+  pointer-events: auto;
+}
+.pill-wrap:hover .pill-stub,
+.pill-wrap:focus-within .pill-stub,
+.pill-wrap[data-open='true'] .pill-stub {
+  opacity: 0;
+}
+@media (hover: none) {
+  .pill-wrap .pill-actions {
+    opacity: 1;
+    scale: 1;
+    pointer-events: auto;
+  }
+  .pill-wrap .pill-stub {
+    opacity: 0;
+  }
+}
+
+.live-dot {
+  box-shadow: 0 0 0 0 rgb(69 212 131 / 0.5);
+  animation: live 2s ease-out infinite;
+}
+@keyframes live {
+  70% {
+    box-shadow: 0 0 0 6px rgb(69 212 131 / 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgb(69 212 131 / 0);
+  }
+}
+
+input[type='date']::-webkit-calendar-picker-indicator {
+  filter: invert(0.7);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
