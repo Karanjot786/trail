@@ -6,6 +6,9 @@ import { Header } from './components/Header'
 import { Login } from './components/Login'
 import { FilterChips } from './components/FilterChips'
 import { Dashboard } from './Dashboard'
+import { TabStrip } from './components/TabStrip'
+import { VisitorsView } from './components/VisitorsView'
+import { JourneyView } from './components/JourneyView'
 
 export function App() {
   const [authed, setAuthed] = useState(true)
@@ -41,8 +44,19 @@ function Shell({ sites }: { sites: Site[] }) {
   return (
     <div className="mx-auto flex w-full max-w-[1200px] flex-col gap-6 px-4 py-5 sm:px-6 sm:py-6">
       <Header sites={sites} />
-      <FilterChips />
-      <Dashboard />
+      <nav className="-mt-2 flex h-10 border-b border-border" aria-label="Views">
+        <TabStrip
+          label="Views"
+          tabs={[
+            { value: 'overview', label: 'Overview' },
+            { value: 'visitors', label: 'Visitors' },
+          ]}
+          value={d.view}
+          onChange={(view) => d.set({ view, person: '' }, { push: true })}
+        />
+      </nav>
+      {!d.person && <FilterChips />}
+      {d.person ? <JourneyView person={d.person} /> : d.view === 'visitors' ? <VisitorsView /> : <Dashboard />}
     </div>
   )
 }

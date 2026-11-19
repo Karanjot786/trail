@@ -211,7 +211,7 @@ function generate(site: Site, now: number): Ev[] {
 
   // A few people on the site right now.
   for (let i = 0; i < (site.id === 'reelcn' ? 4 : 1); i++) {
-    const anon = `live-${site.id}-${i}`
+    const anon = `0193${hex(r, 4)}-${hex(r, 4)}-7${hex(r, 3)}-${hex(r, 4)}-${hex(r, 12)}`
     session({ anon, person: anon, identified: false, country: i % 2 ? 'IN' : 'US', ...device(r) }, now - (1 + i) * MIN, { paths: ['/'] })
   }
 
