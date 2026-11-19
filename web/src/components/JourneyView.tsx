@@ -12,7 +12,8 @@ import { shortPerson } from './VisitorsView'
 export function JourneyView({ person }: { person: string }) {
   const d = useDashboard()
   const { data: sessions } = useFetch(`journey|${d.site}|${person}`, (s) => api.journey(d.site, person, s))
-  const identified = !!sessions?.some((s) => s.steps.some((st) => st.type === 'identify' && st.name === person))
+  // person resolves to the user_id once any of its anon ids identified, so any identify step means identified
+  const identified = !!sessions?.some((s) => s.steps.some((st) => st.type === 'identify'))
   const days = sessions ? groupByDay(sessions, TZ) : []
 
   return (

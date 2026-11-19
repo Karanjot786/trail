@@ -69,7 +69,7 @@ function KpiTab({
       )}
     >
       <span className={cn('truncate text-sm font-medium sm:text-base', selected ? 'text-fg' : 'text-muted')}>{label}</span>
-      <span className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1.5">
+      <span className="flex min-w-0 flex-wrap items-center lg:flex-nowrap gap-x-4 gap-y-1.5">
         <span className="num text-[28px] font-semibold leading-none tracking-[-0.03em] text-fg sm:text-[44px]">
           {stats ? text : <span className="inline-block h-[1em] w-14 rounded-md bg-raised align-middle" />}
         </span>
