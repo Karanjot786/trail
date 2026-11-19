@@ -1,0 +1,36 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+*{margin:0;box-sizing:border-box}
+body{width:1280px;height:640px;background:#000;color:#ededed;font-family:"Geist","Inter",-apple-system,"SF Pro Display",system-ui,sans-serif;overflow:hidden;position:relative}
+.grid{position:absolute;inset:0;background-image:linear-gradient(#ffffff0a 1px,transparent 1px),linear-gradient(90deg,#ffffff0a 1px,transparent 1px);background-size:64px 64px;mask-image:radial-gradient(ellipse at 70% 60%,#000 20%,transparent 75%)}
+.left{position:absolute;left:96px;top:0;bottom:0;display:flex;flex-direction:column;justify-content:center;gap:28px;width:620px}
+.brand{display:flex;align-items:center;gap:22px}
+.brand img{width:92px;height:92px}
+h1{font-size:96px;font-weight:600;letter-spacing:-.045em;line-height:1}
+p{font-size:30px;line-height:1.35;color:#a1a1a1;letter-spacing:-.01em}
+p b{color:#ededed;font-weight:500}
+.chips{display:flex;gap:10px;flex-wrap:wrap}
+.chip{font-size:18px;color:#a1a1a1;border:1px solid #ffffff1f;border-radius:999px;padding:8px 16px;background:#0a0a0a}
+.card{position:absolute;right:-40px;top:96px;width:560px;height:448px;border:1px solid #ffffff1a;border-radius:20px;background:#0a0a0a;padding:28px 32px}
+.kpis{display:flex;gap:40px;margin-bottom:22px}
+.k span{display:block;font-size:15px;color:#a1a1a1;margin-bottom:6px}
+.k strong{font-size:40px;font-weight:600;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+.k em{font-style:normal;font-size:14px;margin-left:8px;padding:3px 7px;border-radius:6px;color:#45d483;background:#0f2417;vertical-align:middle}
+</style></head><body>
+<div class="grid"></div>
+<div class="left">
+  <div class="brand"><img src="trail-mark-dark.svg" alt=""><h1>Trail</h1></div>
+  <p>Self-hosted web analytics that <b>follows the whole journey</b> — every visitor, every page, every return.</p>
+  <div class="chips"><span class="chip">2 KB tracker</span><span class="chip">One Go binary</span><span class="chip">SQLite</span><span class="chip">MIT</span></div>
+</div>
+<div class="card">
+  <div class="kpis"><div class="k"><span>Visitors</span><strong>893</strong><em>+24%</em></div><div class="k"><span>Page Views</span><strong>5,517</strong><em>+31%</em></div></div>
+  <svg width="500" height="300" viewBox="0 0 500 300">
+    <defs><linearGradient id="f" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0a72ef" stop-opacity=".28"/><stop offset="1" stop-color="#0a72ef" stop-opacity="0"/></linearGradient></defs>
+    <g stroke="#ffffff10"><line x1="0" y1="60" x2="500" y2="60"/><line x1="0" y1="140" x2="500" y2="140"/><line x1="0" y1="220" x2="500" y2="220"/></g>
+    <path d="M0 230 L45 190 L90 205 L135 150 L180 170 L225 120 L270 140 L315 95 L360 115 L405 70 L450 85 L450 300 L0 300Z" fill="url(#f)"/>
+    <path d="M0 230 L45 190 L90 205 L135 150 L180 170 L225 120 L270 140 L315 95 L360 115 L405 70 L450 85" fill="none" stroke="#0a72ef" stroke-width="3" stroke-linejoin="round"/>
+    <path d="M450 85 L500 55" fill="none" stroke="#0a72ef" stroke-width="3" stroke-dasharray="6 6"/>
+    <circle cx="405" cy="70" r="6" fill="#0a72ef"/><circle cx="405" cy="70" r="12" fill="#0a72ef" fill-opacity=".2"/>
+  </svg>
+</div>
+</body></html>

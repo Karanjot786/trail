@@ -1,7 +1,14 @@
-# Trail
+<p align="center">
+  <img src="docs/banner.png" alt="Trail — self-hosted web analytics that follows the whole journey" width="100%">
+</p>
 
-[![CI](https://github.com/karanjot786/trail/actions/workflows/ci.yml/badge.svg)](https://github.com/karanjot786/trail/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+<p align="center">
+  <a href="https://github.com/karanjot786/trail/actions/workflows/ci.yml"><img src="https://github.com/karanjot786/trail/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT"></a>
+  <img src="https://img.shields.io/badge/tracker-2%20KB%20gzipped-0a72ef" alt="Tracker 2 KB gzipped">
+</p>
+
+# Trail
 
 Self-hosted web analytics for your own sites. One Go binary, SQLite storage, an embedded React dashboard and a tracker script under 2 KB gzipped.
 
