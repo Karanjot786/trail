@@ -105,9 +105,16 @@ ev AS (SELECT e.*, COALESCE(idm.user_id, e.anon_id) AS person, idm.user_id IS NO
 		if !ok {
 			return "", nil, fmt.Errorf("filter %q: %w", k, ErrBadDim)
 		}
-		if k == "event" {
+		switch k {
+		case "event":
 			// An event filter keeps whole sessions that fired the event.
 			sb.WriteString(" AND e.session_id IN (SELECT session_id FROM events WHERE site_id=? AND type='event' AND name=?)")
+			args = append(args, p.Site, p.Filters[k])
+			continue
+		case "referrer", "utm_source", "utm_medium", "utm_campaign":
+			// Sources are sent only on the landing pageview, so keep whole sessions
+			// that arrived from them; a row filter would make every session a bounce.
+			sb.WriteString(" AND e.session_id IN (SELECT session_id FROM events WHERE site_id=? AND " + col + "=?)")
 			args = append(args, p.Site, p.Filters[k])
 			continue
 		}

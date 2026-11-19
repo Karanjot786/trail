@@ -27,6 +27,9 @@ type server struct {
 	tz    *time.Location
 }
 
+// maxSpan caps a query range (ms) so series bucketing stays bounded.
+const maxSpan = 400 * 24 * 60 * 60 * 1000
+
 // errBadRequest marks client errors that map to 400.
 var errBadRequest = errors.New("bad request")
 
@@ -110,8 +113,8 @@ func (s *server) params(r *http.Request) (query.Params, error) {
 			*dst = n
 		}
 	}
-	if p.From > p.To {
-		return p, errors.New("from after to")
+	if p.From < 0 || p.From > p.To || p.To-p.From > maxSpan {
+		return p, errors.New("bad range: need 0 <= from <= to and at most 400 days")
 	}
 
 	for _, f := range q["f"] {

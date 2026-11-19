@@ -146,3 +146,12 @@ func TestAPIEmptySiteArrays(t *testing.T) {
 		}
 	}
 }
+
+func TestAPIRejectsHugeRange(t *testing.T) {
+	h := setup(t)
+	for _, q := range []string{"from=-9000000000000000000&to=0", "from=0&to=9000000000000000000", "from=-5&to=10"} {
+		if w := get(h, "/api/series?metric=visitors&site=s&"+q); w.Code != http.StatusBadRequest {
+			t.Errorf("%s: status %d, want 400", q, w.Code)
+		}
+	}
+}

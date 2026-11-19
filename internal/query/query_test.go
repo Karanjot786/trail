@@ -326,3 +326,15 @@ func TestEnvFilter(t *testing.T) {
 		t.Fatalf("visitors = %d", s.Visitors)
 	}
 }
+
+func TestSourceFilterKeepsSession(t *testing.T) {
+	land := pv("A", "sa", "/", t0)
+	land.RefHost = "google.com"
+	db := fixture(t, land, engage("A", "sa", t0+20000, 20000), pv("A", "sa", "/docs", t0+30000), pv("B", "sb", "/", t0))
+	p := around()
+	p.Filters = map[string]string{"referrer": "google.com"}
+	s := mustStats(t, db, p)
+	if s.Visitors != 1 || s.Pageviews != 2 || s.Bounce != 0 {
+		t.Fatalf("got %+v, want 1 visitor, 2 pageviews, bounce 0", s)
+	}
+}
