@@ -1,6 +1,15 @@
 # Trail
 
+[![CI](https://github.com/karanjot786/trail/actions/workflows/ci.yml/badge.svg)](https://github.com/karanjot786/trail/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 Self-hosted web analytics for your own sites. One Go binary, SQLite storage, an embedded React dashboard and a tracker script under 2 KB gzipped.
+
+![Trail dashboard](docs/overview.png)
+
+Follow any visitor across visits and devices — where they came from, every page in order, time on page, and the moment they signed up:
+
+![Visitor journey](docs/journey.png)
 
 ## Features
 
@@ -149,6 +158,10 @@ make clean
 
 The tracker is built from `tracker/t.ts` into `internal/ingest/t.js` and embedded in the binary; the dashboard is built into `web/dist` and embedded too.
 
+## Contributing
+
+Issues and PRs welcome — see [CONTRIBUTING.md](CONTRIBUTING.md) and the [Code of Conduct](CODE_OF_CONDUCT.md). Security issues: [SECURITY.md](SECURITY.md).
+
 ## License
 
-MIT, see [LICENSE](LICENSE).
+MIT © [Karanjot Singh](https://github.com/karanjot786). See [LICENSE](LICENSE).

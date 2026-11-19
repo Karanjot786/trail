@@ -10,3 +10,4 @@ playwright-report
 demo.db*
 demo.log
 demo-password.txt
+.superpowers/
