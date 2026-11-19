@@ -3,10 +3,9 @@ import { api, type Site } from './api'
 import { useDashboard } from './state'
 import { onUnauthorized, useFetch } from './useFetch'
 import { Header } from './components/Header'
-import { KpiTabs } from './components/KpiTabs'
-import { MainChart } from './components/MainChart'
 import { Login } from './components/Login'
-import { queryKey } from './state'
+import { FilterChips } from './components/FilterChips'
+import { Dashboard } from './Dashboard'
 
 export function App() {
   const [authed, setAuthed] = useState(true)
@@ -42,19 +41,8 @@ function Shell({ sites }: { sites: Site[] }) {
   return (
     <div className="mx-auto flex w-full max-w-[1200px] flex-col gap-6 px-4 py-5 sm:px-6 sm:py-6">
       <Header sites={sites} />
-      <Overview />
+      <FilterChips />
+      <Dashboard />
     </div>
-  )
-}
-
-function Overview() {
-  const d = useDashboard()
-  const stats = useFetch(queryKey(d.query, 'stats'), (s) => api.stats(d.query, s))
-  const series = useFetch(queryKey(d.query, 'series', d.metric), (s) => api.series(d.query, d.metric, s))
-  return (
-    <section className="overflow-hidden rounded-xl border border-border bg-black" aria-label="Overview">
-      <KpiTabs stats={stats.data} metric={d.metric} onChange={(metric) => d.set({ metric })} />
-      <MainChart series={series.data} metric={d.metric} />
-    </section>
   )
 }

@@ -11,7 +11,7 @@ export function SelectTrigger({ className, children, ...props }: React.Component
   return (
     <SelectPrimitive.Trigger
       className={cn(
-        'pressable flex h-10 items-center justify-between gap-3 rounded-lg border border-border bg-black px-3 text-[15px] text-fg outline-none',
+        'pressable flex h-10 items-center justify-between gap-3 whitespace-nowrap rounded-lg [&>span]:truncate border border-border bg-black px-3 text-[15px] text-fg outline-none',
         'transition-[background-color,border-color] duration-150 hover:bg-card focus-visible:ring-2 focus-visible:ring-ring data-[state=open]:bg-card',
         className,
       )}

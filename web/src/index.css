@@ -126,7 +126,7 @@ body {
 
 /* Top rows of a panel fade out at the bottom. */
 .fade-bottom {
-  mask-image: linear-gradient(to bottom, #000 calc(100% - 96px), transparent);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 64px), transparent 96%);
 }
 
 /* Hover pill: a collapsed outline that opens into the action pill on panel hover/focus. */

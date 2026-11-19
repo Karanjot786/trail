@@ -166,7 +166,9 @@ function generate(site: Site, now: number): Ev[] {
       const day = startOfDay(t)
       t = day + (9.5 + r() * 14) * HOUR
       if (t > now) t = now - r() * 6 * HOUR
-      session(p, t, identifies && v === visits - 1 ? { identifyAt: 0, paths: ['/signup', '/'], userId } : {})
+      const last = identifies && v === visits - 1
+      // Identified people either sign up (pricing → signup) or just log in on the home page.
+      session(p, t, last ? (r() < 0.45 ? { identifyAt: 1, paths: ['/pricing', '/signup'], userId } : { identifyAt: 0, paths: ['/'], userId }) : {})
       t += (1 + r() * 9) * DAY
     }
     // Some identified persons also come back on a second device (anon merge through user_id).
@@ -241,14 +243,15 @@ const DIM_FIELD: Record<Dim, (e: Ev) => string> = {
 }
 
 function select(q: Query, from = q.from, to = q.to): Ev[] {
-  const fs = Object.entries(q.filters).filter(([, v]) => v != null) as [Dim, string][]
-  return events(q.site).filter(
-    (e) =>
-      e.ts >= from &&
-      e.ts <= to &&
-      (q.env === 'all' || e.env === q.env) &&
-      fs.every(([d, v]) => DIM_FIELD[d](e) === v),
+  // Row filters on every dim except `event`, which keeps whole sessions that fired it (as the server does).
+  const fs = Object.entries(q.filters).filter(([d, v]) => v != null && d !== 'event') as [Dim, string][]
+  const inRange = events(q.site).filter(
+    (e) => e.ts >= from && e.ts <= to && (q.env === 'all' || e.env === q.env) && fs.every(([d, v]) => DIM_FIELD[d](e) === v),
   )
+  const ev = q.filters.event
+  if (ev == null) return inRange
+  const sessions = new Set(inRange.filter((e) => e.type === 'event' && e.name === ev).map((e) => e.session))
+  return inRange.filter((e) => sessions.has(e.session))
 }
 
 function totals(evs: Ev[]) {
