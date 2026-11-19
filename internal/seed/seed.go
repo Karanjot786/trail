@@ -154,6 +154,10 @@ func Seed(s *store.Store, sites []string, days, persons int, now time.Time, rng 
 			ev.RefURL = ref
 			ev.RefHost = enrich.RefHost(ref, host)
 			nViews := 1 + rng.IntN(6)
+			bouncy := rng.IntN(100) < 40 // single short pageview, like real bounces
+			if bouncy {
+				nViews = 1
+			}
 			for v := range nViews {
 				if ts > end {
 					break
@@ -171,6 +175,9 @@ func Seed(s *store.Store, sites []string, days, persons int, now time.Time, rng 
 				w.add(pv)
 
 				engaged := 1000 + rng.IntN(120000)
+				if bouncy {
+					engaged = 500 + rng.IntN(8000)
+				}
 				eg := pv
 				eg.Type, eg.TS = "engage", ts+int64(engaged)
 				eg.RefURL, eg.RefHost = "", ""
