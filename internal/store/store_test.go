@@ -51,10 +51,17 @@ func TestBatchAt500(t *testing.T) {
 	for range 500 {
 		s.Enqueue(ev("pageview"))
 	}
-	time.Sleep(50 * time.Millisecond)
-	if n := count(t, s, "SELECT count(*) FROM events"); n != 500 {
-		t.Fatalf("got %d rows, want 500", n)
+	// The 1 s timer must not be what flushes: poll well under it.
+	// (50 ms per the plan; the race detector makes 500 inserts slower than that.)
+	deadline := time.Now().Add(500 * time.Millisecond)
+	n := 0
+	for time.Now().Before(deadline) {
+		if n = count(t, s, "SELECT count(*) FROM events"); n == 500 {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
+	t.Fatalf("got %d rows within 500ms, want 500", n)
 }
 
 func TestIdentifyWritesMap(t *testing.T) {
