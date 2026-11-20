@@ -64,7 +64,83 @@ func New(db *sql.DB, sites map[string]string, tz *time.Location) http.Handler {
 		}
 		return query.Journey(s.db, p.Site, person)
 	}))
+	mux.HandleFunc("GET /api/goals/report", s.handle(func(p query.Params, _ *http.Request) (any, error) {
+		return query.GoalReport(s.db, p)
+	}))
+	mux.HandleFunc("GET /api/delivery", s.handle(func(p query.Params, _ *http.Request) (any, error) {
+		return query.Delivery(s.db, p)
+	}))
+	mux.HandleFunc("GET /api/goals", s.listGoals)
+	mux.HandleFunc("POST /api/goals", s.createGoal)
+	mux.HandleFunc("DELETE /api/goals/{id}", s.deleteGoal)
 	return mux
+}
+
+// maxGoalBody caps a goal create body; a valid goal is well under 1 KB.
+const maxGoalBody = 4 << 10
+
+func (s *server) listGoals(w http.ResponseWriter, r *http.Request) {
+	site := r.URL.Query().Get("site")
+	if _, ok := s.sites[site]; !ok {
+		http.Error(w, "unknown site", http.StatusBadRequest)
+		return
+	}
+	goals, err := query.ListGoals(s.db, site)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	writeJSON(w, goals)
+}
+
+func (s *server) createGoal(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Site, Name, Kind, Match string
+	}
+	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxGoalBody))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&in); err != nil {
+		http.Error(w, "bad body", http.StatusBadRequest)
+		return
+	}
+	if _, ok := s.sites[in.Site]; !ok {
+		http.Error(w, "unknown site", http.StatusBadRequest)
+		return
+	}
+	g, err := query.CreateGoal(s.db, in.Site, query.Goal{Name: in.Name, Kind: in.Kind, Match: in.Match})
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	w.WriteHeader(http.StatusCreated)
+	writeJSON(w, g)
+}
+
+func (s *server) deleteGoal(w http.ResponseWriter, r *http.Request) {
+	site := r.URL.Query().Get("site")
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if _, ok := s.sites[site]; !ok || err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+	if err := query.DeleteGoal(s.db, site, id); err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// fail maps err to 400, 404 or 500.
+func (s *server) fail(w http.ResponseWriter, r *http.Request, err error) {
+	switch {
+	case errors.Is(err, errBadRequest) || errors.Is(err, query.ErrBadDim) || errors.Is(err, query.ErrBadGoal):
+		http.Error(w, err.Error(), http.StatusBadRequest)
+	case errors.Is(err, query.ErrGoalNotFound):
+		http.Error(w, err.Error(), http.StatusNotFound)
+	default:
+		log.Printf("api %s: %v", r.URL.Path, err)
+		http.Error(w, "internal error", http.StatusInternalServerError)
+	}
 }
 
 // handle parses common params, runs fn, and maps errors to 400 or 500.
@@ -76,15 +152,11 @@ func (s *server) handle(fn func(query.Params, *http.Request) (any, error)) http.
 			return
 		}
 		v, err := fn(p, r)
-		switch {
-		case errors.Is(err, errBadRequest) || errors.Is(err, query.ErrBadDim):
-			http.Error(w, err.Error(), http.StatusBadRequest)
-		case err != nil:
-			log.Printf("api %s: %v", r.URL.Path, err)
-			http.Error(w, "internal error", http.StatusInternalServerError)
-		default:
-			writeJSON(w, v)
+		if err != nil {
+			s.fail(w, r, err)
+			return
 		}
+		writeJSON(w, v)
 	}
 }
 

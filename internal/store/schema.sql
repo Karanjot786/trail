@@ -42,3 +42,13 @@ CREATE INDEX IF NOT EXISTS events_site_ts ON events(site_id, ts);
 CREATE INDEX IF NOT EXISTS events_site_anon_ts ON events(site_id, anon_id, ts);
 CREATE INDEX IF NOT EXISTS events_site_user_ts ON events(site_id, user_id, ts);
 CREATE INDEX IF NOT EXISTS events_site_session ON events(site_id, session_id);
+
+CREATE TABLE IF NOT EXISTS goals(
+  id INTEGER PRIMARY KEY,
+  site_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  kind TEXT NOT NULL CHECK(kind IN('page','event')),
+  match TEXT NOT NULL,
+  created INTEGER NOT NULL,
+  UNIQUE(site_id,name)
+);

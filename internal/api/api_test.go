@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -20,6 +21,11 @@ func setup(t *testing.T) http.Handler {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = st.Close() })
+	// ponytail: remove once the ingest migration in store.go adds events.retry.
+	if _, err := st.DB().Exec(`ALTER TABLE events ADD COLUMN retry INTEGER NOT NULL DEFAULT 0`); err != nil &&
+		!strings.Contains(err.Error(), "duplicate column") {
+		t.Fatal(err)
+	}
 	now := time.Now().UnixMilli()
 	st.Enqueue(store.Event{SiteID: "s", Type: "pageview", AnonID: "A", SessionID: "x", Path: "/", TS: now - 1000, Env: "production"})
 	if err := st.Flush(); err != nil {
@@ -153,5 +159,98 @@ func TestAPIRejectsHugeRange(t *testing.T) {
 		if w := get(h, "/api/series?metric=visitors&site=s&"+q); w.Code != http.StatusBadRequest {
 			t.Errorf("%s: status %d, want 400", q, w.Code)
 		}
+	}
+}
+
+func send(h http.Handler, method, url, body string) *httptest.ResponseRecorder {
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, httptest.NewRequest(method, url, bytes.NewBufferString(body)))
+	return w
+}
+
+func TestAPIGoals(t *testing.T) {
+	h := setup(t)
+	w := send(h, http.MethodPost, "/api/goals", `{"site":"s","name":"Pricing","kind":"page","match":"/pricing*"}`)
+	if w.Code != http.StatusCreated {
+		t.Fatalf("create: %d %s", w.Code, w.Body)
+	}
+	var g struct {
+		ID                int64
+		Name, Kind, Match string
+	}
+	decodeStrict(t, w.Body.Bytes(), &g)
+	if g.ID == 0 || g.Name != "Pricing" || g.Kind != "page" || g.Match != "/pricing*" {
+		t.Fatalf("created = %+v", g)
+	}
+
+	w = get(h, "/api/goals?site=s")
+	if w.Code != 200 || !bytes.Contains(w.Body.Bytes(), []byte(`"name":"Pricing"`)) {
+		t.Fatalf("list: %d %s", w.Code, w.Body)
+	}
+	if w := get(h, "/api/goals?site=b"); w.Code != 200 || string(bytes.TrimSpace(w.Body.Bytes())) != "[]" {
+		t.Fatalf("other site list: %d %s", w.Code, w.Body)
+	}
+
+	for _, body := range []string{
+		`not json`, `{"site":"s","name":"","kind":"page","match":"/x"}`, `{"site":"s","name":"x","kind":"nope","match":"/x"}`,
+		`{"site":"s","name":"Pricing","kind":"page","match":"/x"}`, `{"site":"unknown","name":"x","kind":"page","match":"/x"}`,
+		`{"site":"s","name":"x","kind":"page","match":"/x","extra":1}`,
+	} {
+		if w := send(h, http.MethodPost, "/api/goals", body); w.Code != http.StatusBadRequest {
+			t.Errorf("%s: status %d, want 400", body, w.Code)
+		}
+	}
+
+	id := fmt.Sprint(g.ID)
+	if w := send(h, http.MethodDelete, "/api/goals/"+id+"?site=b", ""); w.Code != http.StatusNotFound {
+		t.Errorf("delete other site's goal: %d, want 404", w.Code)
+	}
+	if w := send(h, http.MethodDelete, "/api/goals/abc?site=s", ""); w.Code != http.StatusBadRequest {
+		t.Errorf("delete bad id: %d, want 400", w.Code)
+	}
+	if w := send(h, http.MethodDelete, "/api/goals/"+id+"?site=s", ""); w.Code != http.StatusNoContent {
+		t.Errorf("delete: %d, want 204", w.Code)
+	}
+	if w := send(h, http.MethodDelete, "/api/goals/"+id+"?site=s", ""); w.Code != http.StatusNotFound {
+		t.Errorf("delete twice: %d, want 404", w.Code)
+	}
+}
+
+func TestAPIGoalReportAndDeliveryShape(t *testing.T) {
+	h := setup(t)
+	send(h, http.MethodPost, "/api/goals", `{"site":"s","name":"Home","kind":"page","match":"/"}`)
+	w := get(h, "/api/goals/report?"+rng())
+	if w.Code != 200 {
+		t.Fatalf("report: %d %s", w.Code, w.Body)
+	}
+	var rows []struct {
+		ID                    int64
+		Name, Kind, Match     string
+		Conversions, Visitors int
+		Rate                  float64
+		Prev                  struct {
+			Conversions, Visitors int
+			Rate                  float64
+		}
+	}
+	decodeStrict(t, w.Body.Bytes(), &rows)
+	if len(rows) != 1 || rows[0].Conversions != 1 || rows[0].Visitors != 1 || rows[0].Rate != 1 {
+		t.Fatalf("rows = %+v", rows)
+	}
+	if w := get(h, "/api/goals/report?site=unknown"); w.Code != http.StatusBadRequest {
+		t.Errorf("unknown site: %d", w.Code)
+	}
+
+	w = get(h, "/api/delivery?"+rng())
+	if w.Code != 200 {
+		t.Fatalf("delivery: %d %s", w.Code, w.Body)
+	}
+	var d struct {
+		Events, Retried int
+		RetriedRate     float64
+	}
+	decodeStrict(t, w.Body.Bytes(), &d)
+	if d.Events != 1 || d.Retried != 0 {
+		t.Fatalf("delivery = %+v", d)
 	}
 }
