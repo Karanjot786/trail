@@ -1,19 +1,52 @@
 ---
-// STUB (A0): links and meta line. A2 replaces it with the dot-letter footer.
+// Dot-letter footer. The word is build-time SVG (scripts/art, footer-word.svg) whose ink starts at x = 0,
+// so inside .wrap its left edge lines up with the first footer link. On entering view (reveal.ts sets
+// data-inview) the 12 dot groups fade in one after another, then the footsteps under the T land.
+// No JS or reduced motion: everything is simply there.
+import '../../styles/chrome.css'
 import { footer } from '../../copy/landing'
 import { svg } from '../../lib/art'
+import { GITHUB_URL } from '../../config'
 ---
 <footer class="site-foot" data-reveal-self>
   <div class="wrap">
     <div class="foot-word" aria-hidden="true" set:html={svg.footerWord} />
-    <nav aria-label="Footer"><ul class="foot-links">{footer.links.map((l) => <li><a href={l.href}>{l.text}</a></li>)}</ul></nav>
-    <p class="foot-meta">{footer.meta}</p>
+    <nav class="foot-links" aria-label="Footer">
+      <ul>{footer.links.map((l) => <li><a href={l.href}>{l.text}</a></li>)}</ul>
+    </nav>
+    <p class="foot-meta">
+      <span>{footer.meta}</span>
+      <a class="foot-repo" href={GITHUB_URL}>
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" fill-rule="evenodd" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
+        {footer.repoLabel}
+      </a>
+    </p>
   </div>
 </footer>
+
 <style>
-  .site-foot{background:var(--deep);color:#fff;padding-block:40px;overflow:hidden}
+  .site-foot{--chrome-fg:#fff;--chrome-muted:rgb(255 255 255 / .8);position:relative;isolation:isolate;overflow:hidden;background:var(--deep);color:#fff}
+  /* top room as in the prototype; the bottom padding (a % of the width) holds the footsteps under the T */
+  .foot-word{padding-block:clamp(28px,3.4vw,48px) 15%}
   .foot-word :global(svg){display:block;width:100%;height:auto;overflow:visible}
-  .foot-links{display:flex;gap:28px;list-style:none;flex-wrap:wrap;padding-block:28px 12px;border-top:1px solid rgb(255 255 255 / .25)}
-  .foot-links a{text-decoration:none;font-size:15px}
-  .foot-meta{font-size:14px}
+  .foot-links{border-top:1px solid rgb(255 255 255 / .25);padding-top:16px}
+  .foot-links ul{display:flex;flex-wrap:wrap;column-gap:28px;list-style:none}
+  /* 44px tall targets with no side padding, so the first link's text starts on the word's ink edge */
+  .foot-links a{display:inline-flex;align-items:center;min-height:44px;font-size:15px;text-decoration:underline 1px transparent;text-underline-offset:4px;transition:text-decoration-color 160ms ease}
+  @media (hover:hover) and (pointer:fine){.foot-links a:hover{text-decoration-color:currentColor}}
+  .foot-meta{padding-bottom:32px}
+
+  /* assembly: dots group by group, then the footsteps one after another; plays once and stays */
+  @media (prefers-reduced-motion:no-preference){
+    :global(.js) .site-foot :global(path.fw-dots),
+    :global(.js) .site-foot :global(.fw-step){opacity:0}
+    :global(.js) .site-foot[data-inview] :global(path.fw-dots){animation:fw-dots 420ms var(--ease-out) both;animation-delay:calc(var(--g,0) * 70ms)}
+    :global(.js) .site-foot[data-inview] :global(.fw-step){animation:fw-step 360ms var(--ease-out) both;animation-delay:calc(900ms + var(--i,0) * 140ms)}
+  }
+  @keyframes fw-dots{from{opacity:0}to{opacity:1}}
+  @keyframes fw-step{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+  @media (max-width:700px){
+    .foot-links ul{column-gap:20px}
+    .foot-meta{padding-bottom:24px}
+  }
 </style>
