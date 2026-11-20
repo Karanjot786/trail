@@ -34,7 +34,7 @@ test('star pill without a count', async ({ page }) => {
   if (STARS_OFF || text === '') {
     expect(text).toBe('')
     await expect(count).toHaveCSS('display', 'none')
-    await expect(page.locator('.site-head .gh')).toHaveAttribute('aria-label', 'Star Trail on GitHub')
+    await expect(page.locator('.site-head .gh')).toHaveAttribute('aria-label', 'GitHub Star')
   } else {
     expect(text).toMatch(/^· \d+(\.\d)?K?$/)
   }
