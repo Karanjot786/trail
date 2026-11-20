@@ -63,12 +63,29 @@ Open the host in a browser and log in with `TRAIL_PASSWORD`. Run Trail behind HT
 | `TRAIL_PASSWORD` | none, required | Dashboard login password |
 | `TRAIL_DB` | `trail.db` (`/data/trail.db` in Docker) | SQLite file path |
 | `TRAIL_ADDR` | `:8080` | Listen address |
-| `TRAIL_SITES` | empty | `id=domain,id2=domain2`. Events for unknown site ids are rejected |
+| `TRAIL_SITES` | empty | Optional `id=domain,id2=domain2`, added at startup if missing. Sites edited in the dashboard keep their edits. You can also add sites in **Settings** |
+| `TRAIL_INGEST_RPS` | `50` | Events requests per second per client IP on `/_t/e`, burst twice that. Over the limit is `429`. `0` turns it off |
 | `TRAIL_TZ` | `Asia/Kolkata` | Timezone for daily buckets |
 | `TRAIL_GEO_DB` | unset | Path to a DB-IP Lite City `.mmdb`. Without it, country is empty |
 | `TRAIL_SECRET` | random per start | Signs session cookies (32+ chars). Set it so logins survive restarts |
 | `TRAIL_API_TOKENS` | unset | `name:token:scope,...` for the read API and MCP. Scope `read` or `write`; tokens of 24+ chars |
 | `TRAIL_DEMO` | unset | `1` serves a read-only demo with generated data at `/demo` |
+
+## Add a site
+
+Open **Settings** in the dashboard and click **Add site**. Paste the domain the site runs on; the site id is suggested from it (it goes in `data-site` and can't be changed later). The site's **Install** panel has copy-ready code for a script tag, npm, Next.js, React and a Vercel rewrite, filled in with the site id and your Trail host. It then polls the server every 3 seconds and shows "Waiting for the first event…" until the first event lands.
+
+Deleting a site stops ingest at once and keeps its data, so adding the same id again brings it back. Tick "also delete data" to remove its events, goals and identities in one go. The same routes are on the API: `GET/POST /api/v1/sites`, `PATCH/DELETE /api/v1/sites/{id}` (`?purge=1` deletes data) and `GET /api/v1/sites/{id}/status`; changes need a `write` token.
+
+## Allowed origins
+
+`/_t/e` accepts events for a site only from a browser page on an allowed host. Trail reads the `Origin` header, or the `Referer` host when there is no `Origin`, and allows:
+
+- the site's domain and any subdomain of it (`example.com`, `www.example.com`; not `evil-example.com`);
+- each entry in the site's allowed origins: an exact host like `staging.example.org`, or `*.vercel.app` for every subdomain of `vercel.app` (Vercel preview deployments). Up to 20;
+- `localhost`, `127.0.0.1` and `[::1]`, so local development works.
+
+Anything else gets an empty `403`, and the dashboard warns that events were rejected (counted in memory per site, for about the last 24 hours). A request with neither header is refused too; server-side sending will use a per-site secret key in a later release. A `/_t/*` rewrite on your own domain still works: the browser sends your domain as the `Origin`. Edit a site's list in **Settings → ⋯ → Allowed origins**.
 
 ## Adding Trail to a site
 
@@ -96,7 +113,7 @@ Then add the script:
 <script defer src="/_t/t.js" data-site="mysite"></script>
 ```
 
-`data-site` must match an id in `TRAIL_SITES`. The tracker does nothing on `localhost` unless `data-dev` is set.
+`data-site` must match a site id from **Settings** (or `TRAIL_SITES`). The tracker does nothing on `localhost` unless `data-dev` is set.
 
 ### With npm
 
@@ -218,7 +235,7 @@ curl -H "Authorization: Bearer $TOKEN" "https://stats.example.com/api/v1/stats?s
 # {"visitors":1,"pageviews":1,"bounce":1,"prev":{"visitors":0,"pageviews":0,"bounce":0},"online":1}
 ```
 
-Routes: `sites`, `stats`, `series`, `breakdown`, `visitors`, `journey`, `goals`, `goals/report`, `delivery`. Creating or deleting goals needs a `write` token. 300 requests per minute per token.
+Routes: `sites`, `stats`, `series`, `breakdown`, `visitors`, `journey`, `goals`, `goals/report`, `delivery`. Creating or deleting goals and sites needs a `write` token. 300 requests per minute per token.
 
 MCP: `POST /mcp` speaks the Model Context Protocol over streamable HTTP, with tools `list_sites`, `get_stats`, `get_series`, `get_breakdown`, `list_visitors`, `get_journey` and `goal_report`.
 
