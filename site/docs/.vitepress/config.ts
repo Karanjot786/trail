@@ -4,6 +4,7 @@ import { DEMO_URL, DOCS_BASE, GITHUB_URL, SITE_URL } from './site'
 import { sidebar } from './sidebar'
 import { head, transformHead, sitemap } from './seo'
 import { llms } from './llms'
+import { formatStars, getStars } from '../../src/lib/github-stars.mjs'
 
 export default defineConfig<DefaultTheme.Config>({
   base: DOCS_BASE,
@@ -26,7 +27,12 @@ export default defineConfig<DefaultTheme.Config>({
     plugins: llms(),
     server: { host: '127.0.0.1' },
     // src/config.ts reads process.env, which does not exist in the browser.
-    define: { 'process.env.SITE_URL': JSON.stringify(SITE_URL), 'process.env.TRAIL_DEMO_URL': JSON.stringify(DEMO_URL) },
+    define: {
+      'process.env.SITE_URL': JSON.stringify(SITE_URL),
+      'process.env.TRAIL_DEMO_URL': JSON.stringify(DEMO_URL),
+      // GitHub star count for the header button, fetched once per build ('' = plain "Star").
+      __TRAIL_STARS__: JSON.stringify(formatStars(await getStars())),
+    },
     resolve: {
       alias: [
         { find: /^.*\/VPNavBar\.vue$/, replacement: fileURLToPath(new URL('./theme/TrailNavBar.vue', import.meta.url)) },

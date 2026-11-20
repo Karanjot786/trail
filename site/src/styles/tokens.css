@@ -16,5 +16,13 @@
   --mono: 'Geist Mono Variable', ui-monospace, monospace;
   --ease: cubic-bezier(0.23, 1, 0.32, 1);
   --gutter: 24px;
+  /* site chrome (chrome.css); the landing sets Blue Ground values in blue-ground.css */
+  --chrome-fg: var(--fg);
+  --chrome-muted: var(--muted);
+  --gh-bg: #161616;
+  --gh-bg-hover: #1f1f1f;
+  --gh-fg: var(--fg);
+  --gh-star-bg: rgb(255 255 255 / 0.08);
+  --gh-edge: inset 0 0 0 1px var(--line-strong);
   color-scheme: dark;
 }
