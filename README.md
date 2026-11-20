@@ -197,7 +197,7 @@ Measured, not promised. Sizes are gzip level 9; timings are the median of 15 run
 | File | Gzipped | Script at load | Heap added | Requests per pageview |
 |---|---|---|---|---|
 | `t.p.js`, private only | 1,490 B | 1.33 ms | 117 KB | 2 |
-| `t.js`, all modes, default private until consent | 2,048 B | 1.61 ms | 120 KB | 2 |
+| `t.js`, all modes, default private until consent | 2,040 B | 1.61 ms | 120 KB | 2 |
 | `t.js` with `data-mode="full"` | same file | 2.15 ms | 126 KB | 2 |
 | `t.x.js`, extras loaded on demand | 740 B | — | — | — |
 

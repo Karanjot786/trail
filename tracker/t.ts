@@ -26,7 +26,7 @@ declare const MODE: string;
     MODE == 'full'
       ? (k, v) => {
           try {
-            return (localStorage as any)[v === undefined ? 'getItem' : v ? 'setItem' : 'removeItem'](k, v); // v '': remove
+            return (localStorage as any)[v == null ? 'getItem' : v ? 'setItem' : 'removeItem'](k, v); // v '': remove
           } catch {}
         }
       : (0 as any);
@@ -53,7 +53,7 @@ declare const MODE: string;
     MODE == 'full'
       ? (v) => {
           a = v;
-          d.cookie = `_t_id=${v};Max-Age=31536000;Path=/;SameSite=Lax`;
+          d.cookie = `_t_id=${v};Max-Age=${v ? 31536000 : 0};Path=/;SameSite=Lax`; // '' deletes
           ls('_t_id', v);
         }
       : (0 as any);
@@ -158,7 +158,7 @@ declare const MODE: string;
   };
   const hide = () => (vis() ? ((left = 0), (t0 = Date.now()), arm()) : leave());
 
-  const rot = MODE == 'full' ? () => (setA(uuid()), (S = {})) : (0 as any);
+  const rot = MODE == 'full' ? () => (setA(uuid()), (S = {}), (U = undefined), ls('_t_u', '')) : (0 as any);
   // upgrade to full mode: t.js default mode only, never over a denial
   const grant = () => MODE == 'full' && st && !full && !stop && (ls('_t_c', '1'), up());
   // t.p.js: identify/reset do nothing, consent(false) stops this page only (it stores nothing)
@@ -172,7 +172,7 @@ declare const MODE: string;
       ls('_t_u', (U = '' + id)); // string, or the server rejects the batch
       send('identify');
     },
-    reset: () => MODE == 'full' && full && (rot(), (U = undefined), ls('_t_u', '')),
+    reset: () => MODE == 'full' && full && rot(),
     consent: (g: boolean) => {
       stop = !g;
       if (g) grant();
@@ -181,7 +181,7 @@ declare const MODE: string;
         // data-mode="private" (st false) stops this page only and touches no storage
         full = a = '';
         U = undefined;
-        d.cookie = '_t_id=;Max-Age=0;Path=/';
+        setA('');
         for (const k of ['_t_id', '_t_s', '_t_u', '_t_q']) ls(k, '');
         ls('_t_c', '0');
       }
