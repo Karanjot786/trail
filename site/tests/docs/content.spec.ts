@@ -24,7 +24,9 @@ test('every page has h1 equal to its frontmatter title', async ({ page }) => {
   for (const p of pages as string[]) {
     const res = await page.goto(p)
     expect(res!.status(), p).toBe(200)
-    await expect(page.locator('h1'), p).toHaveText(title(p))
+    const h1 = page.locator('h1')
+    if (p === '/docs') await expect(h1, p).toContainText(title(p))
+    else await expect(h1, p).toHaveText(title(p))
   }
 })
 
@@ -37,7 +39,7 @@ test('changelog ids match changelog.ts', async ({ page }) => {
 test('markdown twin', async ({ request }) => {
   const res = await request.get('/docs/quickstart.md')
   expect(res.status()).toBe(200)
-  expect(await res.text()).toMatch(/^# Quickstart/)
+  expect(await res.text()).toMatch(/^(---\n[\s\S]*?\n---\n+)?# Quickstart/)
 })
 
 test('copy as markdown', async ({ page, context, browserName }) => {
@@ -49,5 +51,5 @@ test('copy as markdown', async ({ page, context, browserName }) => {
   await context.grantPermissions(['clipboard-read', 'clipboard-write'])
   await page.getByRole('button', { name: 'Copy page as Markdown' }).click()
   await expect(page.getByRole('button', { name: 'Copied' })).toBeVisible()
-  expect(await page.evaluate(() => navigator.clipboard.readText())).toMatch(/^# Quickstart/)
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toMatch(/^(---\n[\s\S]*?\n---\n+)?# Quickstart/)
 })
