@@ -372,6 +372,47 @@ test.describe('delivery: batching, beacon, retry', () => {
     expect(await page.evaluate(() => localStorage.getItem('_t_q'))).toBeNull();
   });
 
+  test('consent(false) queued before load stops the persisted-queue resend', async ({ page }) => {
+    await page.route('**/_t/e', (r) => r.abort());
+    await page.goto('/full.html');
+    await expect.poll(() => page.evaluate(() => localStorage.getItem('_t_q'))).toContain('pageview');
+    await page.unroute('**/_t/e');
+    const c = await capture(page);
+    await page.addInitScript(() => ((window as any).trailq = [['consent', false]]));
+    await page.reload();
+    await page.waitForTimeout(300);
+    expect(c.reqs).toHaveLength(0);
+    expect(await page.evaluate(() => localStorage.getItem('_t_q'))).toBeNull();
+  });
+
+  test('deny then grant: a send that fails during the denial is never retried', async ({ page }) => {
+    await page.clock.install();
+    let release!: () => void;
+    const held = new Promise<void>((r) => (release = r));
+    const sent: Ev[] = [];
+    let first = true;
+    await page.route('**/_t/e', async (route) => {
+      if (first) {
+        first = false;
+        await held;
+        return route.abort();
+      }
+      sent.push(...[].concat(JSON.parse(route.request().postData() ?? 'null')));
+      await route.fulfill({ status: 204 });
+    });
+    await page.goto('/full.html');
+    await expect.poll(() => first).toBe(false); // pageview in flight
+    await trail(page, 'consent', false);
+    release();
+    await page.waitForTimeout(200); // the failure lands while denied
+    await trail(page, 'consent', true);
+    await trail(page, 'track', 'after');
+    await page.clock.runFor(60000);
+    await hide(page);
+    await expect.poll(() => sent.filter((e) => e.n === 'after').length).toBe(1);
+    expect(sent.filter((e) => e.t === 'pageview')).toEqual([]);
+  });
+
   test('no batch is larger than 50 events', async ({ page }) => {
     const c = await capture(page);
     await page.goto('/index.html');
@@ -430,14 +471,15 @@ test.describe('opt-in vitals and rage clicks (t.x.js)', () => {
   });
 });
 
-// Records every storage write: localStorage/sessionStorage setItem/removeItem and document.cookie sets.
+// Records every storage write (setItem/removeItem, document.cookie sets) in __w and every getItem in __r.
 const spy = () => {
   const w = window as any;
   w.__w = [];
-  for (const k of ['setItem', 'removeItem'] as const) {
+  w.__r = []; // reads (getItem) go here, apart from writes
+  for (const k of ['getItem', 'setItem', 'removeItem'] as const) {
     const f = Storage.prototype[k];
     Storage.prototype[k] = function (this: Storage, ...a: any[]) {
-      w.__w.push(`${this === localStorage ? 'ls' : 'ss'}.${k}:${a[0]}`);
+      (k == 'getItem' ? w.__r : w.__w).push(`${this === localStorage ? 'ls' : 'ss'}.${k}:${a[0]}`);
       return (f as any).apply(this, a);
     };
   }
@@ -449,6 +491,7 @@ const spy = () => {
   });
 };
 const writes = (page: Page): Promise<string[]> => page.evaluate(() => (window as any).__w);
+const reads = (page: Page): Promise<string[]> => page.evaluate(() => (window as any).__r);
 const trail = (page: Page, m: string, ...a: any[]) => page.evaluate(([m, a]) => (window as any).trail[m](...a), [m, a] as const);
 
 test.describe('modes and consent', () => {
@@ -573,6 +616,19 @@ test.describe('modes and consent', () => {
     expect(c.events.every((e) => e.m === 'p' && e.a === '')).toBe(true);
     expect(c.of('identify')).toHaveLength(0); // the server rejects identify in private mode
     expect(await writes(page)).toEqual([]);
+  });
+
+  test('data-mode=private: no storage reads or writes, even after consent(false)', async ({ page }) => {
+    const c = await capture(page);
+    await page.goto('/private.html');
+    await expect.poll(() => c.of('pageview').length).toBe(1);
+    await trail(page, 'consent', false);
+    await trail(page, 'track', 'x');
+    await hide(page);
+    await page.waitForTimeout(100);
+    expect(c.of('event')).toHaveLength(0);
+    expect(await writes(page)).toEqual([]);
+    expect(await reads(page)).toEqual([]);
   });
 
   for (const [name, init] of [

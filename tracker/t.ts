@@ -22,11 +22,11 @@ declare const MODE: string;
   )
     return;
 
-  const ls: (k: string, v?: string | null) => any =
+  const ls: (k: string, v?: string) => any =
     MODE == 'full'
       ? (k, v) => {
           try {
-            return (localStorage as any)[v === undefined ? 'getItem' : v ? 'setItem' : 'removeItem'](k, v); // v null: remove
+            return (localStorage as any)[v === undefined ? 'getItem' : v ? 'setItem' : 'removeItem'](k, v); // v '': remove
           } catch {}
         }
       : (0 as any);
@@ -41,9 +41,11 @@ declare const MODE: string;
       : (0 as any);
 
   // consent: _t_c "1" = granted (upgraded), "0" = denied (send nothing, store nothing else)
-  const c0 = MODE == 'full' && ls('_t_c');
-  let stop = c0 === '0'; // ===: in t.p.js c0 is false, and false == '0'
-  let full: any = MODE == 'full' && !stop && (D.mode == 'full' || (D.mode != 'private' && c0 == '1'));
+  // data-mode="private" on t.js: never read or write storage, same as t.p.js
+  const st = MODE == 'full' && D.mode != 'private';
+  const c0 = st && ls('_t_c');
+  let stop = c0 === '0'; // ===: c0 can be false, and false == '0'
+  let full: any = st && !stop && (D.mode == 'full' || c0 == '1');
 
   // identity (full mode only): cookie wins over localStorage; both are (re)written
   let a = '', U: string | undefined, S: any = {};
@@ -83,7 +85,7 @@ declare const MODE: string;
   // mirrored in localStorage._t_q and resent on the next page load.
   let route: string | undefined;
   let q: any[] = [], F: any[] = [], tries = 0, rtm: any;
-  const save = () => MODE == 'full' && full && ls('_t_q', F.length ? JSON.stringify(F.slice(-50)) : null);
+  const save = () => MODE == 'full' && full && ls('_t_q', F.length ? JSON.stringify(F.slice(-50)) : '');
   const fail = (evs: any[]) => {
     for (const e of evs) e.rc = -~e.rc;
     F.push(...evs);
@@ -99,7 +101,7 @@ declare const MODE: string;
         if (/^5|408|429/.test(r.status as any)) throw 0;
         save(); // keeps _t_q in step with F (full mode)
       })
-      .catch(() => fail(evs));
+      .catch(() => stop || fail(evs)); // a failure landing after a denial is dropped
   const flush = () => {
     if (q.length && !n.sendBeacon(api, JSON.stringify(q))) fail(q);
     q = [];
@@ -110,13 +112,6 @@ declare const MODE: string;
     if (t == 'pageview') post([ev]);
     else if (q.push(ev) > 49) post(q), (q = []);
   };
-  const old = MODE == 'full' && full && ls('_t_q');
-  if (old) {
-    ls('_t_q', null);
-    try {
-      post(JSON.parse(old));
-    } catch {}
-  }
 
   // per-page state
   let started = 0, pu = l.href, last = l.pathname + l.search;
@@ -165,7 +160,7 @@ declare const MODE: string;
 
   const rot = MODE == 'full' ? () => (setA(uuid()), (S = {})) : (0 as any);
   // upgrade to full mode: t.js default mode only, never over a denial
-  const grant = () => MODE == 'full' && !full && !stop && D.mode != 'private' && (ls('_t_c', '1'), up());
+  const grant = () => MODE == 'full' && st && !full && !stop && (ls('_t_c', '1'), up());
   // t.p.js: identify/reset do nothing, consent(false) stops this page only (it stores nothing)
   const api_: any = {
     track: (name: string, p?: any) => send('event', { n: name, d: p }),
@@ -177,16 +172,17 @@ declare const MODE: string;
       ls('_t_u', (U = '' + id)); // string, or the server rejects the batch
       send('identify');
     },
-    reset: () => MODE == 'full' && full && (rot(), (U = undefined), ls('_t_u', null)),
+    reset: () => MODE == 'full' && full && (rot(), (U = undefined), ls('_t_u', '')),
     consent: (g: boolean) => {
       stop = !g;
       if (g) grant();
-      else if (((q = F = []), MODE == 'full')) {
-        // denial: drop the queue, wipe everything, keep only _t_c = "0"
+      else if (((q = F = []), (rtm = clearTimeout(rtm)), MODE == 'full' && st)) {
+        // denial: drop the queue and any armed retry, wipe everything, keep only _t_c = "0";
+        // data-mode="private" (st false) stops this page only and touches no storage
         full = a = '';
         U = undefined;
         d.cookie = '_t_id=;Max-Age=0;Path=/';
-        for (const k of ['_t_id', '_t_s', '_t_u', '_t_q']) ls(k, null);
+        for (const k of ['_t_id', '_t_s', '_t_u', '_t_q']) ls(k, '');
         ls('_t_c', '0');
       }
     },
@@ -196,7 +192,13 @@ declare const MODE: string;
 
   // queue stub: calls made before load wait in window.trailq as [method, ...args]
   w.trail = api_;
-  (w.trailq || []).forEach((c: any) => api_[c[0]]?.(c[1], c[2]));
+  (w.trailq || []).map((c: any) => api_[c.shift()]?.(...c));
+  // resend last page's failed events, after the queue so a queued consent(false) wins
+  if (MODE == 'full' && full)
+    try {
+      post([...JSON.parse(ls('_t_q'))]); // throws (null is not iterable) when there is none
+      ls('_t_q', '');
+    } catch {}
 
   d.addEventListener('visibilitychange', hide); // document, not window: Safari doesn't bubble it to window
   addEventListener('pagehide', leave);
