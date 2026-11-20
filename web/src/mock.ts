@@ -2,7 +2,25 @@
 // per site and answers every dashboard endpoint from it with the same rules the Go server uses
 // (person = earliest identified user for the anon, engaged-session bounce, prev period, hour/day
 // buckets in TZ). Only api.ts imports this module.
-import type { BreakdownRow, Delivery, Dim, Goal, GoalRow, GoalStats, Metric, Query, Series, Session, Site, Stats, Step, Visitor } from './api'
+import type {
+  BreakdownRow,
+  Delivery,
+  Dim,
+  Goal,
+  GoalRow,
+  GoalStats,
+  Metric,
+  Query,
+  Series,
+  Session,
+  Site,
+  SiteRow,
+  SiteStatus,
+  Stats,
+  Step,
+  Visitor,
+} from './api'
+import { HttpError } from './api'
 import { DAY, HOUR, MIN, TZ, startOfDay, startOfHour } from './time'
 
 interface Ev {
@@ -274,7 +292,60 @@ function totals(evs: Ev[]) {
 const delay = <T,>(v: T) => new Promise<T>((res) => setTimeout(() => res(v), 120 + Math.random() * 180))
 
 export function sites() {
-  return delay(SITES)
+  return delay([...SITES])
+}
+
+// Settings: origins and created time per site. A site added here starts with no
+// events, then "receives" its first one 8 s later, so the live check can be seen.
+const META = new Map<string, { origins: string[]; created: number; firstAt?: number }>([
+  ['reelcn', { origins: ['*.vercel.app'], created: NOW - 40 * DAY }],
+  ['notes', { origins: [], created: NOW - 20 * DAY }],
+  ['blog', { origins: ['staging.ksd.dev'], created: NOW - 90 * DAY }],
+])
+const REJECTED: Record<string, number> = { notes: 3 }
+
+function row(s: Site): SiteRow {
+  const m = META.get(s.id) ?? { origins: [], created: NOW }
+  const evs = events(s.id)
+  let last: number | null = evs.length ? evs.reduce((t, e) => Math.max(t, e.ts), 0) : null
+  if (m.firstAt) last = Date.now() >= m.firstAt ? Date.now() - 4000 : null
+  const events24h = m.firstAt ? (last ? 1 : 0) : evs.filter((e) => e.ts >= NOW - DAY).length
+  return { ...s, origins: m.origins, created: m.created, lastEventAt: last, events24h }
+}
+
+export function siteRows(): Promise<SiteRow[]> {
+  return delay([...SITES].sort((a, b) => a.id.localeCompare(b.id)).map(row))
+}
+
+export function createSite(s: { id: string; domain: string; origins: string[] }): Promise<SiteRow> {
+  if (!/^[a-z0-9][a-z0-9-]{0,39}$/.test(s.id))
+    return Promise.reject(new HttpError(400, 'invalid site: id must be 1-40 chars of a-z, 0-9 and -'))
+  if (SITES.some((x) => x.id === s.id)) return Promise.reject(new HttpError(409, 'site already exists'))
+  SITES.push({ id: s.id, domain: s.domain })
+  META.set(s.id, { origins: s.origins, created: Date.now(), firstAt: Date.now() + 8000 })
+  return delay(row(SITES[SITES.length - 1]))
+}
+
+export function updateSite(id: string, patch: { domain?: string; origins?: string[] }): Promise<SiteRow> {
+  const s = SITES.find((x) => x.id === id)
+  if (!s) return Promise.reject(new HttpError(404, 'site not found'))
+  if (patch.domain) s.domain = patch.domain
+  const m = META.get(id)
+  if (m && patch.origins) m.origins = patch.origins
+  return delay(row(s))
+}
+
+export function deleteSite(id: string): Promise<void> {
+  const i = SITES.findIndex((x) => x.id === id)
+  if (i >= 0) SITES.splice(i, 1)
+  return delay(undefined)
+}
+
+export function siteStatus(id: string): Promise<SiteStatus> {
+  const s = SITES.find((x) => x.id === id)
+  if (!s) return Promise.reject(new HttpError(404, 'site not found'))
+  const r = row(s)
+  return delay({ lastEventAt: r.lastEventAt, events24h: r.events24h, rejected24h: REJECTED[id] ?? 0 })
 }
 
 export function stats(q: Query): Promise<Stats> {

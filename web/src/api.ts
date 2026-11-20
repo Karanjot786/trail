@@ -21,6 +21,18 @@ export interface Site {
   id: string
   domain: string
 }
+/** A site as Settings sees it: its allowed origins and recent activity. */
+export interface SiteRow extends Site {
+  origins: string[]
+  created: number
+  lastEventAt: number | null
+  events24h: number
+}
+export interface SiteStatus {
+  lastEventAt: number | null
+  events24h: number
+  rejected24h: number
+}
 export interface Totals {
   visitors: number
   pageviews: number
@@ -160,6 +172,17 @@ async function get<T>(path: string, p: URLSearchParams, signal?: AbortSignal): P
   return res.json() as Promise<T>
 }
 
+async function send<T>(method: string, path: string, body: unknown): Promise<T> {
+  const res = await fetch(path, {
+    method,
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) return fail(res, path)
+  return res.json() as Promise<T>
+}
+
 /** Props may arrive as an object or as the stored JSON string; normalise to a flat string map. */
 function normProps(p: unknown): Record<string, string> {
   if (!p) return {}
@@ -190,6 +213,33 @@ export const api = {
     if (isDemo) return [DEMO_SITE]
     if (mock) return (await mock).sites()
     return get('/api/sites', new URLSearchParams(), signal)
+  },
+
+  async siteRows(signal?: AbortSignal): Promise<SiteRow[]> {
+    if (mock) return (await mock).siteRows()
+    return get('/api/sites', new URLSearchParams(), signal)
+  },
+
+  async createSite(s: { id: string; domain: string; origins: string[] }): Promise<SiteRow> {
+    if (mock) return (await mock).createSite(s)
+    return send('POST', '/api/sites', s)
+  },
+
+  async updateSite(id: string, patch: { domain?: string; origins?: string[] }): Promise<SiteRow> {
+    if (mock) return (await mock).updateSite(id, patch)
+    return send('PATCH', `/api/sites/${encodeURIComponent(id)}`, patch)
+  },
+
+  async deleteSite(id: string, purge: boolean): Promise<void> {
+    if (mock) return (await mock).deleteSite(id)
+    const path = `/api/sites/${encodeURIComponent(id)}?purge=${purge ? 1 : 0}`
+    const res = await fetch(path, { method: 'DELETE', credentials: 'same-origin' })
+    if (!res.ok) return fail(res, path)
+  },
+
+  async siteStatus(id: string, signal?: AbortSignal): Promise<SiteStatus> {
+    if (mock) return (await mock).siteStatus(id)
+    return get(`/api/sites/${encodeURIComponent(id)}/status`, new URLSearchParams(), signal)
   },
 
   async stats(q: Query, signal?: AbortSignal): Promise<Stats> {
