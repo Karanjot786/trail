@@ -7,5 +7,5 @@ export const GET: APIRoute = (ctx) =>
     title: 'Trail changelog',
     description: 'What changed in each Trail release.',
     site: ctx.site!,
-    items: changes.map((c) => ({ title: c.title, pubDate: new Date(c.date), description: c.summary, link: `/docs/changelog/#${c.id}` })),
+    items: changes.map((c) => ({ title: c.title, pubDate: new Date(c.date), description: c.summary, link: `/docs/changelog#${c.id}` })),
   });
