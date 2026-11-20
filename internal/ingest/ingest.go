@@ -3,26 +3,50 @@ package ingest
 
 import (
 	"bytes"
-	_ "embed"
+	"embed"
 	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
 	"regexp"
+	"strconv"
+	"strings"
 	"time"
 
 	"trail/internal/enrich"
 	"trail/internal/store"
 )
 
-// JS is the built tracker, served at /_t/t.js.
+// Files holds the built tracker files: t.js (full), t.p.js (private only)
+// and t.x.js (opt-in extras).
 //
-//go:embed t.js
-var JS []byte
+//go:embed t.js t.p.js t.x.js
+var Files embed.FS
+
+// JS is the full tracker, served at /_t/t.js.
+var JS = mustRead("t.js")
+
+// trackerFiles maps each servable file name to its contents. Nothing outside
+// this fixed set is ever served.
+var trackerFiles = map[string][]byte{
+	"t.js":   JS,
+	"t.p.js": mustRead("t.p.js"),
+	"t.x.js": mustRead("t.x.js"),
+}
+
+func mustRead(name string) []byte {
+	b, err := Files.ReadFile(name)
+	if err != nil {
+		panic(err)
+	}
+	return b
+}
 
 const (
-	maxBody  = 8192
+	maxBody  = 32 << 10
+	maxBatch = 50
 	maxProps = 20
+	maxRetry = 1000
 	maxEngMs = 24 * 60 * 60 * 1000
 )
 
@@ -51,6 +75,7 @@ type payload struct {
 	SC  float64                    `json:"sc"`
 	Env string                     `json:"env"`
 	W   int                        `json:"w"`
+	RC  float64                    `json:"rc"`
 }
 
 type handler struct {
@@ -60,10 +85,17 @@ type handler struct {
 	now   func() time.Time
 }
 
+// Option configures the ingest handler.
+type Option func(*handler)
+
 // New returns the ingest handler for POST /_t/e (and its CORS preflight).
 // sites maps site id to its production domain.
-func New(st *store.Store, geo *enrich.Geo, sites map[string]string) http.Handler {
-	return &handler{st: st, geo: geo, sites: sites, now: time.Now}
+func New(st *store.Store, geo *enrich.Geo, sites map[string]string, opts ...Option) http.Handler {
+	h := &handler{st: st, geo: geo, sites: sites, now: time.Now}
+	for _, o := range opts {
+		o(h)
+	}
+	return h
 }
 
 func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -92,27 +124,62 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "read error", http.StatusBadRequest)
 		return
 	}
-	var p payload
-	if err := json.Unmarshal(body, &p); err != nil {
-		http.Error(w, "malformed json", http.StatusBadRequest)
-		return
-	}
-	domain, ok := h.sites[p.S]
-	if msg := validate(&p, ok); msg != "" {
+	ps, msg := decode(body)
+	if msg != "" {
 		http.Error(w, msg, http.StatusBadRequest)
 		return
 	}
-	props, err := flatProps(p.D)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
+	// Validate the whole batch before enqueuing anything.
+	evs := make([]store.Event, 0, len(ps))
+	for i := range ps {
+		p := &ps[i]
+		if p.S != ps[0].S {
+			http.Error(w, "mixed sites in batch", http.StatusBadRequest)
+			return
+		}
+		domain, ok := h.sites[p.S]
+		if msg := validate(p, ok); msg != "" {
+			http.Error(w, msg, http.StatusBadRequest)
+			return
+		}
+		props, err := flatProps(p.D)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		evs = append(evs, h.event(r, p, domain, props))
 	}
 
-	h.st.Enqueue(h.event(r, &p, domain, props))
+	for _, e := range evs {
+		h.st.Enqueue(e)
+	}
 	http.SetCookie(w, &http.Cookie{
-		Name: "_t_id", Value: p.A, Path: "/", MaxAge: 31536000, SameSite: http.SameSiteLaxMode,
+		Name: "_t_id", Value: ps[0].A, Path: "/", MaxAge: 31536000, SameSite: http.SameSiteLaxMode,
 	})
+	w.Header().Set("X-Trail-Accepted", strconv.Itoa(len(evs)))
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// decode parses a single event object or an array of 1 to 50 of them.
+func decode(body []byte) ([]payload, string) {
+	if t := bytes.TrimSpace(body); len(t) > 0 && t[0] == '[' {
+		var ps []payload
+		if err := json.Unmarshal(t, &ps); err != nil {
+			return nil, "malformed json"
+		}
+		switch {
+		case len(ps) == 0:
+			return nil, "empty batch"
+		case len(ps) > maxBatch:
+			return nil, "batch too large"
+		}
+		return ps, ""
+	}
+	var p payload
+	if err := json.Unmarshal(body, &p); err != nil {
+		return nil, "malformed json"
+	}
+	return []payload{p}, ""
 }
 
 func validate(p *payload, knownSite bool) string {
@@ -174,6 +241,7 @@ func (h *handler) event(r *http.Request, p *payload, domain, props string) store
 		EngagedMs: clamp(p.E, maxEngMs),
 		ScrollPct: clamp(p.SC, 100),
 		IsBot:     bot || p.W == 1,
+		Retry:     clamp(p.RC, maxRetry),
 	}
 }
 
@@ -199,5 +267,18 @@ func TrackerHandler(js []byte) http.Handler {
 		w.Header().Set("Cache-Control", "public, max-age=3600")
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		_, _ = w.Write(js)
+	})
+}
+
+// TrackerFiles serves GET /_t/{t.js,t.p.js,t.x.js} with a one-hour public
+// cache, and 404 for any other path.
+func TrackerFiles() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		js, ok := trackerFiles[strings.TrimPrefix(r.URL.Path, "/_t/")]
+		if !ok {
+			http.NotFound(w, r)
+			return
+		}
+		TrackerHandler(js).ServeHTTP(w, r)
 	})
 }

@@ -16,6 +16,11 @@ const iphoneUA = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_2 like Mac OS X) AppleWe
 
 func setup(t *testing.T) (*store.Store, http.Handler) {
 	t.Helper()
+	return newHandler(t, map[string]string{"s1": "example.com"})
+}
+
+func newHandler(t *testing.T, sites map[string]string, opts ...Option) (*store.Store, http.Handler) {
+	t.Helper()
 	st, err := store.Open(filepath.Join(t.TempDir(), "i.db"))
 	if err != nil {
 		t.Fatal(err)
@@ -25,7 +30,7 @@ func setup(t *testing.T) (*store.Store, http.Handler) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return st, New(st, geo, map[string]string{"s1": "example.com"})
+	return st, New(st, geo, sites, opts...)
 }
 
 func post(h http.Handler, body string) *httptest.ResponseRecorder {
@@ -58,6 +63,9 @@ func TestValidPageview(t *testing.T) {
 	if w.Code != http.StatusNoContent {
 		t.Fatalf("status %d, body %q", w.Code, w.Body.String())
 	}
+	if got := w.Header().Get("X-Trail-Accepted"); got != "1" {
+		t.Errorf("X-Trail-Accepted = %q, want 1", got)
+	}
 	if c := w.Header().Get("Set-Cookie"); !strings.Contains(c, "_t_id=anon-1") || !strings.Contains(c, "Max-Age=31536000") || !strings.Contains(c, "SameSite=Lax") {
 		t.Errorf("Set-Cookie = %q", c)
 	}
@@ -81,7 +89,7 @@ func TestValidPageview(t *testing.T) {
 }
 
 func TestRejects(t *testing.T) {
-	big := `{"s":"s1","t":"pageview","a":"a","u":"https://example.com/","n":"` + strings.Repeat("x", 9000) + `"}`
+	big := `{"s":"s1","t":"pageview","a":"a","u":"https://example.com/","n":"` + strings.Repeat("x", 33<<10) + `"}`
 	var props []string
 	for i := range 21 {
 		props = append(props, fmt.Sprintf(`"k%d":"v"`, i))
@@ -170,5 +178,127 @@ func TestTrackerHandler(t *testing.T) {
 	if w.Code != 200 || w.Body.String() != "x()" || w.Header().Get("Cache-Control") != "public, max-age=3600" ||
 		!strings.Contains(w.Header().Get("Content-Type"), "javascript") {
 		t.Errorf("got %d %q %v", w.Code, w.Body.String(), w.Header())
+	}
+}
+
+func batch(n int, each func(i int) string) string {
+	parts := make([]string, n)
+	for i := range parts {
+		parts[i] = each(i)
+	}
+	return "[" + strings.Join(parts, ",") + "]"
+}
+
+func TestBatchAccepted(t *testing.T) {
+	st, h := setup(t)
+	w := post(h, " \n"+batch(3, func(int) string { return pageview }))
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("status %d, body %q", w.Code, w.Body.String())
+	}
+	if got := w.Header().Get("X-Trail-Accepted"); got != "3" {
+		t.Errorf("X-Trail-Accepted = %q, want 3", got)
+	}
+	if n := rows(t, st); n != 3 {
+		t.Fatalf("rows = %d, want 3", n)
+	}
+}
+
+func TestBatchRejected(t *testing.T) {
+	other := strings.Replace(pageview, `"s1"`, `"s2"`, 1)
+	tests := []struct {
+		name, body string
+	}{
+		{"too many", batch(51, func(int) string { return pageview })},
+		{"thousand", batch(1000, func(int) string { return `{}` })},
+		{"empty", `[]`},
+		{"mixed sites", batch(3, func(i int) string {
+			if i == 2 {
+				return other
+			}
+			return pageview
+		})},
+		{"one invalid", batch(3, func(i int) string {
+			if i == 1 {
+				return strings.Replace(pageview, `"pageview"`, `"click"`, 1)
+			}
+			return pageview
+		})},
+		{"one nested props", batch(2, func(i int) string {
+			if i == 1 {
+				return `{"s":"s1","t":"event","a":"a","n":"x","d":{"k":[1]}}`
+			}
+			return pageview
+		})},
+		{"not objects", `[1,2]`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			st, h := newHandler(t, map[string]string{"s1": "example.com", "s2": "other.com"})
+			w := post(h, tt.body)
+			if w.Code != http.StatusBadRequest {
+				t.Errorf("status %d, want 400", w.Code)
+			}
+			if n := rows(t, st); n != 0 {
+				t.Errorf("rows = %d, want 0", n)
+			}
+		})
+	}
+}
+
+func TestBatchBodyLimit(t *testing.T) {
+	st, h := setup(t)
+	ev := strings.Replace(pageview, `"r":`, `"n":"`+strings.Repeat("x", 1000)+`","r":`, 1)
+	w := post(h, batch(40, func(int) string { return ev }))
+	if w.Code != http.StatusRequestEntityTooLarge {
+		t.Errorf("status %d, want 413", w.Code)
+	}
+	if n := rows(t, st); n != 0 {
+		t.Errorf("rows = %d, want 0", n)
+	}
+}
+
+func TestRetryStored(t *testing.T) {
+	for _, tt := range []struct {
+		rc   string
+		want int
+	}{{"2", 2}, {"-3", 0}, {"0", 0}} {
+		t.Run(tt.rc, func(t *testing.T) {
+			st, h := setup(t)
+			if w := post(h, strings.Replace(pageview, `{`, `{"rc":`+tt.rc+`,`, 1)); w.Code != http.StatusNoContent {
+				t.Fatalf("status %d", w.Code)
+			}
+			rows(t, st)
+			var got int
+			if err := st.DB().QueryRow("SELECT retry FROM events").Scan(&got); err != nil {
+				t.Fatal(err)
+			}
+			if got != tt.want {
+				t.Errorf("retry = %d, want %d", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestTrackerFiles(t *testing.T) {
+	h := TrackerFiles()
+	for _, p := range []string{"/_t/t.js", "/_t/t.p.js", "/_t/t.x.js"} {
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, httptest.NewRequest(http.MethodGet, p, nil))
+		if w.Code != 200 || w.Body.Len() == 0 || !strings.Contains(w.Header().Get("Content-Type"), "javascript") ||
+			w.Header().Get("Cache-Control") != "public, max-age=3600" || w.Header().Get("Access-Control-Allow-Origin") != "*" {
+			t.Errorf("%s: %d %v", p, w.Code, w.Header())
+		}
+	}
+	for _, p := range []string{"/_t/x.js", "/_t/", "/_t/../ingest.go", "/_t/ingest.go"} {
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, httptest.NewRequest(http.MethodGet, p, nil))
+		if w.Code != http.StatusNotFound {
+			t.Errorf("%s: %d, want 404", p, w.Code)
+		}
+	}
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/_t/t.js", nil))
+	if w.Code != http.StatusMethodNotAllowed {
+		t.Errorf("POST: %d, want 405", w.Code)
 	}
 }

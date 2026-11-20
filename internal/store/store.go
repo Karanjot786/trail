@@ -33,6 +33,7 @@ type Event struct {
 	TS                                                         int64
 	EngagedMs, ScrollPct                                       int
 	IsBot                                                      bool
+	Retry                                                      int // how many times the tracker resent this event
 }
 
 // Store owns the database and the in-memory write queue.
@@ -56,11 +57,29 @@ func Open(path string) (*Store, error) {
 		_ = db.Close()
 		return nil, fmt.Errorf("apply schema: %w", err)
 	}
+	if err := migrate(db); err != nil {
+		_ = db.Close()
+		return nil, err
+	}
 	return &Store{
 		db:    db,
 		queue: make(chan Event, queueCap),
 		kick:  make(chan struct{}, 1),
 	}, nil
+}
+
+// migrate adds columns that databases created by older versions lack.
+func migrate(db *sql.DB) error {
+	var n int
+	if err := db.QueryRow(`SELECT count(*) FROM pragma_table_info('events') WHERE name = 'retry'`).Scan(&n); err != nil {
+		return fmt.Errorf("inspect events: %w", err)
+	}
+	if n == 0 {
+		if _, err := db.Exec(`ALTER TABLE events ADD COLUMN retry INTEGER NOT NULL DEFAULT 0`); err != nil {
+			return fmt.Errorf("add retry column: %w", err)
+		}
+	}
+	return nil
 }
 
 // DB exposes the underlying database for read queries.
@@ -133,8 +152,8 @@ func (s *Store) write(batch []Event) error {
 	ins, err := tx.Prepare(`INSERT INTO events (site_id, ts, type, anon_id, session_id, user_id,
 		host, path, route, utm_source, utm_medium, utm_campaign, utm_term, utm_content,
 		referrer_host, referrer_url, name, props, engaged_ms, scroll_pct,
-		country, region, city, device, browser, os, is_bot, env)
-		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+		country, region, city, device, browser, os, is_bot, env, retry)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
 	if err != nil {
 		return fmt.Errorf("prepare insert: %w", err)
 	}
@@ -149,7 +168,7 @@ func (s *Store) write(batch []Event) error {
 		if _, err := ins.Exec(e.SiteID, e.TS, e.Type, e.AnonID, e.SessionID, e.UserID,
 			e.Host, e.Path, e.Route, e.UTMSource, e.UTMMedium, e.UTMCampaign, e.UTMTerm, e.UTMContent,
 			e.RefHost, e.RefURL, e.Name, e.Props, e.EngagedMs, e.ScrollPct,
-			e.Country, e.Region, e.City, e.Device, e.Browser, e.OS, e.IsBot, e.Env); err != nil {
+			e.Country, e.Region, e.City, e.Device, e.Browser, e.OS, e.IsBot, e.Env, e.Retry); err != nil {
 			return fmt.Errorf("insert event: %w", err)
 		}
 		if e.Type == "identify" && e.UserID != "" && e.AnonID != "" {
