@@ -54,5 +54,7 @@ const bytes = (b?: number) => (b ? `${b.toLocaleString('en-US')} B` : 'not built
     </table>
     <p>Median (min to max) of {{ bench.runs }} runs, measured {{ bench.date.slice(0, 10) }}.</p>
   </template>
-  <p v-else>No benchmark has been run for this build yet.</p>
+  <p v-else>
+    Timings are not included in this build. Run <code>npm run bench</code> in <code>tracker/</code> (see below) to measure script time, heap, listeners and requests on your machine; the result is written to <code>tracker/bench/last.json</code> and shows up here on the next build.
+  </p>
 </template>

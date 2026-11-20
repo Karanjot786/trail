@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { readFileSync } from 'node:fs'
+import { readFileSync, existsSync } from 'node:fs'
 // @ts-ignore
 import { pages } from '../../scripts/pages.mjs'
 import { changes } from '../../src/lib/changelog'
@@ -12,7 +12,10 @@ const title = (p: string) => {
 
 test('CostTable renders', async ({ page }) => {
   await page.goto('/docs/tracking/cost')
-  await expect(page.locator('.vp-doc table')).toHaveCount(2)
+  // Timings come from tracker/bench/last.json, which is git-ignored: CI builds show sizes only.
+  const hasBench = existsSync('../tracker/bench/last.json')
+  await expect(page.locator('.vp-doc table')).toHaveCount(hasBench ? 2 : 1)
+  if (!hasBench) await expect(page.locator('.vp-doc')).toContainText('Timings are not included in this build')
   const first = page.locator('.vp-doc table').first().locator('tbody tr')
   await expect(first).toHaveCount(3)
   const text = await first.allInnerTexts()
@@ -25,8 +28,7 @@ test('every page has h1 equal to its frontmatter title', async ({ page }) => {
     const res = await page.goto(p)
     expect(res!.status(), p).toBe(200)
     const h1 = page.locator('h1')
-    if (p === '/docs') await expect(h1, p).toContainText(title(p))
-    else await expect(h1, p).toHaveText(title(p))
+    await expect(h1, p).toHaveText(title(p))
   }
 })
 

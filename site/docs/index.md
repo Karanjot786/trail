@@ -4,8 +4,7 @@ title: Trail docs
 description: Self-hosted web analytics. Run one Go binary, add one script tag, read the numbers.
 hero:
   name: Trail docs
-  text: Run it, add it, read it.
-  tagline: One Go binary, SQLite, and a tracker under 2 KB. Start with the quickstart.
+  tagline: Run it, add it, read it. One Go binary, SQLite, and a tracker under 2 KB. Start with the quickstart.
   actions:
     - theme: brand
       text: Quickstart

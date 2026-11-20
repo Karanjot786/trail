@@ -52,9 +52,14 @@ test('back restores scroll, no animation on hash change', async ({ page }) => {
   await expect(page).toHaveURL(/configuration/)
   await expect.poll(() => page.evaluate(() => scrollY)).toBeGreaterThan(1100)
 
+  // The route change above legitimately runs the 180ms page-enter fade; let it finish first.
+  const running = () => page.evaluate(() => document.querySelector('.VPDoc .content-container')!.getAnimations().length)
+  await expect.poll(running).toBe(0)
+
   await page.evaluate(() => window.scrollTo(0, 0))
   await page.locator('.VPDocAsideOutline a').first().click()
-  expect(await page.evaluate(() => document.querySelector('.VPDoc .content-container')!.getAnimations().length)).toBe(0)
+  await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))))
+  expect(await running()).toBe(0)
 })
 
 test('search opens and navigates without reload', async ({ page }) => {
