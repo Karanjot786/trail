@@ -1,0 +1,7 @@
+/* Landing fonts. Landing.astro preloads the same files with ?url, so Vite emits one hashed URL for each. */
+@font-face{font-family:Geist;src:url(../assets/fonts/geist-latin-wght-normal.woff2) format('woff2');font-weight:100 900;font-display:swap}
+@font-face{font-family:GeistMono;src:url(../assets/fonts/geist-mono-latin-wght-normal.woff2) format('woff2');font-weight:100 900;font-display:swap}
+@font-face{font-family:Doto;src:url(../assets/fonts/doto-digits.woff2) format('woff2');font-weight:100 900;font-display:swap}
+/* Arial sized to Geist's metrics (fontkit, Geist upm 1000: ascent 1005, descent -295, lineGap 0;
+   a-z mean advance .5338 em vs Arial .4895 em), so the swap to Geist does not move text. */
+@font-face{font-family:'Geist Fallback';src:local('Arial');size-adjust:109.05%;ascent-override:92.16%;descent-override:27.05%;line-gap-override:0%}

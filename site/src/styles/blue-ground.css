@@ -1,0 +1,16 @@
+/* Blue Ground tokens (landing only). Values from the approved prototype's :root.
+   --line is --rule and --wrap is --wrap-w here, so they never clash with the docs' tokens.css. */
+:root{
+  --blue:#0a72ef; --deep:#0753b8; --dot:#f5f8ff; --ink:#06142e; --mist:#dce7fb; --signal:#ffd23f;
+  --paper:#f6f9fe; --ink-2:#3a4a66; --rule:#c9d7f0; --field:#e8effc;
+  --ui-bg:#000; --ui-card:#0a0a0a; --ui-raised:#111; --ui-bar:#141414; --ui-border:#1f1f1f; --ui-border-strong:#2e2e2e;
+  --ui-fg:#ededed; --ui-muted:#a1a1a1; --ui-subtle:#8a8a8a; --ui-good:#45d483; --ui-good-bg:#0f2417; --ui-link:#6cb2ff;
+  --ease-out:cubic-bezier(.23,1,.32,1); --ease-io:cubic-bezier(.77,0,.175,1);
+  --wrap-w:1240px; --gut:56px; --head-h:72px;
+  --sans:Geist,'Geist Fallback',ui-sans-serif,system-ui,sans-serif; --mono:GeistMono,ui-monospace,monospace; --dots:Doto,GeistMono,monospace;
+  /* chrome (header/footer) tokens, also defined in tokens.css with dark values */
+  --chrome-fg:#fff; --chrome-muted:rgb(255 255 255 / .8);
+  --gh-bg:var(--ink); --gh-bg-hover:#0e2148; --gh-fg:#fff; --gh-star-bg:rgb(255 255 255 / .1); --gh-edge:inset 0 1px 0 rgb(255 255 255 / .14),0 1px 2px rgb(6 20 46 / .25);
+  color-scheme:light;
+}
+@media (max-width:700px){:root{--gut:16px}}

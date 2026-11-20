@@ -3,15 +3,17 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "node scripts/dev.mjs",
+    "dev": "node scripts/art/build.mjs && node scripts/dev.mjs",
     "dev:landing": "astro dev",
     "dev:docs": "vitepress dev docs --host 127.0.0.1 --port 5173",
-    "build": "astro build && vitepress build docs && cp dist/docs/404.html dist/404.html",
+    "build": "node scripts/art/build.mjs && astro build && vitepress build docs && cp dist/docs/404.html dist/404.html",
     "preview": "serve dist -l tcp://127.0.0.1:4173",
     "test:landing": "playwright test -c tests/landing/playwright.config.ts",
     "test:docs": "playwright test -c playwright.config.ts",
     "budget": "node scripts/js-budget.mjs",
-    "lh": "node scripts/lighthouse.mjs"
+    "lh": "node scripts/lighthouse.mjs",
+    "art": "node scripts/art/build.mjs",
+    "test:unit": "node --test \"src/lib/*.test.mjs\" \"scripts/art/*.test.mjs\""
   },
   "dependencies": {
     "@astrojs/rss": "4.0.19",
@@ -23,6 +25,7 @@
   "devDependencies": {
     "@axe-core/playwright": "^4.14.0",
     "@playwright/test": "1.65.1",
+    "fontkit": "2.0.4",
     "serve": "14.2.8",
     "vitepress": "2.0.0-alpha.21",
     "vitepress-plugin-llms": "1.15.0"

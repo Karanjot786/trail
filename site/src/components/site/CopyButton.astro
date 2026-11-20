@@ -1,0 +1,7 @@
+---
+// Copy button handled by src/scripts/copy.ts. Pass exactly one of `text` (the string to copy) or `from` (an element id).
+interface Props { label: string; text?: string; from?: string }
+const { label, text, from } = Astro.props
+---
+<button class="copy" type="button" aria-label={label} data-copy={text} data-copy-from={from}><svg class="i cp" aria-hidden="true"><use href="#i-copy"/></svg><svg class="i ok" aria-hidden="true"><use href="#i-check"/></svg></button>
+<script>import '../../scripts/copy'</script>

@@ -1,0 +1,24 @@
+---
+// STUB (A0): brand plus the shared nav items. A1 replaces it with the full header and GitHub button.
+import { NAV } from '../../lib/nav.mjs'
+---
+<header class="site-head" data-state="hero">
+  <nav class="nav wrap" aria-label="Main">
+    <a class="brand" href="/" aria-label="Trail home">
+      <svg viewBox="0 0 256 256" width="24" height="24" aria-hidden="true"><rect x="40" y="34" width="176" height="44" rx="22" fill="currentColor"/><circle cx="128" cy="122" r="22" fill="currentColor"/><circle cx="128" cy="170" r="18" fill="currentColor"/><circle cx="128" cy="212" r="14" fill="currentColor" opacity=".6"/></svg>
+      Trail
+    </a>
+    <ul class="nav-links">
+      {NAV.map((n) => <li class:list={{ 'hide-s': n.hideSmall }}><a class="nl" href={n.href}>{n.label}</a></li>)}
+    </ul>
+  </nav>
+</header>
+<style>
+  .site-head{position:absolute;inset:0 0 auto;z-index:50;height:var(--head-h);color:var(--chrome-fg)}
+  .nav{display:flex;align-items:center;justify-content:space-between;height:var(--head-h)}
+  /* sized like the current docs brand (18px, line-height 1.6) until A1 and A3 move both to 44px / 19px */
+  .brand{display:flex;gap:10px;align-items:center;font-weight:620;font-size:18px;line-height:1.6;letter-spacing:-.01em;text-decoration:none}
+  .nav-links{display:flex;gap:4px;list-style:none}
+  .nl{display:flex;align-items:center;height:44px;padding:0 12px;font:500 15px/1 var(--sans);text-decoration:none}
+  @media (max-width:700px){.hide-s{display:none}}
+</style>

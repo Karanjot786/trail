@@ -1,0 +1,52 @@
+---
+import '../styles/blue-ground.css'
+import '../styles/fonts.css'
+import '../styles/base.css'
+import '../styles/ui.css'
+import geistUrl from '../assets/fonts/geist-latin-wght-normal.woff2?url'
+import dotoUrl from '../assets/fonts/doto-digits.woff2?url'
+import IconSprite from '../components/site/IconSprite.astro'
+import SiteHeader from '../components/site/SiteHeader.astro'
+import SiteFooter from '../components/site/SiteFooter.astro'
+import { SITE_URL } from '../config'
+
+interface Props { title: string; description: string; jsonld: object[] }
+const { title, description, jsonld } = Astro.props
+const canonical = new URL(Astro.url.pathname, SITE_URL).href
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+    <meta name="theme-color" content="#0a72ef" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonical} />
+    <link rel="preload" href={geistUrl} as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href={dotoUrl} as="font" type="font/woff2" crossorigin />
+    <script is:inline>document.documentElement.classList.add('js')</script>
+    <link rel="icon" href="/favicon.ico" sizes="48x48" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Trail" />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:image" content={new URL('/og.png', SITE_URL).href} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="alternate" type="application/rss+xml" title="Trail changelog" href="/changelog.xml" />
+    <script type="application/ld+json" set:html={JSON.stringify(jsonld)} />
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <IconSprite />
+    <SiteHeader />
+    <main id="main"><slot /></main>
+    <SiteFooter />
+    <script>import '../scripts/reveal'</script>
+  </body>
+</html>

@@ -1,0 +1,10 @@
+---
+// A titled code figure. `code` is HTML (may hold highlight spans); `copy` is the plain text the button copies.
+import CopyButton from './CopyButton.astro'
+interface Props { title: string; code: string; copy?: string; class?: string }
+const { title, code, copy, class: cls } = Astro.props
+---
+<figure class:list={['code', cls]}>
+  <div class="code-head"><span>{title}</span>{copy && <CopyButton label="Copy code" text={copy} />}</div>
+  <pre><code set:html={code} /></pre>
+</figure>

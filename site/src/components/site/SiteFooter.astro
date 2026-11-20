@@ -1,0 +1,19 @@
+---
+// STUB (A0): links and meta line. A2 replaces it with the dot-letter footer.
+import { footer } from '../../copy/landing'
+import { svg } from '../../lib/art'
+---
+<footer class="site-foot" data-reveal-self>
+  <div class="wrap">
+    <div class="foot-word" aria-hidden="true" set:html={svg.footerWord} />
+    <nav aria-label="Footer"><ul class="foot-links">{footer.links.map((l) => <li><a href={l.href}>{l.text}</a></li>)}</ul></nav>
+    <p class="foot-meta">{footer.meta}</p>
+  </div>
+</footer>
+<style>
+  .site-foot{background:var(--deep);color:#fff;padding-block:40px;overflow:hidden}
+  .foot-word :global(svg){display:block;width:100%;height:auto;overflow:visible}
+  .foot-links{display:flex;gap:28px;list-style:none;flex-wrap:wrap;padding-block:28px 12px;border-top:1px solid rgb(255 255 255 / .25)}
+  .foot-links a{text-decoration:none;font-size:15px}
+  .foot-meta{font-size:14px}
+</style>

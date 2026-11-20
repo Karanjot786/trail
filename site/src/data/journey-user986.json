@@ -1,0 +1,16 @@
+{ "id": "user_986", "identified": true,
+  "visits": [
+    { "date": "Nov 2",  "wd": "Mon", "time": "23:50", "steps": [
+      {"k":"src","t":"google.com"},
+      {"k":"page","t":"/docs/components/data-story","sec":66,"scroll":20},
+      {"k":"page","t":"/docs/components","sec":100,"scroll":49},
+      {"k":"out","t":"github.com"}, {"k":"id","t":"identified"}, {"k":"ev","t":"Signup"}, {"k":"left"} ]},
+    { "date": "Nov 12", "wd": "Thu", "time": "11:30", "steps": [
+      {"k":"src","t":"google.com"},
+      {"k":"page","t":"/docs/installation","sec":118,"scroll":50},
+      {"k":"page","t":"/docs","sec":111,"scroll":30}, {"k":"left"} ]},
+    { "date": "Nov 12", "wd": "Thu", "time": "23:32", "steps": [
+      {"k":"src","t":"google.com"}, {"k":"page","t":"/","sec":1,"scroll":39}, {"k":"left"} ]},
+    { "date": "Nov 19", "wd": "Thu", "time": "20:21", "steps": [
+      {"k":"src","t":"google.com"}, {"k":"page","t":"/docs/components/data-story","sec":4,"scroll":41}, {"k":"left"} ]}
+  ] }
