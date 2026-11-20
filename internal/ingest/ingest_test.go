@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"trail/internal/enrich"
 	"trail/internal/store"
@@ -300,5 +301,107 @@ func TestTrackerFiles(t *testing.T) {
 	h.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/_t/t.js", nil))
 	if w.Code != http.StatusMethodNotAllowed {
 		t.Errorf("POST: %d, want 405", w.Code)
+	}
+}
+
+const privatePV = `{"s":"s1","t":"pageview","m":"p","a":"","u":"https://example.com/"}`
+
+func TestPrivateEventGetsServerIdentity(t *testing.T) {
+	st, h := setup(t)
+	w := post(h, batch(2, func(int) string { return privatePV }))
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("status %d, body %q", w.Code, w.Body.String())
+	}
+	if c := w.Header().Get("Set-Cookie"); c != "" {
+		t.Errorf("private mode set a cookie: %q", c)
+	}
+	if n := rows(t, st); n != 2 {
+		t.Fatalf("rows = %d, want 2", n)
+	}
+	var anons, sessions int
+	var anon, sess string
+	err := st.DB().QueryRow(`SELECT count(DISTINCT anon_id), count(DISTINCT session_id), max(anon_id), max(session_id) FROM events`).
+		Scan(&anons, &sessions, &anon, &sess)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if anons != 1 || sessions != 1 || !strings.HasPrefix(anon, "p_") || sess == "" {
+		t.Errorf("anons=%d sessions=%d anon=%q session=%q", anons, sessions, anon, sess)
+	}
+}
+
+func TestPrivateIgnoresClientIDs(t *testing.T) {
+	st, h := setup(t)
+	if w := post(h, `{"s":"s1","t":"pageview","m":"p","a":"client-a","ss":"client-s","uid":"u1","u":"https://example.com/"}`); w.Code != http.StatusNoContent {
+		t.Fatalf("status %d", w.Code)
+	}
+	rows(t, st)
+	var anon, sess, uid string
+	if err := st.DB().QueryRow(`SELECT anon_id, session_id, user_id FROM events`).Scan(&anon, &sess, &uid); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(anon, "p_") || sess == "client-s" || uid != "" {
+		t.Errorf("anon=%q session=%q uid=%q", anon, sess, uid)
+	}
+}
+
+func TestPrivateUsesGivenPrivate(t *testing.T) {
+	p := NewPrivate(time.UTC, time.Now)
+	st, h := newHandler(t, map[string]string{"s1": "example.com"}, WithPrivate(p))
+	post(h, privatePV)
+	rows(t, st)
+	want, _ := p.Identify("s1", "203.0.113.77", iphoneUA)
+	var anon string
+	if err := st.DB().QueryRow(`SELECT anon_id FROM events`).Scan(&anon); err != nil {
+		t.Fatal(err)
+	}
+	if anon != want {
+		t.Errorf("anon = %q, want %q", anon, want)
+	}
+}
+
+func TestFullModeUnchanged(t *testing.T) {
+	st, h := setup(t)
+	full := strings.Replace(pageview, `{`, `{"m":"f",`, 1)
+	w := post(h, full)
+	if w.Code != http.StatusNoContent || !strings.Contains(w.Header().Get("Set-Cookie"), "_t_id=anon-1") {
+		t.Errorf("full: %d, Set-Cookie %q", w.Code, w.Header().Get("Set-Cookie"))
+	}
+	if w := post(h, strings.Replace(full, `"anon-1"`, `""`, 1)); w.Code != http.StatusBadRequest {
+		t.Errorf("full mode without anon: %d, want 400", w.Code)
+	}
+	if n := rows(t, st); n != 1 {
+		t.Errorf("rows = %d, want 1", n)
+	}
+}
+
+func TestModeRejects(t *testing.T) {
+	for name, body := range map[string]string{
+		"private identify": `{"s":"s1","t":"identify","m":"p","a":"","uid":"u1"}`,
+		"unknown mode":     strings.Replace(pageview, `{`, `{"m":"x",`, 1),
+		"private in batch": batch(2, func(i int) string {
+			if i == 1 {
+				return `{"s":"s1","t":"identify","m":"p","uid":"u1"}`
+			}
+			return privatePV
+		}),
+	} {
+		t.Run(name, func(t *testing.T) {
+			st, h := setup(t)
+			if w := post(h, body); w.Code != http.StatusBadRequest {
+				t.Errorf("status %d, want 400", w.Code)
+			}
+			if n := rows(t, st); n != 0 {
+				t.Errorf("rows = %d, want 0", n)
+			}
+		})
+	}
+}
+
+func TestMixedModeBatchCookieFromFullEvent(t *testing.T) {
+	_, h := setup(t)
+	w := post(h, "["+privatePV+","+pageview+"]")
+	if w.Code != http.StatusNoContent || !strings.Contains(w.Header().Get("Set-Cookie"), "_t_id=anon-1") {
+		t.Errorf("%d, Set-Cookie %q", w.Code, w.Header().Get("Set-Cookie"))
 	}
 }

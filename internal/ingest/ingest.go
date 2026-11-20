@@ -76,6 +76,7 @@ type payload struct {
 	Env string                     `json:"env"`
 	W   int                        `json:"w"`
 	RC  float64                    `json:"rc"`
+	M   string                     `json:"m"` // "f" full (default), "p" private
 }
 
 type handler struct {
@@ -83,10 +84,16 @@ type handler struct {
 	geo   *enrich.Geo
 	sites map[string]string
 	now   func() time.Time
+	priv  *Private
 }
 
 // Option configures the ingest handler.
 type Option func(*handler)
+
+// WithPrivate sets the identity source for private-mode events.
+func WithPrivate(p *Private) Option {
+	return func(h *handler) { h.priv = p }
+}
 
 // New returns the ingest handler for POST /_t/e (and its CORS preflight).
 // sites maps site id to its production domain.
@@ -94,6 +101,9 @@ func New(st *store.Store, geo *enrich.Geo, sites map[string]string, opts ...Opti
 	h := &handler{st: st, geo: geo, sites: sites, now: time.Now}
 	for _, o := range opts {
 		o(h)
+	}
+	if h.priv == nil {
+		h.priv = NewPrivate(time.UTC, time.Now)
 	}
 	return h
 }
@@ -150,12 +160,28 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		evs = append(evs, h.event(r, p, domain, props))
 	}
 
+	// Private events get a server-side identity. One request has one IP and
+	// UA, so Identify runs once; the IP is used only for this hash.
+	var anon, sess, cookie string
+	for i := range evs {
+		if ps[i].M == "p" {
+			if anon == "" {
+				anon, sess = h.priv.Identify(ps[i].S, enrich.ClientIP(r), r.UserAgent())
+			}
+			evs[i].AnonID, evs[i].SessionID, evs[i].UserID = anon, sess, ""
+		} else if cookie == "" {
+			cookie = ps[i].A
+		}
+	}
+
 	for _, e := range evs {
 		h.st.Enqueue(e)
 	}
-	http.SetCookie(w, &http.Cookie{
-		Name: "_t_id", Value: ps[0].A, Path: "/", MaxAge: 31536000, SameSite: http.SameSiteLaxMode,
-	})
+	if cookie != "" {
+		http.SetCookie(w, &http.Cookie{
+			Name: "_t_id", Value: cookie, Path: "/", MaxAge: 31536000, SameSite: http.SameSiteLaxMode,
+		})
+	}
 	w.Header().Set("X-Trail-Accepted", strconv.Itoa(len(evs)))
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -188,6 +214,14 @@ func validate(p *payload, knownSite bool) string {
 		return "unknown site"
 	case !validTypes[p.T]:
 		return "unknown type"
+	case p.M == "p":
+		// Private mode: the server derives a and ss, so the client's are ignored.
+		if p.T == "identify" {
+			return "identify not allowed in private mode"
+		}
+		return ""
+	case p.M != "" && p.M != "f":
+		return "unknown mode"
 	case !reID.MatchString(p.A):
 		return "bad anon id"
 	case p.SS != "" && !reID.MatchString(p.SS):
