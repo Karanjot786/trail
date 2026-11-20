@@ -1,4 +1,4 @@
-// Typed loader for the generated art (K9). A0 ships it over the stub outputs; builder B owns it from B1 on.
+// Typed loader for the generated art (K9), written by scripts/art/build.mjs into src/generated/art/.
 import avif1x from '../generated/art/hero-field.avif?url'
 import avif2x from '../generated/art/hero-field@2x.avif?url'
 import webp from '../generated/art/hero-field.webp?url'
@@ -17,9 +17,12 @@ import wps from '../generated/art/hero-waypoints.json'
 
 export type Waypoint = {
   label: string; sub: string; goal: boolean
-  x: number; y: number; r: number; lx: number; ly: number // % of the 1600×1000 box: footprint centre, ring radius, label top-left
+  // % of the 1600×1000 box: footprint centre (x of width, y of height), ring radius (% of width) and the
+  // label's top-left corner. A label left of its ring (lx < x) was flipped; a label whose box sits under or
+  // over its ring (ly beyond y ± r) was hung there because neither side had room (the phone box does this).
+  x: number; y: number; r: number; lx: number; ly: number
   mx: number; my: number; mr: number; mlx: number; mly: number // same in the 390×480 mobile box
-  delay: number // ms, the ring and label entrance
+  delay: number // ms, the ring's entrance (footstep index × 38 + 330); the label follows 90 ms later
 }
 
 export const heroField = { avif1x, avif2x, webp, avifM, webpM }
