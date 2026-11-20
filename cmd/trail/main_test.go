@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"trail/internal/auth"
+	"trail/internal/demo"
 	"trail/internal/enrich"
 	"trail/internal/store"
 )
@@ -57,7 +58,9 @@ const (
 	testWrite = "write-token-bbbbbbbbbbbbbbbbbbbb"
 )
 
-func testRoutes(t *testing.T) http.Handler {
+func testRoutes(t *testing.T) http.Handler { return testRoutesDemo(t, nil) }
+
+func testRoutesDemo(t *testing.T, demoH http.Handler) http.Handler {
 	t.Helper()
 	st, err := store.Open(filepath.Join(t.TempDir(), "r.db"))
 	if err != nil {
@@ -75,7 +78,7 @@ func testRoutes(t *testing.T) http.Handler {
 	}
 	a := auth.New("pw", []byte("0123456789abcdef0123456789abcdef"))
 	a.SetTokens(toks)
-	return routes(st, geo, map[string]string{"s": "example.com"}, time.UTC, a, fstest.MapFS{"index.html": {Data: []byte("app")}})
+	return routes(st, geo, map[string]string{"s": "example.com"}, time.UTC, a, fstest.MapFS{"index.html": {Data: []byte("app")}}, demoH)
 }
 
 func do(h http.Handler, method, path, token, body string) *httptest.ResponseRecorder {
@@ -194,5 +197,41 @@ func TestSecretKeepsLogin(t *testing.T) {
 	auth.New("pw", secret).Require(http.NotFoundHandler()).ServeHTTP(w, r)
 	if w.Code != http.StatusNotFound {
 		t.Fatalf("cookie rejected after restart: %d", w.Code)
+	}
+}
+
+func TestDemoRoutes(t *testing.T) {
+	d, err := demo.New(time.UTC, time.Now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := testRoutesDemo(t, d)
+	w := do(h, "GET", "/api/demo/stats?site=demo", "", "")
+	if w.Code != 200 || strings.Contains(w.Body.String(), `"visitors":0`) {
+		t.Fatalf("demo stats: %d %s", w.Code, w.Body)
+	}
+	for _, m := range []string{"POST", "DELETE", "PUT", "PATCH"} {
+		if w := do(h, m, "/api/demo/goals", "", `{"site":"demo","name":"x","kind":"page","match":"/"}`); w.Code != http.StatusForbidden {
+			t.Errorf("%s: %d, want 403", m, w.Code)
+		}
+	}
+	// Isolation: the demo cannot see the real site "s", even with a token.
+	for _, tok := range []string{"", testWrite} {
+		if w := do(h, "GET", "/api/demo/stats?site=s", tok, ""); w.Code == 200 {
+			t.Errorf("demo served real site (token %q): %s", tok, w.Body)
+		}
+	}
+	if w := do(h, "GET", "/api/demo/sites", "", ""); strings.Contains(w.Body.String(), "example.com") {
+		t.Errorf("demo lists real sites: %s", w.Body)
+	}
+	// The real API stays locked.
+	if w := do(h, "GET", "/api/stats?site=demo", "", ""); w.Code != http.StatusUnauthorized {
+		t.Errorf("real API without cookie: %d", w.Code)
+	}
+}
+
+func TestDemoOffByDefault(t *testing.T) {
+	if w := do(testRoutes(t), "GET", "/api/demo/stats?site=demo", "", ""); w.Code != http.StatusUnauthorized {
+		t.Fatalf("demo mounted when off: %d", w.Code)
 	}
 }

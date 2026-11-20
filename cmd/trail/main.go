@@ -23,6 +23,7 @@ import (
 
 	"trail/internal/api"
 	"trail/internal/auth"
+	"trail/internal/demo"
 	"trail/internal/enrich"
 	"trail/internal/ingest"
 	"trail/internal/mcp"
@@ -150,7 +151,14 @@ func runServe() error {
 	}
 	a := auth.New(password, secret)
 	a.SetTokens(tokens)
-	mux := routes(st, geo, sites, tz, a, dist)
+	var demoH http.Handler
+	if os.Getenv("TRAIL_DEMO") == "1" {
+		if demoH, err = demo.New(tz, time.Now); err != nil {
+			return fmt.Errorf("demo: %w", err)
+		}
+		log.Print("demo: serving sample data at /demo and /api/demo/")
+	}
+	mux := routes(st, geo, sites, tz, a, dist, demoH)
 
 	srv := &http.Server{
 		Addr:              env("TRAIL_ADDR", ":8080"),
@@ -177,8 +185,9 @@ func runServe() error {
 	return errors.Join(err, st.Close())
 }
 
-// routes builds the server's handler tree.
-func routes(st *store.Store, geo *enrich.Geo, sites map[string]string, tz *time.Location, a *auth.Auth, dist fs.FS) *http.ServeMux {
+// routes builds the server's handler tree. demoH (nil when TRAIL_DEMO is off)
+// is the public demo API; it owns its own DB and refuses anything but GET.
+func routes(st *store.Store, geo *enrich.Geo, sites map[string]string, tz *time.Location, a *auth.Auth, dist fs.FS, demoH http.Handler) *http.ServeMux {
 	apiH := api.New(st.DB(), sites, tz)
 	v1 := rewrite("/api/v1/", "/api/", apiH)
 	v1Read, v1Write := a.Bearer("read", v1), a.Bearer("write", v1)
@@ -196,6 +205,9 @@ func routes(st *store.Store, geo *enrich.Geo, sites map[string]string, tz *time.
 		v1Write.ServeHTTP(w, r) // goal create/delete
 	}))
 	mux.Handle("/mcp", a.Bearer("read", mcp.New(st.DB(), sites, tz)))
+	if demoH != nil {
+		mux.Handle("/api/demo/", demoH) // unauthenticated; rewrites to /api/ itself
+	}
 	mux.Handle("/", spaHandler(dist))
 	return mux
 }
