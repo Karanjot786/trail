@@ -1,0 +1,36 @@
+---
+// Tracker cost tables, read at build time. See src/lib/numbers.ts.
+import { sizes, benchData } from '../lib/numbers';
+const files = [
+  ['t.p.js', 'Private only', sizes.private],
+  ['t.js', 'Full, private until consent by default', sizes.full],
+  ['t.x.js', 'Extras: web vitals and rage clicks, loaded only when asked for', sizes.extras],
+] as const;
+const r = (m?: { median: number; min: number; max: number }, d = 1) =>
+  m ? `${m.median.toFixed(d)} (${m.min.toFixed(d)} to ${m.max.toFixed(d)})` : 'not measured';
+---
+
+<table>
+  <thead><tr><th>File</th><th>What it does</th><th>Gzipped</th></tr></thead>
+  <tbody>
+    {files.map(([f, what, b]) => (
+      <tr><td><code>{f}</code></td><td>{what}</td><td>{b ? `${b.toLocaleString('en-US')} B` : 'not built'}</td></tr>
+    ))}
+  </tbody>
+</table>
+
+{benchData ? (
+  <>
+    <table>
+      <thead><tr><th>Variant</th><th>Script ms</th><th>Heap KB</th><th>Listeners and timers</th><th>Requests per pageview</th></tr></thead>
+      <tbody>
+        {Object.entries(benchData.results).map(([v, m]) => (
+          <tr><td><code>{v}</code></td><td>{r(m.script, 2)}</td><td>{r(m.heap, 0)}</td><td>{r(m.listeners, 0)}</td><td>{r(m.requests, 0)}</td></tr>
+        ))}
+      </tbody>
+    </table>
+    <p>Median (min to max) of {benchData.runs} runs, measured {benchData.date.slice(0, 10)}.</p>
+  </>
+) : (
+  <p>No benchmark has been run for this build yet.</p>
+)}

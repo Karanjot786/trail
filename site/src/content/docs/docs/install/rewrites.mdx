@@ -1,0 +1,75 @@
+---
+title: Rewrites (Vercel and others)
+description: Serve the tracker and its endpoint from your own domain with a /_t/* rewrite.
+sidebar:
+  order: 4
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+
+The tracker is served at `/_t/t.js` (and `/_t/t.p.js`, `/_t/t.x.js`), and it sends events to `/_t/e`. If your site forwards `/_t/*` to the Trail server, the browser sees first-party requests: no third-party host for blockers to match, and no CORS round trip.
+
+Replace `stats.example.com` with your Trail host.
+
+<Tabs syncKey="host">
+<TabItem label="Vercel">
+```json title="vercel.json"
+{
+  "rewrites": [{ "source": "/_t/:p*", "destination": "https://stats.example.com/_t/:p*" }]
+}
+```
+</TabItem>
+<TabItem label="Next.js">
+```js title="next.config.js"
+module.exports = {
+  async rewrites() {
+    return [{ source: '/_t/:p*', destination: 'https://stats.example.com/_t/:p*' }];
+  },
+};
+```
+</TabItem>
+<TabItem label="Netlify">
+```toml title="netlify.toml"
+[[redirects]]
+  from = "/_t/*"
+  to = "https://stats.example.com/_t/:splat"
+  status = 200
+```
+</TabItem>
+<TabItem label="Caddy">
+```txt title="Caddyfile"
+example.com {
+	handle /_t/* {
+		reverse_proxy https://stats.example.com {
+			header_up Host {upstream_hostport}
+		}
+	}
+	# ...the rest of your site
+}
+```
+</TabItem>
+<TabItem label="nginx">
+```nginx
+location /_t/ {
+    proxy_pass https://stats.example.com;
+    proxy_set_header Host stats.example.com;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_ssl_server_name on;
+}
+```
+</TabItem>
+</Tabs>
+
+Then the script tag needs no host:
+
+```html
+<script defer src="/_t/t.js" data-site="mysite"></script>
+```
+
+## Check it
+
+Open your site, then the browser's network panel. You should see `t.js` load from your own domain with status 200, and a `POST /_t/e` answered with `204` and an `X-Trail-Accepted` header.
+
+## Visitor IP behind a rewrite
+
+Trail takes the visitor IP from the first `X-Forwarded-For` entry. Vercel, Netlify and Caddy add the original client IP there. If your proxy does not, every visitor appears to come from the proxy: countries go wrong, and in private mode visitors from different people can merge. Make sure the header is forwarded.
