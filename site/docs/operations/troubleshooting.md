@@ -1,0 +1,29 @@
+---
+title: Troubleshooting
+description: A checklist for when events do not show up.
+---
+
+# Troubleshooting
+
+Work down the list. Most problems turn up in the first four steps.
+
+1. **Is the script loading?** In the browser's network panel, `t.js` must return 200 as `application/javascript`. A 404 usually means the `/_t/*` rewrite is missing or points at the wrong host. The tracker files are served gzipped when the browser accepts it, so `Content-Encoding: gzip` is normal.
+2. **Is the tracker running at all?** It does nothing on `localhost`, `127.*` or `[::1]` unless the tag has `data-dev`. It also skips pages that are being prerendered.
+3. **Are events accepted?** Look for `POST /_t/e`:
+
+   | Status | Meaning |
+   |---|---|
+   | `204` with `X-Trail-Accepted: n` | Stored. `X-Trail-Rejected: n` counts events in the batch that were skipped as invalid. The valid ones are kept |
+   | `400` | A batch with no valid events, an unknown site id, or a batch with mixed sites. The response body says which |
+   | `403` | The page's host is not allowed for this site. The body is empty. See the next step |
+   | `413` | Body over 64 KB |
+   | `405` | Wrong method. Only `POST` and `OPTIONS` are allowed |
+   | `429` | Too many requests from one IP. See [Rate limit](/operations/configuration#rate-limit) |
+
+   "Unknown site" means `data-site` does not match a site id. Open **Settings** in the dashboard to see the ids, or add the site. The server log says "no sites yet" at startup when none exist.
+4. **A 403 on `/_t/e`?** The page is on a host the site does not allow. Open the site's Install panel in **Settings**: its live check warns when events were rejected for their origin. Add the host under **Allowed origins** (for example `*.vercel.app` for preview deployments). A request with no `Origin` and no `Referer`, such as a bare `curl`, is refused too. See [Allowed origins](/operations/configuration#allowed-origins).
+5. **Accepted, but the charts are empty?** Check the environment picker. Events from a host other than the site's domain are tagged `preview`, `localhost` is `development`, and the dashboard shows `production` by default. See [Environments](/operations/configuration#environments).
+6. **Countries empty, or all the same?** Set `TRAIL_GEO_DB`, and make sure your proxy forwards the client IP in `X-Forwarded-For`.
+7. **Signed out after every restart?** Set `TRAIL_SECRET` to a fixed value of 32 or more characters.
+8. **Some visits are missing?** Requests that look automated are stored with a bot flag and left out of every report. That includes browsers driven by Playwright, Puppeteer or Selenium, which set `navigator.webdriver`. Visitors who send Do Not Track or Global Privacy Control are not tracked unless you set `data-dnt="off"`.
+9. **Still stuck?** Run the server in the foreground, watch its log while you load the page, and [open an issue](https://github.com/karanjot786/trail/issues) with what you saw.
