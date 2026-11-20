@@ -120,7 +120,7 @@ const tag = `<script defer src="/_t/t.js" data-site="mysite"></script>`;
         Trail
       </a>
       <nav aria-label="Main">
-        <a href="/docs/quickstart/">Docs</a>
+        <a href="/docs/quickstart">Docs</a>
         <a href={DEMO_URL}>Demo</a>
         <a href={GITHUB_URL}>GitHub</a>
       </nav>
@@ -151,7 +151,7 @@ const tag = `<script defer src="/_t/t.js" data-site="mysite"></script>`;
             <h2 id="h-numbers">Measured, not promised.</h2>
             <p>
               These numbers are read when this page is built: sizes from the tracker files the server ships{benchData ? ', timings from the latest benchmark run' : ''}.
-              Anyone can rerun them. <a href="/docs/tracking/cost/">How we measure</a>
+              Anyone can rerun them. <a href="/docs/tracking/cost">How we measure</a>
             </p>
           </div>
           {numbers.length === 0 && <p class="empty">Run <code>make build</code> and rebuild this page to fill in the measured numbers.</p>}
@@ -239,7 +239,7 @@ const tag = `<script defer src="/_t/t.js" data-site="mysite"></script>`;
             <h2 id="h-host">Your server, one file of data.</h2>
             <p>
               Build the image or deploy to Fly.io, then add one script tag. Everything Trail records lives in a single SQLite file you can back
-              up with <code>sqlite3 .backup</code> and move with <code>cp</code>. <a href="/docs/quickstart/">Read the quickstart</a>
+              up with <code>sqlite3 .backup</code> and move with <code>cp</code>. <a href="/docs/quickstart">Read the quickstart</a>
             </p>
           </div>
           <div class="codes">
@@ -296,10 +296,10 @@ const tag = `<script defer src="/_t/t.js" data-site="mysite"></script>`;
         Trail
       </span>
       <nav aria-label="Footer">
-        <a href="/docs/quickstart/">Docs</a>
+        <a href="/docs/quickstart">Docs</a>
         <a href={GITHUB_URL}>GitHub</a>
         <a href={NPM_URL}>npm</a>
-        <a href="/docs/changelog/">Changelog</a>
+        <a href="/docs/changelog">Changelog</a>
         <a href={GITHUB_URL + '/blob/main/LICENSE'}>MIT License</a>
       </nav>
     </footer>

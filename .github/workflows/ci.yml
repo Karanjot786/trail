@@ -49,3 +49,20 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run build
+
+  site:
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: site } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 9 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm, cache-dependency-path: site/pnpm-lock.yaml }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: npx playwright install --with-deps chromium firefox
+      - run: pnpm test:landing
+      - run: pnpm test:docs
+      - run: pnpm budget
+      - run: pnpm lh -- --ci # gates accessibility, SEO and best practices only
