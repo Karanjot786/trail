@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
@@ -21,11 +20,6 @@ func setup(t *testing.T) http.Handler {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = st.Close() })
-	// ponytail: remove once the ingest migration in store.go adds events.retry.
-	if _, err := st.DB().Exec(`ALTER TABLE events ADD COLUMN retry INTEGER NOT NULL DEFAULT 0`); err != nil &&
-		!strings.Contains(err.Error(), "duplicate column") {
-		t.Fatal(err)
-	}
 	now := time.Now().UnixMilli()
 	st.Enqueue(store.Event{SiteID: "s", Type: "pageview", AnonID: "A", SessionID: "x", Path: "/", TS: now - 1000, Env: "production"})
 	if err := st.Flush(); err != nil {

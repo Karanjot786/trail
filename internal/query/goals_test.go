@@ -10,24 +10,6 @@ import (
 	"trail/internal/store"
 )
 
-// withRetry adds events.retry when store.Open has not migrated it yet.
-// ponytail: remove once the ingest migration in store.go lands.
-func withRetry(t *testing.T, db *sql.DB) {
-	t.Helper()
-	rows, err := db.Query(`SELECT name FROM pragma_table_info('events') WHERE name='retry'`)
-	if err != nil {
-		t.Fatal(err)
-	}
-	has := rows.Next()
-	_ = rows.Close()
-	if has {
-		return
-	}
-	if _, err := db.Exec(`ALTER TABLE events ADD COLUMN retry INTEGER NOT NULL DEFAULT 0`); err != nil {
-		t.Fatal(err)
-	}
-}
-
 func custom(anon, sess, name string, ts int64) store.Event {
 	return store.Event{Type: "event", AnonID: anon, SessionID: sess, Name: name, Path: "/", TS: ts}
 }
@@ -206,7 +188,6 @@ func TestGoalReportRespectsFilters(t *testing.T) {
 
 func TestDeliveryRetried(t *testing.T) {
 	db := fixture(t, pv("A", "sa", "/", t0), pv("B", "sb", "/", t0), pv("C", "sc", "/", t0), pv("D", "sd", "/", t0))
-	withRetry(t, db)
 	if _, err := db.Exec(`UPDATE events SET retry=2 WHERE anon_id='A'`); err != nil {
 		t.Fatal(err)
 	}
