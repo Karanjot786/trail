@@ -71,7 +71,7 @@ function DemoBar() {
         <span className="shrink-0 rounded-md border border-border-strong bg-raised px-2 py-1 text-[13px] font-medium text-fg">
           Demo · sample data
         </span>
-        <span className="hidden truncate text-sm text-muted md:block">A read-only Trail with 30 days of generated traffic.</span>
+        <span className="hidden truncate text-sm text-muted md:block">A read-only Trail with 60 days of generated traffic.</span>
       </div>
       <a
         href="https://github.com/Karanjot786/trail#quick-start"

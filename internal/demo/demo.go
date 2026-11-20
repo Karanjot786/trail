@@ -24,8 +24,8 @@ const (
 	siteID  = "demo"
 	domain  = "demo.trail.dev"
 	prefix  = "/api/demo/"
-	days    = 30
-	persons = 1200
+	days    = 60 // two 30-day periods, so "Last 30 Days" has a real previous period to compare with
+	persons = 1800
 	// reseedAt is the minute after midnight (in the demo's zone) when data is rebuilt.
 	reseedAt = 5 * time.Minute
 	// grace lets requests already running on the old snapshot finish before it closes.
