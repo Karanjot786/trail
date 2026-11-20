@@ -1,6 +1,6 @@
 import { fileURLToPath } from 'node:url'
 import { defineConfig, type DefaultTheme } from 'vitepress'
-import { DOCS_BASE, GITHUB_URL } from './site'
+import { DEMO_URL, DOCS_BASE, GITHUB_URL, SITE_URL } from './site'
 import { sidebar } from './sidebar'
 import { head, transformHead, sitemap } from './seo'
 import { llms } from './llms'
@@ -22,6 +22,8 @@ export default defineConfig<DefaultTheme.Config>({
   vite: {
     plugins: llms(),
     server: { host: '127.0.0.1' },
+    // src/config.ts reads process.env, which does not exist in the browser.
+    define: { 'process.env.SITE_URL': JSON.stringify(SITE_URL), 'process.env.TRAIL_DEMO_URL': JSON.stringify(DEMO_URL) },
     resolve: {
       alias: [{ find: /^.*\/VPNavBar\.vue$/, replacement: fileURLToPath(new URL('./theme/TrailNavBar.vue', import.meta.url)) }],
     },

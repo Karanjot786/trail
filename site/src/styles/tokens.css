@@ -1,0 +1,20 @@
+:root {
+  --bg: #000;
+  --card: #0a0a0a;
+  --raised: #121212;
+  --line: #1f1f1f;
+  --line-strong: #2e2e2e;
+  --fg: #ededed;
+  --muted: #a1a1a1;
+  --subtle: #8c8c8c;
+  --accent: #0a72ef;
+  --link: #4aa3ff;
+  --good: #45d483;
+  --good-bg: #0f2417;
+  --event-bg: #0c1f3d;
+  --sans: 'Geist Variable', ui-sans-serif, system-ui, sans-serif;
+  --mono: 'Geist Mono Variable', ui-monospace, monospace;
+  --ease: cubic-bezier(0.23, 1, 0.32, 1);
+  --gutter: 24px;
+  color-scheme: dark;
+}

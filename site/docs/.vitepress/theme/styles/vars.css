@@ -1,0 +1,71 @@
+/* Trail tokens (src/styles/tokens.css) mapped onto VitePress variables.
+   Set on :root and .dark, because appearance: 'force-dark' adds .dark. */
+:root,
+.dark {
+  --vp-c-bg: var(--bg);
+  --vp-c-bg-alt: var(--card);
+  --vp-c-bg-elv: var(--card);
+  --vp-c-bg-soft: var(--raised);
+  --vp-c-divider: var(--line);
+  --vp-c-border: var(--line-strong);
+  --vp-c-gutter: var(--line);
+
+  --vp-c-text-1: var(--fg);
+  --vp-c-text-2: var(--muted);
+  --vp-c-text-3: var(--subtle);
+
+  --vp-c-brand-1: var(--link);
+  --vp-c-brand-2: var(--accent);
+  --vp-c-brand-3: var(--accent);
+  --vp-c-brand-soft: var(--event-bg);
+  --vp-c-default-soft: var(--raised);
+
+  --vp-font-family-base: var(--sans);
+  --vp-font-family-mono: var(--mono);
+
+  --vp-nav-height: 64px;
+  --vp-nav-bg-color: var(--bg);
+  --vp-nav-divider-color: var(--line);
+  --vp-sidebar-width: 272px;
+  --vp-sidebar-bg-color: var(--bg);
+  --vp-backdrop-bg-color: color-mix(in srgb, var(--bg) 70%, transparent);
+
+  --vp-code-font-size: 0.875em;
+  --vp-code-color: var(--fg);
+  --vp-code-bg: var(--raised);
+  --vp-code-block-bg: var(--card);
+  --vp-code-block-color: var(--fg);
+  --vp-code-block-divider-color: var(--line);
+  --vp-code-line-highlight-color: color-mix(in srgb, var(--accent) 12%, transparent);
+  --vp-code-copy-code-border-color: var(--line);
+  --vp-code-copy-code-bg: var(--raised);
+  --vp-code-copy-code-hover-border-color: var(--line-strong);
+  --vp-code-copy-code-hover-bg: var(--raised);
+  --vp-code-tab-bg: var(--raised);
+  --vp-code-tab-divider: var(--line);
+  --vp-code-tab-active-bar-color: var(--accent);
+
+  --vp-button-brand-bg: var(--accent);
+  --vp-button-brand-hover-bg: var(--accent);
+  --vp-button-brand-active-bg: var(--accent);
+  --vp-button-alt-bg: var(--raised);
+  --vp-button-alt-border: var(--line-strong);
+  --vp-button-alt-text: var(--fg);
+  --vp-button-alt-hover-bg: var(--raised);
+  --vp-button-alt-hover-border: var(--muted);
+  --vp-button-alt-hover-text: var(--fg);
+
+  --vp-input-border-color: var(--line-strong);
+  --vp-input-bg-color: var(--card);
+
+  --vp-local-search-bg: var(--card);
+  --vp-local-search-result-bg: var(--card);
+  --vp-local-search-result-border: var(--line);
+  --vp-local-search-result-selected-bg: var(--raised);
+  --vp-local-search-result-selected-border: var(--accent);
+  --vp-local-search-highlight-bg: transparent;
+  --vp-local-search-highlight-text: var(--link);
+
+  --vp-custom-block-font-size: 15px;
+  --vp-custom-block-code-font-size: 13px;
+}
