@@ -1,7 +1,178 @@
 ---
-// STUB (A0): root section and heading only. Owner: builder C.
+// How it works: one blue stage, three waypoints joined by a CSS footstep trail. flow.ts plays it once.
 import { how } from '../../copy/landing'
+import CodeBlock from '../site/CodeBlock.astro'
+
+const { install: inst } = how
+const code = `<span class="k">&lt;script</span> defer
+  src=<span class="s">"https://stats.example.com/_t/t.js"</span>
+  data-site=<span class="s">"mysite"</span>
+  data-api=<span class="s">"https://stats.example.com/_t/e"</span><span class="k">&gt;</span>
+<span class="k">&lt;/script&gt;</span>`
+const icon = { out: 'i-ext', id: 'i-user', ev: 'i-zap', left: 'i-out' } as const
+const pctText = (n: number) => `${n.toFixed(1)}%`
 ---
-<section id="how" class="how sec">
-  <div class="wrap"><h2>{how.h2}</h2></div>
+<section class="how sec" id="how">
+  <div class="wrap">
+    <div class="head" data-reveal>
+      <h2>{how.h2}</h2>
+      <p class="lede">{how.lede}</p>
+    </div>
+    <div class="flow" id="flow">
+      <ol class="fsteps">
+        {how.steps.map((s, i) => (
+          <li class="fstep">
+            <div class="fcopy">
+              <div class="wprow">
+                <span class:list={['wpt', { goal: i === 2 }]} data-wp={i}><i aria-hidden="true"></i>{s.wp}</span>
+                {i < 2 && <span class="trail-seg" data-seg={i} aria-hidden="true"></span>}
+              </div>
+              <h3>{s.h3}</h3>
+              <p>{s.p}</p>
+            </div>
+            <div class="fshot">
+              {i === 0 && (
+                <>
+                  <div class="ui win inst" aria-label="Install panel">
+                    <div class="wbar"><span class="muted">{inst.bar[0]}</span><svg class="i arr" aria-hidden="true"><use href="#i-chev"/></svg><b>{inst.bar[1]}</b><span class="sid">{inst.bar[2]}</span></div>
+                    <div class="wbody">
+                      <div class="check on" id="check" role="status">
+                        <span class="st w"><span class="wait"></span><span>{inst.waiting}</span></span>
+                        <span class="st ok"><span class="okd"><svg class="i" aria-hidden="true"><use href="#i-check"/></svg></span><span class="okt num">{inst.ok}</span></span>
+                      </div>
+                      <div class="tabs">{inst.tabs.map((t, k) => <span class:list={{ on: k === 0 }}>{t}</span>)}</div>
+                      <CodeBlock title={inst.file} code={code} copy={inst.snippet} />
+                    </div>
+                  </div>
+                  <svg class="cur" id="cur" aria-hidden="true"><use href="#i-cursor"/></svg>
+                </>
+              )}
+              {i === 1 && (
+                <div class="ui win live" aria-label="Live events">
+                  <div class="wbar"><span class="online"><i></i><span><span class="num">{how.feedBar.online}</span> online</span></span><span class="wmeta">{how.feedBar.site}</span></div>
+                  <ol class="feed" id="feed">
+                    {how.feed.map((f) => (
+                      <li>
+                        <time>{f.time}</time>
+                        {f.kind === 'src' && <span class="chip"><span class="g">G</span>{f.text}</span>}
+                        {f.kind === 'page' && <span class="chip">{f.text} <span class="t">{f.t}</span></span>}
+                        {f.kind !== 'src' && f.kind !== 'page' && (
+                          <span class={f.kind === 'id' ? 'idn' : f.kind}><svg class="i" aria-hidden="true"><use href={`#${icon[f.kind]}`}/></svg>{f.text}</span>
+                        )}
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+              )}
+              {i === 2 && (
+                <div class="ui win goals" id="goals" aria-label="Goals panel">
+                  <div class="wbar"><span class="tabh">{how.goalsHead.tab}</span><span class="cols">{how.goalsHead.cols.map((c) => <span>{c}</span>)}</span></div>
+                  <ul class="bars">
+                    {how.goals.map((g, k) => (
+                      <li class:list={['bar', { top: k === 0 }]} style={`--w:${g.w}`}>
+                        <span class="name">{g.name}{k === 0 && <em class="reached">{how.goalsHead.reached}</em>}</span>
+                        <span class="v"><span class="num" data-n={g.visitors}>{g.visitors.toLocaleString('en-US')}</span><span class="num" data-n={g.rate}>{pctText(g.rate)}</span></span>
+                      </li>
+                    ))}
+                    <li class="addg"><svg class="i" aria-hidden="true"><use href="#i-plus"/></svg>{how.goalsHead.add}</li>
+                  </ul>
+                </div>
+              )}
+            </div>
+          </li>
+        ))}
+      </ol>
+    </div>
+  </div>
 </section>
+
+<script>import '../../scripts/flow'</script>
+
+<style>
+  .how{background:var(--paper)}
+  .flow{--cg:40px;position:relative;border-radius:20px;background:var(--blue);color:#fff;overflow:hidden;isolation:isolate;padding:40px 40px 0}
+  .flow::before{content:"";position:absolute;inset:0;z-index:-2;background-image:radial-gradient(circle,rgb(255 255 255 / .2) 1.2px,transparent 1.7px);background-size:16px 16px;-webkit-mask-image:linear-gradient(180deg,transparent 18%,#000 70%);mask-image:linear-gradient(180deg,transparent 18%,#000 70%)}
+  .fsteps{list-style:none;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:auto auto;column-gap:var(--cg)}
+  .fstep{position:relative;display:grid;grid-row:span 2;grid-template-rows:subgrid;min-width:0}
+  .fcopy{display:flex;flex-direction:column;gap:8px;padding-bottom:36px}
+  .fcopy h3{font-size:21px;letter-spacing:-.015em}
+  .fcopy p{font-size:16px;line-height:1.5;color:#fff;max-width:24em;text-wrap:pretty}
+  .wprow{display:flex;align-items:center;margin-bottom:8px}
+  .wpt{position:relative;display:inline-flex;align-items:center;gap:10px;height:22px;font:600 13px/1 var(--mono);letter-spacing:.01em;flex:none}
+  .wpt i{position:relative;flex:none;width:20px;height:20px;border-radius:50%;border:2px solid #fff;transition:border-color 240ms ease,transform 300ms var(--ease-out)}
+  .wpt.goal i{border-color:var(--signal)}
+  .wpt.goal i::after{content:"";position:absolute;inset:3px;border-radius:50%;background:var(--signal);transition:transform 300ms var(--ease-out)}
+
+  /* the trail: footprints every 20px, alternating 3.5px either side of the line.
+     Two layers of one dot per 40px tile, the second shifted half a tile. */
+  .trail-seg{--n:12;flex:1;align-self:stretch;margin:0 calc(12px - var(--cg)) 0 18px;opacity:.9;pointer-events:none;
+    background:radial-gradient(circle at 10px 50%,#fff 2.6px,transparent 3.1px) 0 calc(50% - 3.5px) / 40px 14px repeat-x,
+               radial-gradient(circle at 10px 50%,#fff 2.6px,transparent 3.1px) 20px calc(50% + 3.5px) / 40px 14px repeat-x;
+    transition:clip-path calc(var(--n) * 55ms) steps(var(--n))}
+  .flow[data-seq="pre"] .trail-seg:not([data-on]){clip-path:inset(0 100% 0 0)}
+
+  .fshot{position:relative;height:332px}
+  .fshot .win{position:absolute;left:0;right:0;top:0;bottom:-48px;box-shadow:0 0 0 1px rgb(255 255 255 / .05),0 32px 64px -20px rgb(2 22 62 / .62),0 12px 24px -14px rgb(2 22 62 / .4)}
+  .wbody{padding:14px;display:flex;flex-direction:column;gap:12px}
+  .check{position:relative;height:40px;flex:none;border-radius:8px;border:1px solid var(--ui-border);background:var(--ui-raised);font-size:13.5px;color:var(--ui-muted);transition:background-color 240ms ease,border-color 240ms ease}
+  .check .st{position:absolute;inset:0 12px;display:flex;align-items:center;gap:10px;white-space:nowrap;transition:opacity 200ms ease,transform 260ms var(--ease-out),filter 200ms ease}
+  .check .st.ok{color:var(--ui-fg)}
+  .check:not(.on) .st.ok{opacity:0;transform:translateY(6px);filter:blur(2px)}
+  .check.on .st.w{opacity:0;transform:translateY(-6px);filter:blur(2px)}
+  .check.on{border-color:rgb(69 212 131 / .3);background:var(--ui-good-bg)}
+  .okd{flex:none;display:grid;place-items:center;width:16px;height:16px;border-radius:50%;background:var(--ui-good);color:#000}
+  .okd svg{width:11px;height:11px;stroke-width:3.2}
+  .inst .tabs{padding:0}
+  .inst .tabs span{font-size:13px}
+  .inst :global(.code-head){height:36px}
+  .inst :global(.code pre){font-size:11.5px;line-height:1.7;white-space:pre}
+  .live .wbar,.goals .wbar{justify-content:space-between}
+  .wmeta{font:12px var(--mono);color:var(--ui-subtle)}
+  .feed{list-style:none;padding:4px 0}
+  .feed li{display:grid;grid-template-columns:62px auto;justify-content:start;align-items:center;gap:12px;height:46px;padding:0 14px;transition:opacity 220ms ease,transform 280ms var(--ease-out)}
+  .feed li + li{border-top:1px solid rgb(31 31 31 / .8)}
+  .feed time{font:12px var(--mono);color:var(--ui-subtle);font-variant-numeric:tabular-nums}
+  .feed svg.i{width:14px;height:14px}
+  .tabh{position:relative;align-self:stretch;display:flex;align-items:center;font-size:14px;font-weight:500}
+  .tabh::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:#fff}
+
+  /* story pre-state: only while the sequence plays (flow.ts sets data-seq="pre"; reduced motion never does) */
+  .flow[data-seq="pre"] .wpt:not(.on) i{border-color:rgb(255 255 255 / .45);transform:scale(.86)}
+  .flow[data-seq="pre"] .wpt.goal:not(.on) i::after{transform:scale(0)}
+  .flow[data-seq="pre"] .feed li:not(.in){opacity:0;transform:translateY(-6px)}
+  .flow[data-seq="pre"] .goals .bar:not(.in)::before{transform:scaleX(0)}
+  .flow[data-seq="pre"] .goals .reached:not(.in){opacity:0;transform:scale(.9)}
+  .flow[data-seq="pre"] .goals .v span{color:var(--ui-muted)}
+
+  @media (max-width:1180px){
+    .flow{--cg:24px;padding-inline:28px}
+  }
+  /* one column: the trail walks down the left lane, ring to ring */
+  @media (max-width:1000px){
+    .fsteps{grid-template-columns:1fr;row-gap:0}
+    .fstep{display:flex;flex-direction:column}
+    .flow{--lane:-42px;padding:36px 0 0 64px}
+    .fcopy{padding-right:28px}
+    .fshot{height:320px;margin-bottom:40px;overflow:hidden;-webkit-mask-image:linear-gradient(#000 70%,transparent);mask-image:linear-gradient(#000 70%,transparent)}
+    .fstep:last-child .fshot{margin-bottom:0;-webkit-mask-image:none;mask-image:none;overflow:visible}
+    .fshot .win{right:-24px;max-width:560px}
+    .fstep:last-child .fshot .win{right:-1px}
+    .wpt i{position:absolute;left:var(--lane);top:1px}
+    .wprow{margin-bottom:6px}
+    .trail-seg{position:absolute;left:calc(var(--lane) + 3px);top:35px;bottom:13px;width:14px;margin:0;
+      background:radial-gradient(circle at 50% 10px,#fff 2.6px,transparent 3.1px) calc(50% - 3.5px) 0 / 14px 40px repeat-y,
+                 radial-gradient(circle at 50% 10px,#fff 2.6px,transparent 3.1px) calc(50% + 3.5px) 20px / 14px 40px repeat-y}
+    .flow[data-seq="pre"] .trail-seg:not([data-on]){clip-path:inset(0 0 100% 0)}
+  }
+  @media (max-width:700px){
+    .flow{--lane:-36px;margin-inline:calc(-1 * var(--gut));border-radius:0;padding:32px 0 0 48px}
+    .fcopy{padding-right:16px;padding-bottom:28px}
+    .fcopy h3{font-size:20px}
+    .fshot{height:340px;margin-bottom:36px;-webkit-mask-image:linear-gradient(#000 80%,transparent);mask-image:linear-gradient(#000 80%,transparent)}
+    .fshot .win,.fstep:last-child .fshot .win{right:16px}
+    .inst :global(.code pre){font-size:10.5px;padding:12px 10px}
+    .inst .wbody{padding:12px 10px}
+    .fstep:last-child .fshot{height:300px}
+    .check{font-size:13px}
+  }
+</style>

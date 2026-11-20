@@ -1,7 +1,63 @@
 ---
-// STUB (A0): root section and heading only. Owner: builder C.
+// Measured numbers: tracker sizes and bench timings from the build, plus the owner's pinned facts.
 import { numbers } from '../../copy/landing'
+import { sizes, benchData } from '../../lib/numbers'
+import { svg } from '../../lib/art'
+import { numbersCells } from './numbers-cells'
+
+const { big, small } = numbersCells(sizes, benchData)
+const lede = benchData ? numbers.ledeTemplate.replace('{runs}', String(benchData.runs)) : numbers.ledeNoBench
 ---
-<section id="numbers" class="numbers sec">
-  <div class="wrap"><h2>{numbers.h2}</h2></div>
+<section class="numbers sec" id="numbers">
+  <div class="wrap">
+    <div class="head" data-reveal>
+      <h2>{numbers.h2}</h2>
+      <p class="lede">{lede}</p>
+    </div>
+  </div>
+  <div class="ridge" aria-hidden="true" set:html={svg.ridge} />
+  <div class="wrap">
+    <dl class="ng" data-reveal>
+      {big.map((c) => <div><dt set:html={c.dt} /><dd set:html={c.dd} /></div>)}
+    </dl>
+    <dl class="ng small" data-reveal>
+      {small.map((c) => <div><dt set:html={c.dt} /><dd>{c.dd}</dd></div>)}
+    </dl>
+    <div class="nfoot">
+      <span>{numbers.foot}</span>
+      <a class="link" href={numbers.footLink.href}>{numbers.footLink.text}</a>
+    </div>
+  </div>
 </section>
+
+<style>
+  .numbers{background:var(--paper);overflow:hidden;padding-bottom:110px}
+  .numbers .head{margin-bottom:0}
+  .ridge{height:200px;margin-top:-20px}
+  .ridge :global(svg){display:block;width:100%;height:100%}
+  .ridge :global(.rg-crest){fill:var(--ink)}
+  .ridge :global(.rg-fill){fill:var(--blue)}
+  .ng{display:grid;grid-template-columns:repeat(4,1fr);border-top:1.5px solid var(--ink)}
+  .ng div{padding:28px 24px 30px 0;display:flex;flex-direction:column;gap:12px}
+  .ng div + div{padding-left:24px;border-left:1px solid var(--rule)}
+  .ng dd{font:900 54px/1 var(--dots);color:var(--blue);font-variant-numeric:tabular-nums;white-space:nowrap;letter-spacing:.01em}
+  .ng dd :global(.pt){font-family:var(--mono);font-weight:800;margin:0 -.08em}
+  .ng dt{order:2;font-size:15px;line-height:1.4;color:var(--ink-2)}
+  .ng dt :global(code){font-size:13.5px;color:var(--ink)}
+  .ng.small{border-top:1px solid var(--rule)}
+  .ng.small dd{font-size:40px;color:var(--ink)}
+  .nfoot{margin-top:36px;display:flex;justify-content:space-between;gap:24px;flex-wrap:wrap;font-size:16px;color:var(--ink-2)}
+
+  @media (max-width:1180px){
+    .ng{grid-template-columns:1fr 1fr}
+    .ng div:nth-child(3){padding-left:0;border-left:0}
+    .ng div:nth-child(n+3){border-top:1px solid var(--rule)}
+  }
+  @media (max-width:700px){
+    .ng div,.ng div + div{padding:20px 12px 22px 0;border-left:0}
+    .ng div:nth-child(even){padding-left:12px;border-left:1px solid var(--rule)}
+    .ng dd{font-size:34px}
+    .ng.small dd{font-size:28px}
+    .ridge{height:120px}
+  }
+</style>

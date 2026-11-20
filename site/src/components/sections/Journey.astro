@@ -1,7 +1,113 @@
 ---
-// STUB (A0): root section and heading only. Owner: builder C.
+// Journey showcase: user_986's four visits, rendered from the dataset the hero route uses.
 import { journey } from '../../copy/landing'
+import { svg, fmtSec } from '../../lib/art'
+import data from '../../data/journey-user986.json'
+
+type Step = { k: string; t?: string; sec?: number; scroll?: number }
+type Visit = { date: string; wd: string; time: string; steps: Step[] }
+const days: { date: string; wd: string; visits: Visit[] }[] = []
+for (const v of data.visits as Visit[]) {
+  const last = days.at(-1)
+  if (last?.date === v.date) last.visits.push(v)
+  else days.push({ date: v.date, wd: v.wd, visits: [v] })
+}
+// An arrow leads into each page and into "left", as the dashboard draws it.
+const arrowBefore = (k: string) => k === 'page' || k === 'left'
+const icon: Record<string, string> = { out: 'i-ext', id: 'i-user', ev: 'i-zap', left: 'i-out' }
+const cls: Record<string, string> = { out: 'out', id: 'idn', ev: 'ev', left: 'left' }
 ---
-<section id="journey" class="journey sec">
-  <div class="wrap"><h2>{journey.h2}</h2></div>
+<section class="journey sec" id="journey" data-reveal-self>
+  <div class="route route-a" aria-hidden="true" set:html={svg.routeA} />
+  <div class="route route-b" aria-hidden="true" set:html={svg.routeB} />
+  <div class="route route-m" aria-hidden="true" set:html={svg.routeM} />
+  <div class="wrap">
+    <div class="head" data-reveal>
+      <h2>{journey.h2}</h2>
+      <p class="lede">{journey.lede}</p>
+    </div>
+    <div class="jgrid">
+      <aside class="jlegend" data-reveal aria-label="Legend">
+        <h3>{journey.sheetTitle}</h3>
+        <dl>{journey.legend.map(([dt, dd]) => <><dt>{dt}</dt><dd>{dd}</dd></>)}</dl>
+        <div class="keys">{journey.keys.map((k, i) => <span><i class={['', 'lw', 'lg'][i]}></i>{k}</span>)}</div>
+      </aside>
+      <div class="ui jv" data-reveal style="--d:1" aria-label="Journey view">
+        <div class="top">
+          <span class="back"><svg class="i" aria-hidden="true"><use href="#i-back"/></svg>{journey.top.back}</span>
+          <span class="who">{data.id}</span><span class="badge">{journey.top.badge}</span>
+          <span class="muted">{journey.top.meta}</span>
+        </div>
+        <div class="days">
+          {days.map((d) => (
+            <div class="day">
+              <div class="d"><b>{d.date}</b><span>{d.wd}</span></div>
+              <div class="sess">
+                {d.visits.map((v) => (
+                  <div class="sl">
+                    <time>{v.time}</time>
+                    <div class="row">
+                      {v.steps.map((s, i) => (
+                        <>
+                          {i > 0 && arrowBefore(s.k) && <svg class="i arr" aria-hidden="true"><use href="#i-chev"/></svg>}
+                          {s.k === 'src' && <span class="chip"><span class="g">G</span>{s.t}</span>}
+                          {s.k === 'page' && <span class="chip">{s.t} <span class="t">{fmtSec(s.sec!)}</span><span class="s">↓{s.scroll}%</span></span>}
+                          {icon[s.k] && <span class={cls[s.k]}><svg class="i sm" aria-hidden="true"><use href={`#${icon[s.k]}`}/></svg>{s.k === 'id' ? 'identified' : s.k === 'left' ? 'left' : s.t}</span>}
+                        </>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+    <p class="jnote">{journey.note}</p>
+  </div>
 </section>
+
+<style>
+  .journey{background:linear-gradient(#0a72ef,#0866dc);color:#fff;overflow:hidden;isolation:isolate}
+  .journey .head p{color:#fff}
+  /* the route: footsteps in two corners, sized in their own frames so they never stretch */
+  .route{position:absolute;z-index:-1;pointer-events:none}
+  .route :global(svg){display:block;width:100%;height:auto;overflow:visible}
+  .route :global(circle.rt){fill:#fff;opacity:.4}
+  .route-a{left:0;bottom:0;width:240px}
+  .route-b{right:0;top:0;width:640px}
+  .route-m{display:none;left:0;right:0;top:0}
+  @media (prefers-reduced-motion:no-preference){
+    :global(.js) .journey .route :global(circle.rt){transition:opacity 300ms ease;transition-delay:calc(var(--i) * 28ms)}
+    :global(.js) .journey:not([data-inview]) .route :global(circle.rt){opacity:0}
+  }
+
+  .jgrid{display:grid;grid-template-columns:330px 1fr;gap:40px;align-items:start}
+  .jv{margin-right:calc(-1 * var(--gut) - 200px);padding:22px 24px 26px;border-radius:14px 0 0 14px}
+  .jv .top{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:18px}
+  .jv .top .muted{font-size:14px}
+  .days{border:1px solid var(--ui-border);border-radius:12px;overflow:hidden}
+  .jv svg.sm{width:14px;height:14px}
+  .jlegend{background:#fff;color:var(--ink);border:1.5px solid var(--ink);border-radius:4px;padding:18px 20px 16px;font:12.5px/1.6 var(--mono);box-shadow:6px 6px 0 rgb(6 20 46 / .35)}
+  .jlegend h3{font:600 17px var(--sans);letter-spacing:-.01em;margin-bottom:10px}
+  .jlegend dl{display:grid;grid-template-columns:auto 1fr;gap:4px 14px}
+  .jlegend dt{color:#45577a}
+  .jlegend .keys{margin-top:14px;padding-top:12px;border-top:1px solid #c5d0e3;display:flex;flex-direction:column;gap:6px}
+  .jlegend .keys span{display:flex;align-items:center;gap:10px}
+  .jlegend .keys i{width:22px;display:inline-grid;place-items:center}
+  .jlegend .keys i::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--blue);box-shadow:-8px 3px 0 -1px var(--blue),8px -3px 0 -1px var(--blue)}
+  .jlegend .keys i.lw::before{width:10px;height:10px;background:none;border:2px solid var(--blue);box-shadow:none}
+  .jlegend .keys i.lg::before{width:12px;height:12px;background:var(--signal);border:2px solid var(--ink);box-shadow:none}
+  .jnote{margin-top:18px;font:500 13px var(--mono);color:#fff}
+
+  @media (max-width:900px){
+    .jgrid{grid-template-columns:1fr}
+    .jv{margin-right:calc(-1 * var(--gut))}
+  }
+  @media (max-width:700px){
+    .jv{padding:16px;border-radius:14px 0 0 14px}
+    .route-a,.route-b{display:none}
+    .route-m{display:block}
+  }
+</style>
