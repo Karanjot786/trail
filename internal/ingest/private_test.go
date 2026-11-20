@@ -1,6 +1,7 @@
 package ingest
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -129,10 +130,35 @@ func TestPrivateSweepsIdleSessions(t *testing.T) {
 	p := NewPrivate(time.UTC, c.now)
 	p.Identify("s1", ip, ua)
 	c.add(time.Hour)
-	for range sweepEvery {
-		p.Identify("s1", "198.51.100.1", ua)
-	}
+	p.Identify("s1", "198.51.100.1", ua)
 	if n := len(p.sess); n != 1 {
 		t.Errorf("%d sessions after sweep, want 1", n)
+	}
+}
+
+func TestPrivateSessionMapCapped(t *testing.T) {
+	c := newClock(time.UTC, 9, 0)
+	p := NewPrivate(time.UTC, c.now)
+	p.max = 1000
+	for i := 0; i < p.max+50; i++ {
+		_, sid := p.Identify("s1", ip, fmt.Sprintf("ua-%d", i))
+		if sid == "" {
+			t.Fatalf("empty session id at %d", i)
+		}
+	}
+	if len(p.sess) > p.max {
+		t.Fatalf("sess size %d > cap %d", len(p.sess), p.max)
+	}
+	// overflow visitors get a stable fallback session within the 30-min bucket
+	_, a := p.Identify("s1", ip, "overflow-ua")
+	_, b := p.Identify("s1", ip, "overflow-ua")
+	if a == "" || a != b {
+		t.Errorf("fallback session not stable: %q vs %q", a, b)
+	}
+	// after expiry and a minute-spaced sweep, space frees up
+	c.add(sessIdle + 2*time.Minute)
+	p.Identify("s1", ip, "fresh-ua")
+	if len(p.sess) > 1 {
+		t.Errorf("sweep did not free expired entries: %d left", len(p.sess))
 	}
 }
