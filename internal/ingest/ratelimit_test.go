@@ -54,3 +54,22 @@ func TestRateLimiterCapAndSweep(t *testing.T) {
 		t.Fatalf("after sweep size %d, want 1", n)
 	}
 }
+
+// A full map must not let new IPs through unlimited: they share one capped bucket.
+func TestRateLimiterFullMapCapsNewIPs(t *testing.T) {
+	now := time.Unix(1_700_000_000, 0)
+	l := newLimiter(1, 1, func() time.Time { return now })
+	l.max = 2
+	for i := range 2 { // fill the map with busy clients (each used its burst)
+		l.allow("10.0.0." + strconv.Itoa(i))
+	}
+	allowed := 0
+	for i := range 1000 { // a flood of fresh IPs at the same instant
+		if l.allow("10.9." + strconv.Itoa(i/250) + "." + strconv.Itoa(i%250)) {
+			allowed++
+		}
+	}
+	if allowed != 20 { // overflow bucket burst = 20 x per-IP burst
+		t.Fatalf("fresh IPs allowed %d while full, want 20 (shared overflow burst)", allowed)
+	}
+}

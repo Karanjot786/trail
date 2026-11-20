@@ -26,6 +26,7 @@ type limiter struct {
 	m         map[string]*rate.Limiter
 	lastSweep time.Time
 	max       int // maxLimiters unless a test lowers it
+	over      *rate.Limiter // shared bucket for new IPs while the map is full
 }
 
 func newLimiter(rps float64, burst int, now func() time.Time) *limiter {
@@ -52,9 +53,13 @@ func (l *limiter) allow(ip string) bool {
 			l.sweep(t)
 		}
 		if len(l.m) >= l.max {
-			// ponytail: full of busy clients, so a new one goes unlimited; a flood
-			// of fresh IPs is beyond what a per-IP limit can stop anyway.
-			return true
+			// Full of busy clients: every new IP shares one overflow bucket
+			// (20x one IP's rate), so a flood of fresh IPs stays capped
+			// instead of getting through unlimited.
+			if l.over == nil {
+				l.over = rate.NewLimiter(l.rps*20, l.burst*20)
+			}
+			return l.over.AllowN(t, 1)
 		}
 		b = rate.NewLimiter(l.rps, l.burst)
 		l.m[k] = b
