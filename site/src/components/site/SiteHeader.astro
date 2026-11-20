@@ -1,6 +1,14 @@
 ---
-// STUB (A0): brand plus the shared nav items. A1 replaces it with the full header and GitHub button.
+// Landing header: fixed 72px bar, transparent over the hero, frosted paper once the hero has scrolled
+// out from under it (nav.ts sets data-state). Items come from src/lib/nav.mjs and the brand, links and
+// GitHub button share src/styles/chrome.css with the docs header (docs/.vitepress/theme/TrailNavBar.vue).
+import '../../styles/chrome.css'
 import { NAV } from '../../lib/nav.mjs'
+import { formatStars, getStars } from '../../lib/github-stars.mjs'
+import { GITHUB_URL } from '../../config'
+import GitHubButton from './GitHubButton.astro'
+
+const stars = formatStars(await getStars())
 ---
 <header class="site-head" data-state="hero">
   <nav class="nav wrap" aria-label="Main">
@@ -10,15 +18,36 @@ import { NAV } from '../../lib/nav.mjs'
     </a>
     <ul class="nav-links">
       {NAV.map((n) => <li class:list={{ 'hide-s': n.hideSmall }}><a class="nl" href={n.href}>{n.label}</a></li>)}
+      <li class="gh-li"><GitHubButton href={GITHUB_URL} stars={stars} /></li>
     </ul>
   </nav>
 </header>
+<script>import '../../scripts/nav'</script>
+
 <style>
-  .site-head{position:absolute;inset:0 0 auto;z-index:50;height:var(--head-h);color:var(--chrome-fg)}
+  .site-head{
+    --chrome-fg:#fff;--head-focus:var(--signal);
+    position:fixed;inset:0 0 auto;z-index:50;
+    height:calc(var(--head-h) + env(safe-area-inset-top,0px));padding-top:env(safe-area-inset-top,0px);
+    color:var(--chrome-fg);transition:color 200ms ease;
+  }
+  :global(html:not(.js)) .site-head{position:absolute}
+  /* frosted paper, faded in once a light section sits under the bar */
+  .site-head::before{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;
+    background:rgb(246 249 254 / .78);-webkit-backdrop-filter:blur(18px) saturate(170%);backdrop-filter:blur(18px) saturate(170%);
+    box-shadow:0 1px 0 rgb(6 20 46 / .06),0 8px 24px -12px rgb(6 20 46 / .18);
+    opacity:0;transition:opacity 200ms var(--ease-out)}
+  /* hero-state scrim: a 30% deep-blue veil under the bar holds white type at 5.0:1 over the terrain's light dots */
+  .site-head::after{content:"";position:absolute;inset:0 0 -64px;z-index:-1;pointer-events:none;
+    background:linear-gradient(rgb(7 60 150 / .3) 0%,rgb(7 60 150 / .3) 45%,rgb(7 60 150 / .24) 58%,rgb(7 60 150 / .15) 70%,rgb(7 60 150 / .07) 82%,rgb(7 60 150 / .02) 92%,rgb(7 60 150 / 0) 100%);
+    transition:opacity 200ms var(--ease-out)}
+  .site-head[data-state="solid"]{--chrome-fg:var(--ink);--head-focus:var(--blue)}
+  .site-head[data-state="solid"]::before{opacity:1}
+  .site-head[data-state="solid"]::after{opacity:0}
+  .site-head :global(:focus-visible){outline:2px solid var(--head-focus);outline-offset:3px}
+  .site-head :global(.gh){--gh-fg:#fff}
   .nav{display:flex;align-items:center;justify-content:space-between;height:var(--head-h)}
-  /* sized like the current docs brand (18px, line-height 1.6) until A1 and A3 move both to 44px / 19px */
-  .brand{display:flex;gap:10px;align-items:center;font-weight:620;font-size:18px;line-height:1.6;letter-spacing:-.01em;text-decoration:none}
-  .nav-links{display:flex;gap:4px;list-style:none}
-  .nl{display:flex;align-items:center;height:44px;padding:0 12px;font:500 15px/1 var(--sans);text-decoration:none}
-  @media (max-width:700px){.hide-s{display:none}}
+  @media (prefers-reduced-transparency:reduce),(prefers-contrast:more){
+    .site-head::before{background:var(--paper);-webkit-backdrop-filter:none;backdrop-filter:none}
+  }
 </style>

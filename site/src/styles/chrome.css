@@ -1,61 +1,217 @@
-.wrap {
-  width: 100%;
-  max-width: 1200px;
-  margin-inline: auto;
-  padding-inline: var(--gutter);
-}
+/* Site chrome shared by the landing (SiteHeader/SiteFooter.astro) and the docs
+   (TrailNavBar/TrailFooter.vue): brand, nav links, the GitHub button and the
+   footer meta line. Colours come from tokens only: Blue Ground values in
+   blue-ground.css, dark values in tokens.css. Surface-specific rules (the
+   landing's frosted bar, the docs search) live in each component. */
 
-/* Nav */
-.nav {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  height: 72px;
-}
 .brand {
   display: inline-flex;
+  flex: none;
   align-items: center;
-  gap: 9px;
-  color: var(--fg);
-  font-weight: 600;
-  font-size: 18px;
+  gap: 10px;
+  height: 44px;
+  border-radius: 8px;
+  color: var(--chrome-fg);
+  font-weight: 620;
+  font-size: 19px;
   letter-spacing: -0.01em;
   text-decoration: none;
 }
-.brand.small {
-  font-size: 15px;
-}
-.nav nav,
-.foot nav {
-  display: flex;
-  gap: 4px;
-}
-.nav nav a,
-.foot nav a {
-  color: var(--muted);
-  text-decoration: none;
-  font-size: 15px;
-  padding: 10px 12px;
-  border-radius: 8px;
-  transition: color 150ms, background-color 150ms;
-}
-.nav nav a:hover,
-.foot nav a:hover {
-  color: var(--fg);
-  background: var(--raised);
+.brand svg {
+  flex: none;
+  width: 24px;
+  height: 24px;
 }
 
-/* Footer */
-.foot {
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+/* 44px tall text links. Hover draws an underline, not a pill, so the GitHub
+   button stays the only filled shape in the bar. */
+.nav-links a.nl {
+  display: flex;
+  align-items: center;
+  height: 44px;
+  padding: 0 12px;
+  border-radius: 8px;
+  color: inherit;
+  font: 500 15px/1 var(--sans);
+  letter-spacing: -0.005em;
+  white-space: nowrap;
+  text-decoration: underline 1.5px transparent;
+  text-underline-offset: 6px;
+  transition: text-decoration-color 160ms ease, color 160ms ease;
+}
+@media (hover: hover) and (pointer: fine) {
+  .nav-links a.nl:hover {
+    text-decoration-color: currentColor;
+  }
+}
+.nav-links a.nl:active {
+  text-decoration-color: currentColor;
+}
+.gh-li {
+  margin-left: 8px;
+}
+
+/* GitHub: one solid material in every header state. The star pill is inset
+   5px in a 40px pill (30 + 2 * 5), so the radii stay concentric. */
+.gh {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 5px 0 14px;
+  border-radius: 999px;
+  background: var(--gh-bg);
+  box-shadow: var(--gh-edge);
+  color: var(--gh-fg);
+  font: 560 15px/1 var(--sans);
+  letter-spacing: -0.005em;
+  white-space: nowrap;
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 120ms var(--ease-out, ease-out), background-color 160ms ease;
+}
+.gh::after {
+  /* 44px hit area around the 40px pill */
+  content: '';
+  position: absolute;
+  inset: -2px;
+}
+.gh-mark {
+  flex: none;
+  width: 18px;
+  height: 18px;
+}
+.gh-label {
+  padding-right: 4px;
+}
+.gh-star {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 11px 0 10px;
+  border-radius: 999px;
+  background: var(--gh-star-bg);
+  font-weight: 520;
+}
+.gh-star svg {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: fill 160ms ease, color 160ms ease;
+}
+.gh-count {
+  margin-left: -1px;
+  font-variant-numeric: tabular-nums;
+}
+.gh-count:empty {
+  display: none;
+}
+@media (hover: hover) and (pointer: fine) {
+  .gh:hover {
+    background: var(--gh-bg-hover);
+  }
+  .gh:hover .gh-star svg {
+    color: var(--gh-star-hover, #ffd23f);
+    fill: var(--gh-star-hover, #ffd23f);
+  }
+}
+.gh:active {
+  transform: scale(0.97);
+}
+.gh:focus-visible {
+  outline-offset: 3px;
+  border-radius: 999px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .gh {
+    transition: background-color 160ms ease;
+  }
+  .gh:active {
+    transform: none;
+    background: var(--gh-bg-hover);
+  }
+}
+@media (prefers-contrast: more) {
+  .gh {
+    box-shadow: 0 0 0 1px currentColor;
+  }
+}
+
+/* Narrow bars: Docs, Demo and a 44px GitHub mark. */
+@media (max-width: 700px) {
+  .nav-links .hide-s {
+    display: none;
+  }
+  .nav-links {
+    gap: 2px;
+  }
+  .gh-li {
+    margin-left: 4px;
+  }
+  .gh {
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+  }
+  .gh::after {
+    inset: 0;
+  }
+  .gh-label,
+  .gh-star {
+    display: none;
+  }
+  .gh-mark {
+    width: 20px;
+    height: 20px;
+  }
+}
+
+/* Footer second line: "MIT · Open source · Self-hosted" and the repo link. */
+.foot-meta {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  padding-top: 32px;
-  padding-bottom: 48px;
-  border-top: 1px solid var(--line);
+  gap: 8px 24px;
+  margin: 0;
+  color: var(--chrome-muted);
+  font-size: 14px;
+  line-height: 1.5;
 }
-.foot nav {
-  flex-wrap: wrap;
+.foot-repo {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  color: inherit;
+  font-family: var(--mono);
+  font-size: 13px;
+  text-decoration: none;
+  transition: color 160ms ease;
+}
+.foot-repo svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+}
+@media (hover: hover) and (pointer: fine) {
+  .foot-repo:hover {
+    color: var(--chrome-fg);
+  }
 }
