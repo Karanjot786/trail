@@ -13,9 +13,9 @@ Work down the list. Most problems turn up in the first three steps.
 
    | Status | Meaning |
    |---|---|
-   | `204` with `X-Trail-Accepted: n` | Stored |
-   | `400` | A bad event, an unknown site id, or a batch with mixed sites. The response body says which |
-   | `413` | Body over 32 KB |
+   | `204` with `X-Trail-Accepted: n` | Stored. `X-Trail-Rejected: n` counts events in a batch that were skipped as invalid |
+   | `400` | A bad event, a batch with no valid events, an unknown site id, or a batch with mixed sites. The response body says which |
+   | `413` | Body over 64 KB |
    | `405` | Wrong method. Only `POST` and `OPTIONS` are allowed |
 
    "Unknown site" means `data-site` does not match an id in `TRAIL_SITES`. The server log warns at startup when `TRAIL_SITES` is empty.

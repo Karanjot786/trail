@@ -141,8 +141,8 @@ Script attributes:
 | `data-dnt` | `off` tracks visitors who send Do Not Track or Global Privacy Control (they are skipped by default) |
 | `data-vitals` | Opt in to web vitals |
 | `data-rage` | Opt in to rage-click detection |
-| `data-forms` | Opt in to form-submit events |
-| `data-errors` | Opt in to JS error events (max 5 per page) |
+| `data-forms` | Opt in to form-submit events; records the form id or name, never field values. Loaded via `t.x.js` |
+| `data-errors` | Opt in to JS error events, at most 5 per page. Loaded via `t.x.js` |
 
 Any element with `data-trail="Name"` records a named click event (full mode). `/_t/t.p.js` is a smaller private-only build.
 
@@ -196,10 +196,10 @@ Measured, not promised. Sizes are gzip level 9; timings are the median of 15 run
 
 | File | Gzipped | Script at load | Heap added | Requests per pageview |
 |---|---|---|---|---|
-| `t.p.js`, private only | 1,494 B | 1.33 ms | 117 KB | 2 |
-| `t.js`, all modes, default private until consent | 2,046 B | 1.61 ms | 120 KB | 2 |
+| `t.p.js`, private only | 1,490 B | 1.33 ms | 117 KB | 2 |
+| `t.js`, all modes, default private until consent | 2,048 B | 1.61 ms | 120 KB | 2 |
 | `t.js` with `data-mode="full"` | same file | 2.15 ms | 126 KB | 2 |
-| `t.x.js`, extras loaded on demand | 727 B | — | — | — |
+| `t.x.js`, extras loaded on demand | 740 B | — | — | — |
 
 Every tracker file must stay at or under 2,048 B gzipped; CI fails otherwise. Rerun with `cd tracker && npm run bench`. Method: [Tracker cost](https://trail.karanjot.dev/docs/tracking/cost/).
 
