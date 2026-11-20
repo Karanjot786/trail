@@ -159,11 +159,11 @@ export const btnPrimary =
 export const btnSecondary =
   'pressable inline-flex h-9 items-center justify-center rounded-lg border border-border-strong px-3.5 text-sm font-medium text-fg outline-none hover:bg-hover focus-visible:ring-2 focus-visible:ring-ring'
 
-const inputCls =
+export const inputCls =
   'h-10 w-full rounded-lg border border-border-strong bg-black px-3 text-[15px] text-fg outline-none transition-[border-color,box-shadow] duration-150 placeholder:text-subtle focus-visible:border-[#3b3b3b] focus-visible:ring-2 focus-visible:ring-ring/60 aria-[invalid=true]:border-bad/70 aria-[invalid=true]:focus-visible:ring-bad/40'
 
 /** Label, control and one message line. The message slot is always there, so errors never move the layout. */
-function Field({
+export function Field({
   label,
   error,
   help,
@@ -217,6 +217,6 @@ function Segmented({ value, onChange }: { value: Goal['kind']; onChange: (v: Goa
   )
 }
 
-function Code({ children }: { children: ReactNode }) {
+export function Code({ children }: { children: ReactNode }) {
   return <code className="rounded bg-raised px-1 py-px font-mono text-[12px] text-muted">{children}</code>
 }

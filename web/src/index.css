@@ -197,6 +197,40 @@ body {
   }
 }
 
+/* Icon swap (copy → check): both icons mounted, cross-fade with scale and blur so it can reverse mid-flight. */
+.icon-swap {
+  transition-property: opacity, scale, filter;
+  transition-duration: 200ms;
+  transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
+}
+.icon-swap.icon-out {
+  opacity: 0;
+  scale: 0.25;
+  filter: blur(4px);
+}
+
+/* Live check: a status swap settles in from a soft blur; it runs only when the state changes. */
+.status-in {
+  animation: status-in 280ms var(--ease-ui);
+}
+@keyframes status-in {
+  from {
+    opacity: 0;
+    filter: blur(4px);
+    transform: scale(0.98);
+  }
+}
+/* Waiting: a slow breathing dot, quieter than the green online pulse. */
+.wait-dot {
+  animation: breathe 1.6s ease-in-out infinite;
+}
+@keyframes breathe {
+  50% {
+    opacity: 0.35;
+    transform: scale(0.8);
+  }
+}
+
 input[type='date']::-webkit-calendar-picker-indicator {
   filter: invert(0.7);
 }
@@ -218,5 +252,30 @@ input[type='date']::-webkit-calendar-picker-indicator {
   .modal[data-state='closed'],
   .overlay[data-state='closed'] {
     animation: fade-out 100ms ease-out !important;
+  }
+  /* The live check keeps a plain fade and a still dot. */
+  .status-in {
+    animation: fade-in 150ms ease-out !important;
+  }
+  .wait-dot {
+    opacity: 0.6;
+  }
+}
+
+/* Install panel disclosure: grid rows 0fr → 1fr, so the height follows the content. */
+.disclose {
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 240ms var(--ease-ui);
+}
+.disclose[data-open='true'] {
+  grid-template-rows: 1fr;
+}
+.chev {
+  transition: rotate 200ms var(--ease-ui);
+}
+/* Install tabs scroll sideways on narrow screens; the right edge fades to say there is more. */
+@media (max-width: 480px) {
+  .tabs-scroll {
+    mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent);
   }
 }

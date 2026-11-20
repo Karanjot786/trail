@@ -4,7 +4,7 @@ import type { Dim, Env, Metric, Query } from './api'
 import { DAY, HOUR, MIN } from './time'
 
 export type Range = '24h' | '7d' | '30d' | '3mo' | '12mo' | 'custom'
-export type View = 'overview' | 'visitors'
+export type View = 'overview' | 'visitors' | 'settings'
 
 export const RANGES: { value: Range; label: string; ms: number }[] = [
   { value: '24h', label: 'Last 24 Hours', ms: 24 * HOUR },
@@ -59,7 +59,7 @@ function parse(search: string): DashState {
     env: env === 'preview' || env === 'all' ? env : 'production',
     filters,
     metric: metric === 'pageviews' || metric === 'bounce' ? metric : 'visitors',
-    view: p.get('view') === 'visitors' || p.get('person') ? 'visitors' : 'overview',
+    view: p.get('person') ? 'visitors' : p.get('view') === 'visitors' || p.get('view') === 'settings' ? (p.get('view') as View) : 'overview',
     person: p.get('person') ?? '',
   }
 }

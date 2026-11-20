@@ -27,6 +27,7 @@ import {
 import { dateToTs, dayKey, DAY } from '@/time'
 import { deliveryText, num } from '@/format'
 import { formatRate } from '@/goals'
+import { cn } from '@/lib/utils'
 
 export function Header({ sites }: { sites: Site[] }) {
   const d = useDashboard()
@@ -41,7 +42,7 @@ export function Header({ sites }: { sites: Site[] }) {
           <span className="h-6 w-px shrink-0 bg-border" aria-hidden />
           <Online />
         </div>
-        <div className="flex min-w-0 flex-wrap items-center gap-2 sm:justify-end lg:flex-nowrap">
+        <div className={cn('flex min-w-0 flex-wrap items-center gap-2 sm:justify-end lg:flex-nowrap', d.view === 'settings' && 'hidden')}>
           <Select value={d.env} onValueChange={(v) => d.set({ env: v as Env })}>
             <SelectTrigger aria-label="Environment" className="min-w-0 flex-1 sm:w-44 sm:flex-none">
               <SelectValue />
