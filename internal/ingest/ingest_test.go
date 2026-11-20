@@ -1,7 +1,10 @@
 package ingest
 
 import (
+	"bytes"
+	"compress/gzip"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -329,6 +332,86 @@ func TestTrackerFiles(t *testing.T) {
 	if w.Code != http.StatusMethodNotAllowed {
 		t.Errorf("POST: %d, want 405", w.Code)
 	}
+}
+
+func TestTrackerFilesEncoding(t *testing.T) {
+	h := TrackerFiles()
+	raw := mustRead("t.js")
+	get := func(method string, hdr map[string]string) *httptest.ResponseRecorder {
+		r := httptest.NewRequest(method, "/_t/t.js", nil)
+		for k, v := range hdr {
+			r.Header.Set(k, v)
+		}
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, r)
+		return w
+	}
+	base := func(t *testing.T, w *httptest.ResponseRecorder) {
+		t.Helper()
+		if w.Header().Get("Cache-Control") != "public, max-age=3600" || w.Header().Get("Access-Control-Allow-Origin") != "*" ||
+			!strings.Contains(w.Header().Get("Content-Type"), "javascript") || w.Header().Get("Vary") != "Accept-Encoding" {
+			t.Errorf("headers: %v", w.Header())
+		}
+		if e := w.Header().Get("ETag"); len(e) < 3 || e[0] != '"' || e[len(e)-1] != '"' {
+			t.Errorf("ETag = %q, want a quoted hash", e)
+		}
+	}
+
+	t.Run("gzip", func(t *testing.T) {
+		w := get(http.MethodGet, map[string]string{"Accept-Encoding": "br, gzip, deflate"})
+		base(t, w)
+		if w.Code != 200 || w.Header().Get("Content-Encoding") != "gzip" {
+			t.Fatalf("got %d %v", w.Code, w.Header())
+		}
+		if cl := w.Header().Get("Content-Length"); cl != fmt.Sprint(w.Body.Len()) || w.Body.Len() >= len(raw) {
+			t.Errorf("Content-Length %s, body %d, raw %d", cl, w.Body.Len(), len(raw))
+		}
+		zr, err := gzip.NewReader(w.Body)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got, err := io.ReadAll(zr); err != nil || !bytes.Equal(got, raw) {
+			t.Errorf("decoded body differs from t.js (err %v)", err)
+		}
+	})
+	t.Run("raw", func(t *testing.T) {
+		for _, ae := range []string{"", "br", "gzip;q=0"} {
+			w := get(http.MethodGet, map[string]string{"Accept-Encoding": ae})
+			base(t, w)
+			if w.Code != 200 || w.Header().Get("Content-Encoding") != "" || !bytes.Equal(w.Body.Bytes(), raw) ||
+				w.Header().Get("Content-Length") != fmt.Sprint(len(raw)) {
+				t.Errorf("Accept-Encoding %q: %d %v", ae, w.Code, w.Header())
+			}
+		}
+	})
+	t.Run("304", func(t *testing.T) {
+		etag := get(http.MethodGet, nil).Header().Get("ETag")
+		for _, ae := range []string{"", "gzip"} {
+			w := get(http.MethodGet, map[string]string{"If-None-Match": etag, "Accept-Encoding": ae})
+			if w.Code != http.StatusNotModified || w.Body.Len() != 0 || w.Header().Get("ETag") != etag {
+				t.Errorf("If-None-Match %s (ae %q): %d, body %d bytes, %v", etag, ae, w.Code, w.Body.Len(), w.Header())
+			}
+		}
+		if w := get(http.MethodGet, map[string]string{"If-None-Match": `"stale"`}); w.Code != 200 || w.Body.Len() == 0 {
+			t.Errorf("stale ETag: %d", w.Code)
+		}
+	})
+	t.Run("HEAD", func(t *testing.T) {
+		w := get(http.MethodHead, map[string]string{"Accept-Encoding": "gzip"})
+		base(t, w)
+		if w.Code != 200 || w.Body.Len() != 0 || w.Header().Get("Content-Encoding") != "gzip" || w.Header().Get("Content-Length") == "" {
+			t.Errorf("HEAD: %d, body %d, %v", w.Code, w.Body.Len(), w.Header())
+		}
+	})
+	t.Run("unknown", func(t *testing.T) {
+		r := httptest.NewRequest(http.MethodGet, "/_t/nope.js", nil)
+		r.Header.Set("Accept-Encoding", "gzip")
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, r)
+		if w.Code != http.StatusNotFound {
+			t.Errorf("unknown file: %d, want 404", w.Code)
+		}
+	})
 }
 
 const privatePV = `{"s":"s1","t":"pageview","m":"p","a":"","u":"https://example.com/"}`

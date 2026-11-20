@@ -3,7 +3,10 @@ package ingest
 
 import (
 	"bytes"
+	"compress/gzip"
+	"crypto/sha256"
 	"embed"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"io"
@@ -33,6 +36,15 @@ var trackerFiles = map[string][]byte{
 	"t.p.js": mustRead("t.p.js"),
 	"t.x.js": mustRead("t.x.js"),
 }
+
+// trackerHandlers is built once at init, so each file is gzipped once.
+var trackerHandlers = func() map[string]http.Handler {
+	m := map[string]http.Handler{}
+	for name, js := range trackerFiles {
+		m[name] = TrackerHandler(js)
+	}
+	return m
+}()
 
 func mustRead(name string) []byte {
 	b, err := Files.ReadFile(name)
@@ -311,30 +323,65 @@ func clamp(v float64, hi int) int {
 	return int(v)
 }
 
-// TrackerHandler serves the tracker script with a one-hour public cache.
+// TrackerHandler serves the tracker script with a one-hour public cache. The
+// gzip copy (BestCompression) and the ETag are computed once, here, so a
+// request costs no compression; gzip goes to clients that accept it.
 func TrackerHandler(js []byte) http.Handler {
+	var gz bytes.Buffer
+	zw, _ := gzip.NewWriterLevel(&gz, gzip.BestCompression)
+	_, _ = zw.Write(js)
+	_ = zw.Close()
+	sum := sha256.Sum256(js)
+	etag := `"` + hex.EncodeToString(sum[:8]) + `"`
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet && r.Method != http.MethodHead {
 			w.Header().Set("Allow", "GET, HEAD")
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
-		w.Header().Set("Content-Type", "application/javascript; charset=utf-8")
-		w.Header().Set("Cache-Control", "public, max-age=3600")
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		_, _ = w.Write(js)
+		h := w.Header()
+		h.Set("Content-Type", "application/javascript; charset=utf-8")
+		h.Set("Cache-Control", "public, max-age=3600")
+		h.Set("Access-Control-Allow-Origin", "*")
+		h.Set("Vary", "Accept-Encoding")
+		h.Set("ETag", etag) // ponytail: one ETag for both encodings, as the raw bytes decide it
+		if inm := r.Header.Get("If-None-Match"); inm == "*" || strings.Contains(inm, etag) {
+			w.WriteHeader(http.StatusNotModified)
+			return
+		}
+		body := js
+		if acceptsGzip(r.Header.Get("Accept-Encoding")) {
+			h.Set("Content-Encoding", "gzip")
+			body = gz.Bytes()
+		}
+		h.Set("Content-Length", strconv.Itoa(len(body)))
+		if r.Method == http.MethodGet {
+			_, _ = w.Write(body)
+		}
 	})
+}
+
+// acceptsGzip reports whether an Accept-Encoding header lists gzip without q=0.
+func acceptsGzip(ae string) bool {
+	for _, part := range strings.Split(ae, ",") {
+		name, params, _ := strings.Cut(part, ";")
+		if strings.EqualFold(strings.TrimSpace(name), "gzip") {
+			q, err := strconv.ParseFloat(strings.TrimPrefix(strings.TrimSpace(params), "q="), 64)
+			return err != nil || q > 0 // no (or a malformed) q means q=1
+		}
+	}
+	return false
 }
 
 // TrackerFiles serves GET /_t/{t.js,t.p.js,t.x.js} with a one-hour public
 // cache, and 404 for any other path.
 func TrackerFiles() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		js, ok := trackerFiles[strings.TrimPrefix(r.URL.Path, "/_t/")]
+		h, ok := trackerHandlers[strings.TrimPrefix(r.URL.Path, "/_t/")]
 		if !ok {
 			http.NotFound(w, r)
 			return
 		}
-		TrackerHandler(js).ServeHTTP(w, r)
+		h.ServeHTTP(w, r)
 	})
 }
