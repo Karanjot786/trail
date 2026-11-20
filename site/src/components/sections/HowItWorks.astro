@@ -105,7 +105,7 @@ const pctText = (n: number) => `${n.toFixed(1)}%`
 
   /* the trail: footprints every 20px, alternating 3.5px either side of the line.
      Two layers of one dot per 40px tile, the second shifted half a tile. */
-  .trail-seg{--n:12;flex:1;align-self:stretch;margin:0 calc(12px - var(--cg)) 0 18px;opacity:.9;pointer-events:none;
+  .trail-seg{--n:12;flex:1;align-self:stretch;margin:0 calc(12px - var(--cg)) 0 8px;opacity:.9;pointer-events:none;
     background:radial-gradient(circle at 10px 50%,#fff 2.6px,transparent 3.1px) 0 calc(50% - 3.5px) / 40px 14px repeat-x,
                radial-gradient(circle at 10px 50%,#fff 2.6px,transparent 3.1px) 20px calc(50% + 3.5px) / 40px 14px repeat-x;
     transition:clip-path calc(var(--n) * 55ms) steps(var(--n))}

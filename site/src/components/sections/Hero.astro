@@ -11,14 +11,16 @@ const nums = hero.nums.flatMap((n) => {
   return b ? [{ dt: n.dt, dd: `${b.toLocaleString('en-US')} B` }] : []
 })
 
-// A label sits beside its own ring: right of it, or flipped to the left when the generator placed it there.
-// Anchoring the near edge (not the top-left) keeps it beside the footprint at any width, since the text does not scale.
-const pct = (n: number) => `calc(${n.toFixed(2)}% + 12px)`
-const side = (x: number, r: number, lx: number) =>
-  lx < x ? { l: 'auto', r: pct(100 - x + r) } : { l: pct(x + r), r: 'auto' }
+// Labels follow the generator's placement (top = ly), but anchor the edge nearest their ring rather than the
+// top-left corner: the text does not scale with the art box, so a corner anchor would drift onto the footprint.
+const pct = (n: number, px = 0) => `calc(${n.toFixed(2)}% + ${px}px)`
+const place = (x: number, r: number, lx: number) =>
+  lx < x - r ? { l: 'auto', r: pct(100 - x + r, 12), t: '0' } // left of the ring
+  : lx > x + r ? { l: pct(x + r, 12), r: 'auto', t: '0' } // right of the ring
+  : { l: pct(x), r: 'auto', t: '-50%' } // centred above or below it
 const labels = waypoints.map((w) => {
-  const d = side(w.x, w.r, w.lx), m = side(w.mx, w.mr, w.mlx)
-  return { ...w, style: `--dl:${d.l};--dr:${d.r};--dy:${w.y}%;--ml:${m.l};--mr:${m.r};--my:${w.my}%;--d:${w.delay + 90}ms` }
+  const d = place(w.x, w.r, w.lx), m = place(w.mx, w.mr, w.mlx)
+  return { ...w, style: `--dl:${d.l};--dr:${d.r};--dt:${d.t};--dy:${w.ly}%;--ml:${m.l};--mr:${m.r};--mt:${m.t};--my:${w.mly}%;--d:${w.delay + 90}ms` }
 })
 ---
 <section class="hero" id="top" aria-labelledby="hero-title">
@@ -91,7 +93,7 @@ const labels = waypoints.map((w) => {
   .legend .k i.lg::before{width:12px;height:12px;background:none;border:2.5px solid var(--signal);box-shadow:none}
 
   /* waypoint chips over the art, placed in % of the art box */
-  .wp{position:absolute;left:var(--dl);right:var(--dr);top:var(--dy);transform:translateY(-50%);background:rgb(6 20 46 / .82);border:1px solid rgb(255 255 255 / .18);border-radius:8px;padding:6px 10px 7px;font:500 13px/1.35 var(--mono);color:#fff;white-space:nowrap;backdrop-filter:blur(4px)}
+  .wp{position:absolute;left:var(--dl);right:var(--dr);top:var(--dy);transform:translateX(var(--dt));background:rgb(6 20 46 / .82);border:1px solid rgb(255 255 255 / .18);border-radius:8px;padding:6px 10px 7px;font:500 13px/1.35 var(--mono);color:#fff;white-space:nowrap;backdrop-filter:blur(4px)}
   .wp span{display:block;font-size:12px;color:#c7d8f7}
   .wp.goal{border-color:var(--signal)}
   .wp.goal b{color:var(--signal);font-weight:600}
@@ -122,7 +124,7 @@ const labels = waypoints.map((w) => {
     .hero-art{position:relative;bottom:auto;aspect-ratio:390 / 480;z-index:0}
     .steps-d{display:none}
     .steps-m{display:block}
-    .wp{left:var(--ml);right:var(--mr);top:var(--my);font-size:11.5px;padding:5px 8px}
+    .wp{left:var(--ml);right:var(--mr);top:var(--my);transform:translateX(var(--mt));font-size:11.5px;padding:5px 8px}
     .wp span{font-size:11px}
     .hero-foot{padding-top:0;padding-bottom:48px}
     .nums{display:grid;grid-template-columns:1fr 1fr;gap:20px 16px;width:100%}
