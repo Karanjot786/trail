@@ -1,7 +1,38 @@
 ---
-// STUB (A0): root section and heading only. Owner: builder D.
+// FAQ (D4). Port of prototype index.html 618–630 and styles.css 593–607. Native <details>, no JS.
 import { faq } from '../../copy/landing'
 ---
 <section id="faq" class="faq sec">
-  <div class="wrap"><h2>{faq.h2}</h2></div>
+  <div class="wrap fg">
+    <h2 data-reveal>{faq.h2}</h2>
+    <div class="fq">
+      {faq.items.map((it, i) => (
+        <details open={i === 0}><summary>{it.q}<i aria-hidden="true"></i></summary><p class="a" set:html={it.a} /></details>
+      ))}
+    </div>
+  </div>
 </section>
+
+<style is:global>
+.faq{background:var(--paper);padding-top:40px}
+.faq.sec{padding-bottom:96px}
+.fg{display:grid;grid-template-columns:1fr 2fr;gap:56px;border-top:1.5px solid var(--ink);padding-top:48px}
+.fq details{border-bottom:1px solid var(--rule)}
+.fq summary{list-style:none;display:flex;justify-content:space-between;align-items:center;gap:24px;padding:22px 0;font-size:19px;font-weight:540;letter-spacing:-.01em;cursor:pointer}
+.fq summary::-webkit-details-marker{display:none}
+.fq summary i{flex:none;width:28px;height:28px;border-radius:50%;background:var(--mist);position:relative;transition:background-color 160ms ease}
+.fq summary i::before,.fq summary i::after{content:"";position:absolute;left:50%;top:50%;width:11px;height:1.75px;background:var(--ink);translate:-50% -50%;transition:rotate 220ms var(--ease-out)}
+.fq summary i::after{rotate:90deg}
+.fq details[open] summary i::after{rotate:0deg}
+@media (hover:hover) and (pointer:fine){.fq summary:hover i{background:#cddcf7}}
+.fq .a{padding:0 48px 24px 0;color:var(--ink-2);font-size:17px;text-wrap:pretty;max-width:42em}
+.fq .a code{font-size:14.5px;color:var(--ink)}
+@media (prefers-reduced-motion:no-preference){.fq details[open] .a{animation:faq-open 260ms var(--ease-out)}}
+@keyframes faq-open{from{opacity:0;translate:0 -4px}}
+@media (max-width:900px){.fg{grid-template-columns:1fr}}
+@media (max-width:700px){
+  .fq summary{font-size:17.5px}
+  .fq .a{padding-right:0}
+  .fg{gap:24px;padding-top:36px}
+}
+</style>

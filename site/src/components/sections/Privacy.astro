@@ -1,7 +1,193 @@
 ---
-// STUB (A0): root section and heading only. Owner: builder D.
+// Privacy modes switcher (D2). Port of prototype index.html 379–447 and styles.css 351–425.
+// Server-rendered in the default state (consent mode, no consent); privacy.ts only switches states.
 import { privacy } from '../../copy/landing'
+
+const p = privacy
+const def = p.modes.consent
+const modes = Object.entries(p.modes) as [keyof typeof p.modes, (typeof p.modes)['consent']][]
+const attrHtml = (a: string) => `&lt;script … <b>${a.replace(/"/g, '&quot;')}</b>&gt;`
+const b = p.browser
 ---
 <section id="privacy" class="privacy sec">
-  <div class="wrap"><h2>{privacy.h2}</h2></div>
+  <div class="wrap">
+    <div class="head" data-reveal>
+      <h2>{p.h2}</h2>
+      <p class="lede">{p.lede}</p>
+    </div>
+    <div class="pm" id="pm" data-reveal data-mode="consent" data-consent="no" data-store="off">
+      <div class="pm-top">
+        <div class="segc" role="tablist" aria-label="Privacy mode">
+          <span class="thumb" aria-hidden="true"></span>
+          {modes.map(([id, m], i) => (
+            <button type="button" role="tab" id={`pm-${id}`} aria-selected={i === 0 ? 'true' : 'false'} aria-controls="pm-panel" tabindex={i === 0 ? 0 : -1} data-mode={id}>{m.tab}{i === 0 && <span class="def">{p.defaultBadge}</span>}</button>
+          ))}
+        </div>
+        <code class="attr" set:html={attrHtml(def.attr)} />
+      </div>
+      <div class="pm-panel" id="pm-panel" role="tabpanel" aria-labelledby="pm-consent">
+        <p class="say" aria-live="polite"><span class="say-t" set:html={def.say} /></p>
+        <div class="pgrid">
+          <figure class="pcol">
+            <figcaption>{b.caption}</figcaption>
+            <div class="ui dt">
+              <div class="page">
+                <span class="purl">{b.url}</span>
+                <div class="banner">
+                  <div class="ask"><span>{b.ask}</span><button type="button" class="acc" id="pm-accept">{b.accept}</button></div>
+                  <div class="given"><svg class="i" aria-hidden="true"><use href="#i-check"/></svg><span set:html={b.given} /><button type="button" class="undo" id="pm-undo">{b.reset}</button></div>
+                </div>
+              </div>
+              <div class="dt-tabs" aria-hidden="true">{b.tabs.map((t, i) => <span class={i === b.tabs.length - 1 ? 'on' : undefined}>{t}</span>)}</div>
+              <div class="dt-body">
+                <div class="dt-side" aria-hidden="true">
+                  <b>{b.storage[0]}</b>
+                  <span class="tw"><svg class="i"><use href="#i-chevd"/></svg>{b.storage[1]}</span><span class="leaf">{b.storage[3]}</span>
+                  <span class="tw"><svg class="i"><use href="#i-chevd"/></svg>{b.storage[2]}</span><span class="leaf">{b.storage[3]}</span>
+                </div>
+                <div class="dt-main">
+                  <div class="dt-t">
+                    <div class="dt-h">{b.storage[2]}</div>
+                    <div class="dt-row hd">{b.cookieCols.map((c) => <span>{c}</span>)}</div>
+                    <div class="slot"><div class="dt-row id">{b.id.map((c) => <span>{c}</span>)}</div><div class="dt-empty">{b.noCookies}</div></div>
+                  </div>
+                  <div class="dt-t">
+                    <div class="dt-h">{b.storage[1]}</div>
+                    <div class="dt-row hd two">{b.lsCols.map((c) => <span>{c}</span>)}</div>
+                    <div class="slot"><div class="dt-row id two"><span>{b.id[0]}</span><span>{b.id[1]}</span></div><div class="dt-empty">{b.noItems}</div></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </figure>
+          <figure class="pcol">
+            <figcaption>{p.dash.caption}</figcaption>
+            <div class="ui dash">
+              <div class="dash-h"><span>{p.dash.title}</span><span class="subtle">{p.dash.sub}</span></div>
+              <ol class="vlist" id="vlist">
+                {p.visits.map(([day, time, device, path], i) => {
+                  const [who, sub] = p.rows.consent[i]
+                  return (
+                    <li class="vrow anon"><span class="lane"><i></i></span><span class="vwho"><b>{who}</b><small>{sub}</small></span><span class="vwhen"><svg class="i" aria-hidden="true"><use href={`#i-${device}`}/></svg><span>{day} · {time}</span></span><span class="vpath chip">{path}</span></li>
+                  )
+                })}
+              </ol>
+              <p class="dash-note" id="vnote">{p.notes.consent}</p>
+            </div>
+          </figure>
+        </div>
+      </div>
+      <div class="pfoot">
+        {p.foot.map((f) => <span set:html={f} />)}
+      </div>
+    </div>
+  </div>
 </section>
+
+<script>import '../../scripts/privacy'</script>
+
+<style is:global>
+/* Port of prototype styles.css 351–425 plus the privacy lines of the responsive block. */
+.privacy{background:var(--mist)}
+.pm{display:flex;flex-direction:column;gap:28px}
+.segc{position:relative;display:flex;padding:4px;border-radius:999px;background:#fff;border:1px solid var(--rule);box-shadow:0 1px 2px rgb(7 40 100 / .06)}
+.segc button{position:relative;z-index:1;display:flex;align-items:center;gap:8px;height:44px;padding:0 20px;border:0;background:none;border-radius:999px;font:540 15.5px var(--sans);color:var(--ink-2);cursor:pointer;white-space:nowrap;transition:color 200ms ease}
+.segc button:hover{color:var(--ink)}
+.segc button[aria-selected=true]{color:#fff}
+.segc button:focus-visible{outline-offset:-2px}
+/* without JS the thumb has no width, so the selected tab carries its own ground */
+.segc button[aria-selected=true]{background:var(--ink)}
+.js .segc button[aria-selected=true]{background:none}
+.segc .def{font:600 11px var(--sans);letter-spacing:.06em;text-transform:uppercase;opacity:.75}
+.segc .thumb{position:absolute;top:4px;bottom:4px;left:0;width:0;border-radius:999px;background:var(--ink);transition:translate 280ms var(--ease-io),width 280ms var(--ease-io)}
+.pm-top{display:flex;align-items:center;gap:16px 20px;flex-wrap:wrap}
+.pm-top .attr{font-size:13.5px;padding:7px 12px;border-radius:8px;background:var(--paper);border:1px solid var(--rule);color:var(--ink-2);white-space:nowrap}
+.pm-top .attr b{font-weight:600;color:var(--deep)}
+.pm-panel{display:flex;flex-direction:column;gap:24px}
+.pm .say{min-height:3em;font-size:18px;line-height:1.5;max-width:46rem;text-wrap:pretty}
+.pm .say code{font-size:15px}
+.pgrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:24px}
+.pcol figcaption{font:600 12px/1 var(--sans);letter-spacing:.08em;text-transform:uppercase;color:var(--ink-2);margin-bottom:12px}
+.pgrid .ui{height:352px;display:flex;flex-direction:column}
+/* (a) the browser */
+.pm .dt{background:#282828;border-color:#3c3c3c;font:12.5px/1.4 var(--sans);color:#e8eaed}
+.dt .page{display:flex;align-items:center;justify-content:space-between;gap:12px;height:60px;padding:0 12px 0 16px;background:#fff;color:var(--ink);border-bottom:1px solid #3c3c3c;flex:none}
+.dt .purl{font:12.5px var(--mono);color:#4e5f7d;white-space:nowrap}
+.banner{position:relative;display:grid;justify-items:end}
+.banner > div{grid-area:1/1;display:flex;align-items:center;gap:12px;font-size:13.5px;white-space:nowrap;transition:opacity 200ms ease,transform 240ms var(--ease-out),filter 200ms ease,visibility 0s}
+.acc{flex:none;white-space:nowrap;height:34px;padding:0 14px;border-radius:999px;border:0;background:var(--blue);color:#fff;font:560 13.5px var(--sans);cursor:pointer;transition:transform 150ms var(--ease-out),background-color 150ms ease}
+.acc:hover{background:var(--deep)}
+.acc:active{transform:scale(.97)}
+.given svg{width:16px;height:16px;color:#0b7a3b;stroke-width:2.4}
+.given code{font-size:12.5px}
+.undo{height:30px;padding:0 10px;border-radius:999px;border:1px solid var(--rule);background:#fff;color:var(--ink-2);font:500 12.5px var(--sans);cursor:pointer}
+.undo:hover{color:var(--ink);border-color:#9fb6db}
+.pm[data-consent=no] .given,.pm[data-consent=yes] .ask,.pm:not([data-mode=consent]) .banner > div{opacity:0;visibility:hidden;transform:translateY(4px);filter:blur(2px);transition:opacity 160ms ease,transform 160ms ease,filter 160ms ease,visibility 0s 160ms}
+.dt-tabs{display:flex;height:34px;background:#1f1f1f;border-bottom:1px solid #3c3c3c;padding:0 6px;flex:none}
+.dt-tabs span{display:flex;align-items:center;padding:0 10px;color:#9aa0a6;font-size:12.5px}
+.dt-tabs .on{color:#e8eaed;box-shadow:inset 0 -2px 0 #7cacf8}
+.dt-body{flex:1;display:grid;grid-template-columns:150px minmax(0,1fr);min-height:0}
+.dt-side{display:flex;flex-direction:column;gap:5px;padding:12px 10px;border-right:1px solid #3c3c3c;font-size:12px;color:#c4c7c5;white-space:nowrap}
+.dt-side b{font-size:11.5px;font-weight:600;color:#e8eaed;margin-bottom:2px}
+.tw{display:flex;align-items:center;gap:4px}
+.tw svg{width:12px;height:12px}
+.leaf{padding-left:16px;color:#9aa0a6;font-size:11.5px}
+.dt-t + .dt-t{border-top:1px solid #3c3c3c}
+.dt-h{padding:9px 12px;font-size:12.5px;font-weight:500;background:#232323}
+.dt-row{display:grid;grid-template-columns:64px minmax(0,1fr) 56px;gap:8px;align-items:center;height:32px;padding:0 12px;font:12px var(--mono);white-space:nowrap}
+.dt-row.two{grid-template-columns:64px minmax(0,1fr)}
+.dt-row.hd{height:28px;font:500 11.5px var(--sans);color:#9aa0a6;border-bottom:1px solid #3c3c3c}
+.slot{display:grid}
+.slot > *{grid-area:1/1;transition:opacity 200ms ease,transform 240ms var(--ease-out),visibility 200ms}
+.dt-row.id{background:#16304f}
+.dt-empty{display:flex;align-items:center;height:32px;padding:0 12px;font-size:12px;color:#9aa0a6}
+.pm[data-store=off] .dt-row.id{opacity:0;visibility:hidden;transform:translateY(-4px)}
+.pm[data-store=on] .dt-empty{opacity:0;visibility:hidden}
+/* (b) the dashboard */
+.dash-h{display:flex;align-items:center;justify-content:space-between;gap:12px;height:48px;padding:0 16px;border-bottom:1px solid var(--ui-border);font-size:14px;font-weight:500;flex:none}
+.dash-h .subtle{font-size:12.5px;font-weight:400;color:var(--ui-subtle)}
+.vlist{list-style:none;flex:1;display:flex;flex-direction:column;justify-content:center;padding:4px 16px}
+.vrow{display:grid;grid-template-columns:20px 128px 124px minmax(0,1fr);align-items:center;gap:12px;height:76px}
+.vrow + .vrow{border-top:1px solid rgb(31 31 31 / .8)}
+.lane{position:relative;height:100%;display:grid;place-items:center}
+.lane i{position:relative;z-index:1;width:12px;height:12px;border-radius:50%;background:var(--blue);box-shadow:0 0 0 3px #000;transition:background-color 200ms ease,border-color 200ms ease}
+.vrow.anon .lane i{background:#000;border:1.5px dashed #9a9a9a}
+.lane::before{content:"";position:absolute;left:50%;top:-38px;height:76px;width:4px;translate:-50% 0;background:radial-gradient(circle,#6cb2ff 1.8px,transparent 2.2px) 0 0/4px 10px repeat-y;opacity:0;transition:opacity 260ms ease}
+.vrow.j .lane::before{opacity:1}
+.vwho{display:flex;flex-direction:column;gap:3px;min-width:0}
+.vwho b{font-size:14px;font-weight:500;white-space:nowrap}
+.vwho small{font-size:12px;color:var(--ui-muted);white-space:nowrap}
+.vwho small.ok{color:var(--ui-good)}
+.vwhen{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ui-muted);white-space:nowrap}
+.vwhen svg{width:15px;height:15px}
+.vpath{justify-self:start;max-width:100%}
+.dash-note{flex:none;padding:12px 16px;border-top:1px solid var(--ui-border);font-size:13px;color:var(--ui-muted);min-height:45px}
+.pfoot{display:flex;gap:12px 28px;flex-wrap:wrap;font-size:16px;color:var(--ink-2)}
+.pfoot code{font-size:14px;color:var(--ink);background:var(--paper);padding:2px 6px;border-radius:4px}
+
+@media (max-width:1180px){
+  .vrow{grid-template-columns:20px 118px minmax(0,1fr)}
+  .vpath{display:none}
+}
+@media (max-width:900px){
+  .pgrid{grid-template-columns:minmax(0,1fr)}
+  .vrow{grid-template-columns:20px 128px 124px minmax(0,1fr)}
+  .vpath{display:inline-flex}
+}
+@media (max-width:700px){
+  .segc{align-self:stretch}
+  .segc button{flex:1 1 auto;justify-content:center;padding:0 12px;font-size:14.5px}
+  .segc .def{display:none}
+  .pm .say{font-size:16.5px}
+  .pgrid .ui{height:auto}
+  .dt .page{height:auto;min-height:60px;padding:10px 12px;flex-wrap:wrap}
+  .banner{justify-items:start;width:100%}
+  .banner > div{white-space:normal;justify-content:space-between;width:100%}
+  .dt-body{grid-template-columns:minmax(0,1fr)}
+  .dt-side{display:none}
+  .vlist{padding:4px 14px}
+  .vrow{grid-template-columns:20px minmax(0,1fr) auto;height:68px}
+  .vrow .lane::before{top:-34px;height:68px}
+  .vpath{display:none}
+}
+</style>

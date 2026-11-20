@@ -1,7 +1,47 @@
 ---
-// STUB (A0): root section and heading only. Owner: builder D.
+// CTA band (D4). Port of prototype index.html 633–647 and styles.css 609–617.
+// The footstep walk is build-time SVG, placed so its last step lands beside the button.
 import { cta } from '../../copy/landing'
+import { svg } from '../../lib/art'
+import { DEMO_URL } from '../../config'
 ---
 <section class="cta" aria-label="Get started">
-  <div class="wrap"><h2>{cta.h2}</h2></div>
+  <div class="wrap">
+    <div class="band">
+      <div>
+        <h2>{cta.h2}</h2>
+        <p>{cta.p}</p>
+      </div>
+      <div class="side">
+        <span class="go">
+          <span class="walk" aria-hidden="true" set:html={svg.ctaWalk} />
+          <span class="walk-m" aria-hidden="true" set:html={svg.ctaWalkM} />
+          <a class="btn btn-white" href={DEMO_URL}>{cta.button}</a>
+        </span>
+        <div class="term">{cta.term}</div>
+      </div>
+    </div>
+  </div>
 </section>
+
+<style is:global>
+.cta{background:var(--paper);padding-block:40px 120px}
+.band{position:relative;border-radius:28px;background:var(--blue);color:#fff;padding:88px 72px;overflow:hidden;isolation:isolate;display:grid;grid-template-columns:1.2fr 1fr;gap:40px;align-items:end}
+.band h2{font-size:clamp(36px,4.4vw,58px)}
+.band p{margin-top:18px;font-size:18px}
+.band .side{display:flex;flex-direction:column;gap:16px;align-items:flex-start}
+.band .side .term{font-size:12.5px}
+.band .go{position:relative;display:inline-flex}
+/* desktop walk: 640×360, last step at its right-middle, set just left of the button's middle */
+.band .walk,.band .walk-m{position:absolute;z-index:-1;pointer-events:none}
+.band .walk{right:calc(100% + 6px);top:calc(50% - 180px);width:640px;height:360px}
+.band .walk-m{display:none}
+.band :is(.walk,.walk-m) svg{display:block;width:100%;height:100%;overflow:visible}
+.band :is(.walk,.walk-m) circle{fill:#fff}
+@media (max-width:900px){.band{grid-template-columns:1fr}}
+@media (max-width:700px){
+  .band{padding:56px 22px;border-radius:22px}
+  .band .walk{display:none}
+  .band .walk-m{display:block;left:calc(100% + 6px);bottom:50%;width:360px;height:260px}
+}
+</style>

@@ -1,7 +1,122 @@
 ---
-// STUB (A0): root section and heading only. Owner: builder D.
+// MCP (D4). Port of prototype index.html 555–615 and styles.css 496–546, with the honest goal_report answer.
 import { mcp } from '../../copy/landing'
+import CopyButton from '../site/CopyButton.astro'
+
+const m = mcp
 ---
 <section id="mcp" class="mcp sec">
-  <div class="wrap"><h2>{mcp.h2}</h2></div>
+  <div class="wrap mg2">
+    <div class="mside">
+      <div class="head" data-reveal>
+        <h2>{m.h2}</h2>
+        <p class="lede" set:html={m.lede} />
+      </div>
+      <figure class="code cmd" data-reveal>
+        <div class="code-head"><span>{m.cmdTitle}</span><CopyButton label="Copy command" text={m.cmdCopy} /></div>
+        <pre><code>{m.cmd}</code></pre>
+      </figure>
+      <div class="tools7" data-reveal>
+        <span class="t7">{m.toolsLabel}</span>
+        <ul>{m.tools.map((t) => <li class:list={[t === m.call.name && 'on']}>{t}</li>)}</ul>
+      </div>
+      <p class="trust" data-reveal><svg class="i" aria-hidden="true"><use href="#i-shield"/></svg><span set:html={m.trust} /></p>
+    </div>
+    <div class="cstage">
+      <div class="convo" id="convo" role="group" aria-label={m.window.sample}>
+        <div class="cbar"><span class="lights" aria-hidden="true"><i></i><i></i><i></i></span><span class="ttl">{m.window.title}</span><span class="sample">{m.window.sample}</span></div>
+        <div class="cbody">
+          <div class="turn you"><p>{m.question}</p></div>
+          <div class="turn call">
+            <div class="callrow">
+              <span class="cdot" aria-hidden="true"></span>
+              <span class="cname"><b>trail</b> · {m.call.name}</span>
+              <code class="cargs">{m.call.args}</code>
+              <button type="button" class="jtog" aria-expanded="false" aria-controls="cjson">{m.call.toggle}<svg class="i" aria-hidden="true"><use href="#i-chevd"/></svg></button>
+            </div>
+            <div class="cjson" id="cjson" hidden><pre><code>{m.json}</code></pre></div>
+          </div>
+          <div class="turn ans">
+            <p class="a1 stg" set:html={m.a1} />
+            <table class="atab stg">
+              <thead><tr>{m.tableHead.map((h) => <th scope="col">{h}</th>)}</tr></thead>
+              <tbody>
+                {m.table.map(([page, v, last, d]) => (
+                  <tr class="stg"><td><code>{page}</code></td><td class="num">{v}</td><td class:list={['num', d.startsWith('+') && 'gain']}>{last} <span>{d}</span></td></tr>
+                ))}
+              </tbody>
+            </table>
+            <p class="a2 stg" set:html={m.a2} />
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 </section>
+
+<script>import '../../scripts/mcp'</script>
+
+<style is:global>
+/* Port of prototype styles.css 496–546 plus the MCP lines of the responsive block. */
+.mcp{background:var(--paper);overflow:hidden}
+.mg2{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:56px;align-items:start}
+.mside .head{margin-bottom:28px}
+.mside .lede code{font-size:16px}
+.cmd{background:var(--ink);border-color:var(--ink)}
+.cmd .code-head{border-color:rgb(255 255 255 / .12);color:#a9bde0}
+.cmd pre{color:#e8f0ff;font-size:13px;white-space:pre;overflow-x:auto}
+.cmd .copy{color:#a9bde0}
+.cmd .copy:hover{background:rgb(255 255 255 / .08);color:#fff}
+.tools7{margin-top:24px;display:flex;flex-direction:column;gap:12px}
+.t7{font:600 12px/1 var(--sans);letter-spacing:.08em;text-transform:uppercase;color:var(--ink-2)}
+.tools7 ul{list-style:none;display:flex;flex-wrap:wrap;gap:8px}
+.tools7 li{font:500 13px var(--mono);padding:6px 10px;border-radius:8px;background:#fff;border:1px solid var(--rule);color:var(--ink)}
+.tools7 li.on{border-color:var(--blue);color:var(--deep);background:#eaf2fe}
+.trust{margin-top:24px;display:flex;gap:12px;align-items:flex-start;padding:16px 18px;border-radius:12px;background:var(--mist);font-size:15.5px;line-height:1.5;color:var(--ink-2)}
+.trust b{color:var(--ink);font-weight:600}
+.trust svg{width:20px;height:20px;color:var(--deep);margin-top:1px}
+.cstage{margin-right:calc((min(100vw, var(--wrap-w) + var(--gut) * 2) - 100vw) / 2 - var(--gut));padding-top:8px}
+.convo{background:#0b0b0c;color:#e6e6e6;border:1px solid #262626;border-right:0;border-radius:12px 0 0 12px;overflow:hidden;box-shadow:0 32px 64px -24px rgb(7 40 100 / .45),0 12px 24px -16px rgb(7 40 100 / .3)}
+.cbar{display:flex;align-items:center;gap:12px;height:44px;padding:0 10px 0 14px;font:12px var(--mono);border-bottom:1px solid #1f1f1f;color:#8a8a8a}
+.cbar .ttl{flex:none;white-space:nowrap}
+.sample{margin-left:auto;margin-right:max(0px,calc(100% - 700px));font:500 12px var(--sans);color:#cfe4ff;background:#0d1f3a;padding:4px 10px;border-radius:999px;white-space:nowrap}
+.cbody{max-width:700px;padding:28px 28px 32px;display:flex;flex-direction:column;gap:20px}
+.turn{transition:opacity 240ms ease,transform 300ms var(--ease-out)}
+.you{align-self:flex-end;max-width:78%;padding:10px 16px;border-radius:16px 16px 4px 16px;background:#1d2a3d;color:#fff;font-size:15.5px}
+.callrow{display:flex;align-items:center;flex-wrap:wrap;gap:8px 10px;padding:10px 10px 10px 14px;border:1px solid #232323;border-radius:10px;background:#111;font-size:13.5px}
+.cdot{flex:none;width:8px;height:8px;border-radius:50%;background:var(--ui-good);transition:background-color 200ms ease}
+.cname{white-space:nowrap}
+.cname b{color:#6cb2ff;font-weight:500}
+.cargs{font-size:12.5px;color:#a1a1a1}
+.jtog{margin-left:auto;display:flex;align-items:center;gap:4px;height:28px;padding:0 8px 0 10px;border-radius:6px;border:1px solid #2e2e2e;background:#0b0b0c;color:#d4d4d4;font:500 12.5px var(--sans);cursor:pointer;transition:background-color 150ms ease,opacity 200ms ease}
+.jtog:hover{background:#1a1a1a}
+.jtog svg{width:14px;height:14px;transition:rotate 200ms var(--ease-out)}
+.jtog[aria-expanded=true] svg{rotate:180deg}
+.cjson pre{margin:8px 0 0;max-height:236px;overflow:auto;padding:12px 14px;border:1px solid #232323;border-radius:10px;background:#050505;font:12px/1.6 var(--mono);color:#cfcfcf}
+.ans{display:flex;flex-direction:column;gap:14px;font-size:15.5px;line-height:1.6;color:#e6e6e6}
+.ans b{font-weight:600;color:#fff}
+.ans code{font-size:13px;color:#cfe4ff}
+.atab{width:100%;max-width:460px;border-collapse:collapse;font-size:14px}
+.atab th{padding:0 0 8px;border-bottom:1px solid #2a2a2a;font:500 11.5px var(--sans);letter-spacing:.04em;text-transform:uppercase;color:#8a8a8a;text-align:left}
+.atab td{padding:10px 0;border-bottom:1px solid #1c1c1c}
+.atab th + th,.atab td + td{text-align:right;width:92px}
+.atab th:last-child,.atab td:last-child{width:132px}
+.atab td span{margin-left:6px;color:#a1a1a1}
+.atab td.gain span{color:var(--ui-good)}
+.a2{color:#cfcfcf;text-wrap:pretty}
+.stg{transition:opacity 240ms ease,transform 300ms var(--ease-out)}
+.convo[data-seq=pre] .turn:not(.show),.convo[data-seq=pre] .stg:not(.show){opacity:0;transform:translateY(8px)}
+.convo[data-seq=pre] .call:not(.done) .cdot{background:#6b6b6b}
+.convo[data-seq=pre] .call:not(.done) .jtog{opacity:0;pointer-events:none}
+@media (prefers-reduced-motion:no-preference){.convo[data-seq=pre] .call:not(.done) .cdot{animation:wait 900ms ease-in-out infinite}}
+
+@media (max-width:900px){
+  .mg2{grid-template-columns:minmax(0,1fr)}
+  .cstage{margin-right:calc(-1 * var(--gut))}
+}
+@media (max-width:700px){
+  .cbody{padding:20px 16px 24px}
+  .you{max-width:90%}
+  .cargs{flex-basis:100%;order:3}
+}
+</style>
