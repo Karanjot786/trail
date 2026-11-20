@@ -3,6 +3,7 @@ package query
 import (
 	"database/sql"
 	"errors"
+	"fmt"
 	"math"
 	"strings"
 	"testing"
@@ -203,5 +204,29 @@ func TestDeliveryRetried(t *testing.T) {
 	}
 	if d, _ := Delivery(db, params(0, 1)); d.Events != 0 || d.RetriedRate != 0 {
 		t.Fatalf("empty = %+v", d)
+	}
+}
+
+func TestGoalReportPagePrefixCaseSensitive(t *testing.T) {
+	db := fixture(t,
+		pv("A", "sa", "/pricing/x", t0), pv("B", "sb", "/PRICING/x", t0), pv("C", "sc", "/pricing", t0),
+	)
+	mustGoal(t, db, Goal{Name: "Pricing", Kind: "page", Match: "/pricing*"})
+	if r := report(t, db, around()); r[0].Visitors != 2 {
+		t.Fatalf("visitors = %d, want 2 (/PRICING/x must not match)", r[0].Visitors)
+	}
+}
+
+func TestGoalCap(t *testing.T) {
+	db := fixture(t)
+	for i := 0; i < maxGoalsPerSite; i++ {
+		mustGoal(t, db, Goal{Name: fmt.Sprintf("g%d", i), Kind: "event", Match: "e"})
+	}
+	_, err := CreateGoal(db, "s", Goal{Name: "one too many", Kind: "event", Match: "e"})
+	if !errors.Is(err, ErrBadGoal) || !strings.Contains(err.Error(), "at most 50 goals per site") {
+		t.Fatalf("err = %v", err)
+	}
+	if _, err := CreateGoal(db, "other", Goal{Name: "g0", Kind: "event", Match: "e"}); err != nil {
+		t.Fatalf("cap must be per site: %v", err)
 	}
 }

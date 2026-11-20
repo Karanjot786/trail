@@ -9,6 +9,8 @@ import (
 	"unicode/utf8"
 )
 
+const maxGoalsPerSite = 50
+
 // ErrBadGoal is returned when a goal fails validation or its name is taken.
 var ErrBadGoal = errors.New("bad goal")
 
@@ -75,6 +77,13 @@ func CreateGoal(db *sql.DB, site string, g Goal) (Goal, error) {
 	case matchLen < 1 || matchLen > 200:
 		return g, fmt.Errorf("%w: match must be 1-200 characters", ErrBadGoal)
 	}
+	var n int
+	if err := db.QueryRow(`SELECT count(*) FROM goals WHERE site_id=?`, site).Scan(&n); err != nil {
+		return g, fmt.Errorf("create goal: %w", err)
+	}
+	if n >= maxGoalsPerSite {
+		return g, fmt.Errorf("%w: at most %d goals per site", ErrBadGoal, maxGoalsPerSite)
+	}
 	res, err := db.Exec(`INSERT INTO goals(site_id, name, kind, match, created) VALUES(?,?,?,?,?)`,
 		site, g.Name, g.Kind, g.Match, time.Now().UnixMilli())
 	if err != nil {
@@ -111,12 +120,20 @@ func GoalReport(db *sql.DB, p Params) ([]GoalRow, error) {
 	out := make([]GoalRow, 0, len(goals))
 	prev := p
 	prev.From, prev.To = p.From-(p.To-p.From), p.From-1
+	curTotal, err := allVisitors(db, p)
+	if err != nil {
+		return nil, err
+	}
+	prevTotal, err := allVisitors(db, prev)
+	if err != nil {
+		return nil, err
+	}
 	for _, g := range goals {
-		cur, err := goalNumbers(db, p, g)
+		cur, err := goalNumbers(db, p, g, curTotal)
 		if err != nil {
 			return nil, err
 		}
-		pr, err := goalNumbers(db, prev, g)
+		pr, err := goalNumbers(db, prev, g, prevTotal)
 		if err != nil {
 			return nil, err
 		}
@@ -125,26 +142,33 @@ func GoalReport(db *sql.DB, p Params) ([]GoalRow, error) {
 	return out, nil
 }
 
-// likeEscape makes a literal prefix safe inside LIKE ... ESCAPE '\'.
-var likeEscape = strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
+// allVisitors counts distinct visitors in range (the rate denominator).
+func allVisitors(db *sql.DB, p Params) (int, error) {
+	cte, args, err := base(p)
+	if err != nil {
+		return 0, err
+	}
+	var total int
+	if err := db.QueryRow(cte+`SELECT count(DISTINCT person) FROM ev`, args...).Scan(&total); err != nil {
+		return 0, fmt.Errorf("goal visitors: %w", err)
+	}
+	return total, nil
+}
 
-func goalNumbers(db *sql.DB, p Params, g Goal) (GoalPrev, error) {
+func goalNumbers(db *sql.DB, p Params, g Goal, total int) (GoalPrev, error) {
 	var n GoalPrev
 	cte, args, err := base(p)
 	if err != nil {
 		return n, err
-	}
-	var total int
-	if err := db.QueryRow(cte+`SELECT count(DISTINCT person) FROM ev`, args...).Scan(&total); err != nil {
-		return n, fmt.Errorf("goal %q: %w", g.Name, err)
 	}
 	var where string
 	switch {
 	case g.Kind == "event":
 		where, args = "type='event' AND name=?", append(args, g.Match)
 	case strings.HasSuffix(g.Match, "*"):
-		where = `type='pageview' AND path LIKE ? ESCAPE '\'`
-		args = append(args, likeEscape.Replace(strings.TrimSuffix(g.Match, "*"))+"%")
+		// substr = is case-sensitive like the exact-path goal; LIKE is not.
+		prefix := strings.TrimSuffix(g.Match, "*")
+		where, args = `type='pageview' AND substr(path, 1, length(?)) = ?`, append(args, prefix, prefix)
 	default:
 		where, args = "type='pageview' AND path=?", append(args, g.Match)
 	}
