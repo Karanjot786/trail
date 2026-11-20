@@ -4,7 +4,9 @@
   "type": "module",
   "scripts": {
     "build": "node build.mjs",
-    "test": "node build.mjs && playwright test"
+    "test": "node build.mjs && playwright test",
+    "size": "node build.mjs && node --test test/size.test.mjs",
+    "bench": "node build.mjs && node bench/bench.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.49.0",

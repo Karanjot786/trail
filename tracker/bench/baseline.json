@@ -1,0 +1,50 @@
+{
+  "date": "2026-11-20T05:49:10.312Z",
+  "runs": 5,
+  "results": {
+    "t.js": {
+      "script": {
+        "median": 2.46,
+        "min": 2.31,
+        "max": 4.41
+      },
+      "heap": {
+        "median": 123.58,
+        "min": 123.58,
+        "max": 123.61
+      },
+      "listeners": {
+        "median": 9,
+        "min": 9,
+        "max": 9
+      },
+      "requests": {
+        "median": 3,
+        "min": 3,
+        "max": 4
+      }
+    },
+    "t.js+x": {
+      "script": {
+        "median": 3.81,
+        "min": 2.39,
+        "max": 3.86
+      },
+      "heap": {
+        "median": 131,
+        "min": 130.97,
+        "max": 131
+      },
+      "listeners": {
+        "median": 11,
+        "min": 11,
+        "max": 11
+      },
+      "requests": {
+        "median": 4,
+        "min": 4,
+        "max": 5
+      }
+    }
+  }
+}

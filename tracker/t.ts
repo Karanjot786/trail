@@ -1,11 +1,9 @@
-// Trail tracker. Built with esbuild (build.mjs); budget: 2048 bytes gzipped.
-// FULL is an esbuild define: true compiles in the opt-in vitals + rage-click code.
-declare const FULL: boolean;
+// Trail tracker. Built with esbuild (build.mjs); budget: 2048 bytes gzipped per file.
+// Vitals and rage clicks are in x.ts (t.x.js), loaded only when asked for.
 
 ((w: any, d: Document, l: Location, h: History, n: Navigator) => {
   const s = d.currentScript as HTMLScriptElement | null;
   if (w.__trail || !s) return; // double-load guard
-  w.__trail = 1;
   const D = s.dataset;
   const site = D.site;
   const api = D.api || '/_t/e';
@@ -90,17 +88,12 @@ declare const FULL: boolean;
     if (k != last) (last = k), page();
   };
 
-  const hide = () => {
-    if (vis()) {
-      t0 = Date.now();
-      arm();
-    } else {
-      acc = cur();
-      t0 = 0;
-      clearTimeout(tm);
-      eng();
-    }
+  // leaving (pagehide and/or hidden, in any order) sends one engage until visible again
+  let left = 0;
+  const leave = () => {
+    if (!left) (left = 1), (acc = cur()), (t0 = 0), clearTimeout(tm), eng();
   };
+  const hide = () => (vis() ? ((left = 0), (t0 = Date.now()), arm()) : leave());
 
   const rot = () => (setA(uuid()), (S = {}));
   const api_ = {
@@ -114,20 +107,24 @@ declare const FULL: boolean;
     pageview: (o?: { route?: string }) => page(o && o.route),
   };
 
+  w.__trail = send; // also the double-load guard; t.x.js reports through it
+
   // queue stub: window.trail was a function collecting into window.trailq
   const q = typeof w.trail == 'function' ? w.trailq || [] : [];
   w.trail = api_;
   q.forEach((c: any) => (api_ as any)[c[0]]?.(c[1], c[2]));
 
   d.addEventListener('visibilitychange', hide); // document, not window: Safari doesn't bubble it to window
-  addEventListener('pagehide', eng);
+  addEventListener('pagehide', leave);
   addEventListener('scroll', scroll, { passive: true });
   addEventListener('popstate', nav);
-  const ps = h.pushState;
-  h.pushState = function () {
-    ps.apply(this, arguments as any);
-    nav();
-  };
+  for (const k of ['pushState', 'replaceState'] as const) {
+    const o = h[k];
+    h[k] = function () {
+      o.apply(this, arguments as any);
+      nav();
+    };
+  }
 
   const err = (m: string) => {
     if (errs < 5 && !seen[m]) (seen[m] = 1), errs++, send('error', { d: { message: m.slice(0, 200) } });
@@ -149,38 +146,14 @@ declare const FULL: boolean;
     true,
   );
 
-  if (FULL) {
-    if (D.vitals != null) {
-      const m: any = { LCP: 0, CLS: 0, INP: 0 };
-      const ob = (type: string, cb: (e: any) => void, o?: any) => {
-        try {
-          new PerformanceObserver((li) => li.getEntries().forEach(cb)).observe({ type, buffered: true, ...o });
-        } catch {}
-      };
-      ob('largest-contentful-paint', (e) => (m.LCP = e.startTime));
-      ob('layout-shift', (e) => e.hadRecentInput || (m.CLS += e.value));
-      ob('event', (e) => e.interactionId && e.duration > m.INP && (m.INP = e.duration), { durationThreshold: 40 });
-      let done = 0;
-      d.addEventListener('visibilitychange', () => {
-        if (!vis() && !done) {
-          done = 1;
-          for (const k in m) m[k] && send('vital', { n: k, d: { value: +m[k].toFixed(3) } });
-        }
-      });
-    }
-    if (D.rage != null) {
-      let c: number[][] = [];
-      d.addEventListener(
-        'click',
-        (e) => {
-          const t = Date.now();
-          c = c.filter((p) => t - p[0] < 1e3 && Math.abs(p[1] - e.clientX) < 30 && Math.abs(p[2] - e.clientY) < 30);
-          c.push([t, e.clientX, e.clientY]);
-          if (c.length > 2) (c = []), send('event', { n: 'rage_click' });
-        },
-        true,
-      );
-    }
+  // opt-in extras live in t.x.js, next to this file
+  if (D.vitals != null || D.rage != null) {
+    const x = d.createElement('script');
+    x.async = true;
+    x.src = s.src.replace(/[^/]*$/, 't.x.js');
+    if (D.vitals != null) x.dataset.vitals = '';
+    if (D.rage != null) x.dataset.rage = '';
+    d.head.append(x);
   }
 
   page();

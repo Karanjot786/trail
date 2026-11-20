@@ -1,20 +1,16 @@
 // Tiny static server for the smoke tests: no Go backend needed.
-// Serves test/*.html and the built tracker at /_t/t.js (+ /_t/t.full.js if present).
+// Serves test/*.html and the built tracker files at /_t/t*.js.
 import http from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 
 const here = (p) => fileURLToPath(new URL(p, import.meta.url));
-const routes = {
-  '/_t/t.js': here('../../internal/ingest/t.js'),
-  '/_t/t.full.js': here('../dist/t.full.js'),
-};
 
 http
   .createServer(async (req, res) => {
     const path = new URL(req.url, 'http://x').pathname;
     if (req.method === 'POST' && path === '/_t/e') return res.writeHead(204).end();
-    const file = routes[path] ?? (/^\/[\w-]+\.html$/.test(path) ? here('.' + path) : null);
+    const file = /^\/_t\/t(\.[px])?\.js$/.test(path) ? here('../../internal/ingest/' + path.slice(4)) : /^\/[\w-]+\.html$/.test(path) ? here('.' + path) : null;
     try {
       if (!file) throw 0;
       const type = file.endsWith('.js') ? 'text/javascript' : 'text/html';

@@ -1,9 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
-import { readFileSync } from 'node:fs';
 
 type Ev = Record<string, any>;
 const WIRE = new Set(['s', 't', 'a', 'ss', 'uid', 'u', 'r', 'rt', 'n', 'd', 'e', 'sc', 'env', 'w']);
-const FULL = /rage_click/.test(readFileSync(new URL('../../internal/ingest/t.js', import.meta.url), 'utf8'));
 
 // Intercept the ingest endpoint: record every body, answer 204. No Go server involved.
 async function capture(page: Page) {
@@ -92,6 +90,34 @@ test('engage on hide sends e>0 and sc', async ({ page }) => {
   expect(en.sc).toBeGreaterThan(0);
   expect(en.sc).toBeLessThanOrEqual(100);
   expect(en.u).toMatch(/index\.html$/);
+});
+
+test('leave sends exactly one engage (pagehide + visibilitychange hidden)', async ({ page }) => {
+  await page.clock.install();
+  const c = await capture(page);
+  await page.goto('/index.html');
+  await expect.poll(() => c.of('pageview').length).toBe(1);
+  await page.clock.runFor(500);
+  // Chromium fires pagehide first, then visibilitychange; a few ms pass in between
+  await page.evaluate(() => dispatchEvent(new PageTransitionEvent('pagehide')));
+  await page.clock.runFor(5);
+  await hide(page);
+  await page.evaluate(() => dispatchEvent(new PageTransitionEvent('pagehide')));
+  await expect.poll(() => c.of('engage').length).toBeGreaterThan(0);
+  await page.waitForTimeout(200);
+  expect(c.of('engage')).toHaveLength(1);
+});
+
+test('replaceState: new path -> one pageview, same path -> none', async ({ page }) => {
+  const c = await capture(page);
+  await page.goto('/index.html');
+  await expect.poll(() => c.of('pageview').length).toBe(1);
+  await page.evaluate(() => history.replaceState({}, '', '/r'));
+  await expect.poll(() => c.of('pageview').length).toBe(2);
+  expect(c.of('pageview')[1].u).toMatch(/\/r$/);
+  await page.evaluate(() => history.replaceState({ x: 1 }, '', '/r'));
+  await page.waitForTimeout(200);
+  expect(c.of('pageview')).toHaveLength(2);
 });
 
 test('engage once at 10s of visible time', async ({ page }) => {
@@ -219,9 +245,7 @@ test('pageview({route}) and data-route fill rt', async ({ page }) => {
   expect(c.of('pageview')[2].rt).toBe('/home');
 });
 
-test.describe('opt-in vitals and rage clicks', () => {
-  test.skip(!FULL, 'core build omits vitals/rage (t.full.js)');
-
+test.describe('opt-in vitals and rage clicks (t.x.js)', () => {
   test('rage click: 3 fast clicks -> rage_click event', async ({ page }) => {
     const c = await capture(page);
     await page.goto('/full.html');
@@ -246,5 +270,21 @@ test.describe('opt-in vitals and rage clicks', () => {
     await page.waitForTimeout(200);
     expect(c.of('vital')).toHaveLength(0);
     expect(c.of('event')).toHaveLength(0);
+  });
+
+  test('no extras file is requested without data-vitals/data-rage', async ({ page }) => {
+    const urls: string[] = [];
+    page.on('request', (r) => urls.push(r.url()));
+    const c = await capture(page);
+    await page.goto('/index.html');
+    await expect.poll(() => c.of('pageview').length).toBe(1);
+    await page.waitForTimeout(200);
+    expect(urls.filter((u) => u.includes('t.x.js'))).toHaveLength(0);
+  });
+
+  test('extras file is loaded from next to t.js when asked for', async ({ page }) => {
+    const req = page.waitForRequest('**/_t/t.x.js');
+    await page.goto('/full.html');
+    await req;
   });
 });

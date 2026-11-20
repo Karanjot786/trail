@@ -22,7 +22,7 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm, cache-dependency-path: tracker/package-lock.json }
       - run: npm ci
-      - run: node build.mjs # fails if t.js > 2048 bytes gzipped
+      - run: npm run size # builds; fails if any tracker file > 2048 bytes gzipped
       - run: npx playwright install --with-deps chromium
       - run: npx playwright test
 
