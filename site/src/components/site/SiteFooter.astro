@@ -7,10 +7,20 @@ import '../../styles/chrome.css'
 import { footer } from '../../copy/landing'
 import { svg } from '../../lib/art'
 import { GITHUB_URL } from '../../config'
+
+// Room under the word for the footsteps below the T: the art overflows its viewBox down to the end of its dot
+// field (or the last step). Reserve that overflow as bottom padding, in % of the width, so the steps end above
+// the divider at any width. Read from the generated SVG so it follows the art.
+const word = svg.footerWord
+const [, vbW, vbH] = (word.match(/viewBox="0 0 ([\d.]+) ([\d.]+)"/) ?? []).map(Number)
+const field = Number(word.match(/class="fw-field"[^>]*height="([\d.]+)"/)?.[1] ?? 0)
+const steps = [...word.matchAll(/class="fw-step"[^>]*cy="([\d.]+)" r="([\d.]+)"/g)].map((m) => +m[1] + +m[2])
+const below = Math.max(field, ...steps, vbH || 0) - (vbH || 0)
+const room = vbW ? `${((below / vbW) * 100).toFixed(2)}%` : '15%'
 ---
 <footer class="site-foot" data-reveal-self>
   <div class="wrap">
-    <div class="foot-word" aria-hidden="true" set:html={svg.footerWord} />
+    <div class="foot-word" aria-hidden="true" style={`--room:${room}`} set:html={word} />
     <nav class="foot-links" aria-label="Footer">
       <ul>{footer.links.map((l) => <li><a href={l.href}>{l.text}</a></li>)}</ul>
     </nav>
@@ -27,7 +37,7 @@ import { GITHUB_URL } from '../../config'
 <style>
   .site-foot{--chrome-fg:#fff;--chrome-muted:rgb(255 255 255 / .8);position:relative;isolation:isolate;overflow:hidden;background:var(--deep);color:#fff}
   /* top room as in the prototype; the bottom padding (a % of the width) holds the footsteps under the T */
-  .foot-word{padding-block:clamp(28px,3.4vw,48px) 15%}
+  .foot-word{padding-block:clamp(28px,3.4vw,48px) calc(var(--room) + 8px)}
   .foot-word :global(svg){display:block;width:100%;height:auto;overflow:visible}
   .foot-links{border-top:1px solid rgb(255 255 255 / .25);padding-top:16px}
   .foot-links ul{display:flex;flex-wrap:wrap;column-gap:28px;list-style:none}
