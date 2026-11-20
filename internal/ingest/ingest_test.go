@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"trail/internal/enrich"
+	"trail/internal/sites"
 	"trail/internal/store"
 )
 
@@ -23,25 +24,49 @@ func setup(t *testing.T) (*store.Store, http.Handler) {
 	return newHandler(t, map[string]string{"s1": "example.com"})
 }
 
-func newHandler(t *testing.T, sites map[string]string, opts ...Option) (*store.Store, http.Handler) {
+func newHandler(t *testing.T, ids map[string]string, opts ...Option) (*store.Store, http.Handler) {
+	t.Helper()
+	st, reg := newRegistry(t, ids)
+	geo, err := enrich.OpenGeo("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return st, New(st, geo, reg, opts...)
+}
+
+// newRegistry opens a store and registers ids (id -> domain) in it.
+func newRegistry(t *testing.T, ids map[string]string) (*store.Store, *sites.Registry) {
 	t.Helper()
 	st, err := store.Open(filepath.Join(t.TempDir(), "i.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = st.Close() })
-	geo, err := enrich.OpenGeo("")
+	reg, err := sites.Open(st.DB())
 	if err != nil {
 		t.Fatal(err)
 	}
-	return st, New(st, geo, sites, opts...)
+	for id, d := range ids {
+		if _, err := reg.Add(sites.Site{ID: id, Domain: d}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return st, reg
 }
 
+// post sends body from a page on https://example.com, as a browser would.
 func post(h http.Handler, body string) *httptest.ResponseRecorder {
+	return postFrom(h, body, map[string]string{"Origin": "https://example.com"})
+}
+
+func postFrom(h http.Handler, body string, hdr map[string]string) *httptest.ResponseRecorder {
 	r := httptest.NewRequest(http.MethodPost, "/_t/e", strings.NewReader(body))
 	r.Header.Set("Content-Type", "text/plain")
 	r.Header.Set("User-Agent", iphoneUA)
 	r.Header.Set("X-Forwarded-For", "203.0.113.77, 10.0.0.1")
+	for k, v := range hdr {
+		r.Header.Set(k, v)
+	}
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, r)
 	return w
@@ -73,8 +98,11 @@ func TestValidPageview(t *testing.T) {
 	if c := w.Header().Get("Set-Cookie"); !strings.Contains(c, "_t_id=anon-1") || !strings.Contains(c, "Max-Age=31536000") || !strings.Contains(c, "SameSite=Lax") {
 		t.Errorf("Set-Cookie = %q", c)
 	}
-	if got := w.Header().Get("Access-Control-Allow-Origin"); got != "*" {
-		t.Errorf("ACAO = %q", got)
+	if got := w.Header().Get("Access-Control-Allow-Origin"); got != "https://example.com" {
+		t.Errorf("ACAO = %q, want the request origin", got)
+	}
+	if got := w.Header().Get("Vary"); got != "Origin" {
+		t.Errorf("Vary = %q", got)
 	}
 	if n := rows(t, st); n != 1 {
 		t.Fatalf("rows = %d", n)
@@ -170,8 +198,11 @@ func TestNoIPStored(t *testing.T) {
 func TestOptions(t *testing.T) {
 	_, h := setup(t)
 	w := httptest.NewRecorder()
-	h.ServeHTTP(w, httptest.NewRequest(http.MethodOptions, "/_t/e", nil))
-	if w.Code != http.StatusNoContent || w.Header().Get("Access-Control-Allow-Origin") != "*" {
+	r := httptest.NewRequest(http.MethodOptions, "/_t/e", nil)
+	r.Header.Set("Origin", "https://example.com")
+	h.ServeHTTP(w, r)
+	if w.Code != http.StatusNoContent || w.Header().Get("Access-Control-Allow-Origin") != "https://example.com" ||
+		w.Header().Get("Access-Control-Allow-Methods") != "POST, OPTIONS" {
 		t.Errorf("OPTIONS: %d %v", w.Code, w.Header())
 	}
 }

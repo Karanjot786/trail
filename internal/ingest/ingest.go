@@ -11,12 +11,14 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
 
 	"trail/internal/enrich"
+	"trail/internal/sites"
 	"trail/internal/store"
 )
 
@@ -94,9 +96,10 @@ type payload struct {
 type handler struct {
 	st    *store.Store
 	geo   *enrich.Geo
-	sites map[string]string
+	sites *sites.Registry
 	now   func() time.Time
 	priv  *Private
+	limit *limiter // nil: no rate limit
 }
 
 // Option configures the ingest handler.
@@ -107,10 +110,20 @@ func WithPrivate(p *Private) Option {
 	return func(h *handler) { h.priv = p }
 }
 
+// WithRateLimit limits each client IP to rps requests per second with the
+// given burst. Over the limit is 429.
+func WithRateLimit(rps float64, burst int) Option {
+	return func(h *handler) { h.limit = newLimiter(rps, burst, time.Now) }
+}
+
 // New returns the ingest handler for POST /_t/e (and its CORS preflight).
-// sites maps site id to its production domain.
-func New(st *store.Store, geo *enrich.Geo, sites map[string]string, opts ...Option) http.Handler {
-	h := &handler{st: st, geo: geo, sites: sites, now: time.Now}
+// reg says which site ids exist and which origins may send for each.
+//
+// Events must come from a browser on an allowed origin: the Origin header, or
+// the Referer host when Origin is absent. A request with neither is refused;
+// server-side senders will authenticate with a per-site secret key instead.
+func New(st *store.Store, geo *enrich.Geo, reg *sites.Registry, opts ...Option) http.Handler {
+	h := &handler{st: st, geo: geo, sites: reg, now: time.Now}
 	for _, o := range opts {
 		o(h)
 	}
@@ -121,7 +134,15 @@ func New(st *store.Store, geo *enrich.Geo, sites map[string]string, opts ...Opti
 }
 
 func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Access-Control-Allow-Origin", "*")
+	// Echo the origin rather than "*". Refused requests get it too, so the
+	// tracker can read the 4xx and drop the events instead of retrying them.
+	origin := r.Header.Get("Origin")
+	w.Header().Set("Vary", "Origin")
+	if origin != "" {
+		w.Header().Set("Access-Control-Allow-Origin", origin)
+	} else {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+	}
 	switch r.Method {
 	case http.MethodOptions:
 		w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
@@ -133,6 +154,11 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	default:
 		w.Header().Set("Allow", "POST, OPTIONS")
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if h.limit != nil && !h.limit.allow(enrich.ClientIP(r)) {
+		w.Header().Set("Retry-After", "1")
+		http.Error(w, "too many requests", http.StatusTooManyRequests)
 		return
 	}
 
@@ -158,11 +184,17 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	domain, ok := h.sites[ps[0].S]
+	site, ok := h.sites.Get(ps[0].S)
 	if !ok {
 		http.Error(w, "unknown site", http.StatusBadRequest)
 		return
 	}
+	if !h.sites.Allowed(site.ID, sourceHost(r)) {
+		h.sites.Reject(site.ID)
+		w.WriteHeader(http.StatusForbidden) // no detail: don't help probe the list
+		return
+	}
+	domain := site.Domain
 	// Invalid events inside a batch are skipped; the rest are stored.
 	evs := make([]store.Event, 0, len(ps))
 	valid := make([]payload, 0, len(ps))
@@ -218,6 +250,21 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("X-Trail-Accepted", strconv.Itoa(len(evs)))
 	w.Header().Set("X-Trail-Rejected", strconv.Itoa(rejected))
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// sourceHost is the host of the page that sent r: the Origin header, else the
+// Referer. Browsers send Origin on every cross-origin POST and on same-origin
+// ones too, which covers a /_t/* rewrite on the site's own domain.
+func sourceHost(r *http.Request) string {
+	src := r.Header.Get("Origin")
+	if src == "" {
+		src = r.Header.Get("Referer")
+	}
+	u, err := url.Parse(src)
+	if err != nil {
+		return ""
+	}
+	return u.Hostname()
 }
 
 // decode parses a single event object or an array of 1 to 50 of them.
