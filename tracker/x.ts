@@ -31,7 +31,7 @@
     addEventListener('unhandledrejection', (e) => err('' + (e.reason?.message || e.reason)));
   }
   if (D.forms != null)
-    d.addEventListener('submit', (e: any) => send('form', { n: e.target.id || e.target.name }), true); // never field values
+    d.addEventListener('submit', (e: any) => send('form', { n: e.target.getAttribute('id') || e.target.getAttribute('name') }), true); // never field values; getAttribute because <input name="id"> shadows form.id
   if (D.rage != null) {
     let c: number[][] = [];
     d.addEventListener(

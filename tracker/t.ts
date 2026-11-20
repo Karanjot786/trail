@@ -88,14 +88,16 @@ declare const MODE: string;
     for (const e of evs) e.rc = -~e.rc;
     F.push(...evs);
     save();
-    if (tries < 5 && !rtm) rtm = setTimeout(() => ((rtm = 0), post(F.splice(0, 50), ++tries)), 2 ** tries * 1e3); // 1, 2, 4, 8, 16 s
+    if (tries < 5 && !rtm) rtm = setTimeout(() => ((rtm = 0), post(F.splice(0, 50)), tries++), 2 ** tries * 1e3); // 1, 2, 4, 8, 16 s
   };
   // a string body is sent as text/plain, so no preflight
-  const post = (evs: any[], retry?: number) =>
+  // stop: after consent(false) nothing goes out, not even a retry armed before it
+  const post = (evs: any[]) =>
+    stop ||
     fetch(api, { method: 'POST', keepalive: true, body: JSON.stringify(evs) })
       .then((r) => {
         if (/^5|408|429/.test(r.status as any)) throw 0;
-        retry && save();
+        save(); // keeps _t_q in step with F (full mode)
       })
       .catch(() => fail(evs));
   const flush = () => {
@@ -172,7 +174,7 @@ declare const MODE: string;
       grant();
       if (MODE != 'full' || !full) return; // private mode: the server takes no identify
       if (U && U != id) rot();
-      ls('_t_u', (U = id));
+      ls('_t_u', (U = '' + id)); // string, or the server rejects the batch
       send('identify');
     },
     reset: () => MODE == 'full' && full && (rot(), (U = undefined), ls('_t_u', null)),

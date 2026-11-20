@@ -264,6 +264,27 @@ test('pageview({route}) and data-route fill rt', async ({ page }) => {
   expect(c.of('pageview')[2].rt).toBe('/home');
 });
 
+test('form with inputs named id/name still sends the form id as a string', async ({ page }) => {
+  const c = await capture(page);
+  await page.goto('/index.html');
+  await page.evaluate(() => {
+    document.body.insertAdjacentHTML('beforeend', '<form id="contact" onsubmit="return false"><input name="name"><input name="id"><button id="cb">go</button></form>');
+  });
+  await page.click('#cb');
+  await hide(page);
+  await expect.poll(() => c.of('form').length).toBe(1);
+  expect(c.of('form')[0].n).toBe('contact');
+});
+
+test('identify(123) sends uid as a string', async ({ page }) => {
+  const c = await capture(page);
+  await page.goto('/index.html');
+  await trail(page, 'identify', 123);
+  await hide(page);
+  await expect.poll(() => c.of('identify').length).toBe(1);
+  expect(c.of('identify')[0].uid).toBe('123');
+});
+
 test('forms and errors are opt-in (data-forms, data-errors)', async ({ page }) => {
   const c = await capture(page);
   await page.setContent('<p>x</p>'); // blank first, so goto below is a fresh load
@@ -504,6 +525,19 @@ test.describe('modes and consent', () => {
     await page.reload();
     await page.waitForTimeout(300);
     expect(c.reqs).toHaveLength(n);
+  });
+
+  test('consent(false) while a send is failing: no retry goes out afterwards', async ({ page }) => {
+    await page.clock.install();
+    const c = await capture(page, [503]);
+    await page.goto('/full.html');
+    await expect.poll(() => c.reqs.length).toBe(1);
+    await page.waitForTimeout(100); // the 503 lands, a retry is armed
+    await trail(page, 'consent', false);
+    await page.clock.runFor(60000);
+    await page.waitForTimeout(200);
+    expect(c.reqs).toHaveLength(1);
+    expect(await page.evaluate(() => document.cookie)).not.toMatch(/_t_id=/);
   });
 
   test('consent(true) after a denial resumes and clears the denial', async ({ page }) => {
