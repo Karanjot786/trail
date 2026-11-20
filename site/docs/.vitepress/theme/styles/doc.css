@@ -1,0 +1,432 @@
+/* The reading surface: type, links, tables, containers, steps, doc footer,
+   and the /docs home page. */
+
+.VPDoc .content-container {
+  max-width: 720px !important;
+}
+
+.vp-doc {
+  font-size: 16px;
+  line-height: 1.7;
+  color: var(--fg);
+}
+.vp-doc p,
+.vp-doc li {
+  text-wrap: pretty;
+  color: color-mix(in srgb, var(--fg) 88%, var(--muted));
+}
+.vp-doc :is(h1, h2, h3, h4) {
+  text-wrap: balance;
+  color: var(--fg);
+  scroll-margin-top: calc(var(--vp-nav-height) + 16px);
+}
+.vp-doc h1 {
+  margin-bottom: 8px;
+  font-size: 32px;
+  line-height: 1.2;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+.vp-doc h1 + p {
+  font-size: 18px;
+  line-height: 1.6;
+  color: var(--muted);
+}
+.vp-doc h2 {
+  margin: 56px 0 16px;
+  padding-top: 32px;
+  border-top: 1px solid var(--line);
+  font-size: 22px;
+  line-height: 1.3;
+  font-weight: 600;
+  letter-spacing: -0.012em;
+}
+.vp-doc h3 {
+  margin: 32px 0 8px;
+  font-size: 17px;
+  line-height: 1.4;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+}
+.vp-doc .header-anchor {
+  color: var(--subtle);
+  font-weight: 400;
+}
+.vp-doc a {
+  color: var(--link);
+  font-weight: inherit;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--link) 35%, transparent);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+@media (hover: hover) {
+  .vp-doc a:hover {
+    color: var(--link);
+    text-decoration-color: currentColor;
+  }
+}
+.vp-doc a.header-anchor {
+  text-decoration: none;
+}
+.vp-doc strong {
+  font-weight: 600;
+  color: var(--fg);
+}
+.vp-doc hr {
+  border-top-color: var(--line);
+}
+.vp-doc img {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.vp-doc blockquote {
+  border-inline-start: 2px solid var(--line-strong);
+  color: var(--muted);
+}
+.vp-doc blockquote > p {
+  color: var(--muted);
+}
+
+/* Tables */
+.vp-doc table {
+  display: table;
+  width: 100%;
+  margin: 24px 0;
+  border-collapse: separate;
+  border-spacing: 0;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  font-size: 14px;
+  overflow: hidden;
+}
+/* Wide tables scroll inside their own box, never the page. */
+@media (max-width: 720px) {
+  .vp-doc table {
+    display: block;
+    overflow-x: auto;
+  }
+}
+.vp-doc tr {
+  background: transparent !important;
+  border: 0;
+}
+.vp-doc th,
+.vp-doc td {
+  padding: 10px 14px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  text-align: start;
+  vertical-align: top;
+}
+.vp-doc tr:last-child td {
+  border-bottom: 0;
+}
+.vp-doc th {
+  background: var(--card);
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 500;
+}
+.vp-doc td {
+  color: color-mix(in srgb, var(--fg) 88%, var(--muted));
+}
+
+/* Containers: no icons, a quiet left rule. */
+.vp-doc .custom-block {
+  margin: 24px 0;
+  padding: 14px 18px;
+  border: 1px solid var(--line);
+  border-inline-start: 2px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--card);
+  font-size: 15px;
+  line-height: 1.65;
+}
+.vp-doc .custom-block p,
+.vp-doc .custom-block li {
+  color: color-mix(in srgb, var(--fg) 88%, var(--muted));
+}
+.vp-doc .custom-block .custom-block-title {
+  margin-bottom: 2px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--fg);
+  text-transform: lowercase;
+}
+.vp-doc .custom-block .custom-block-title::first-letter {
+  text-transform: uppercase;
+}
+.vp-doc .custom-block.tip {
+  border-color: color-mix(in srgb, var(--accent) 18%, var(--line));
+  border-inline-start-color: var(--accent);
+  background: color-mix(in srgb, var(--event-bg) 55%, var(--card));
+}
+.vp-doc .custom-block.info,
+.vp-doc .custom-block.details {
+  border-inline-start-color: var(--line-strong);
+}
+.vp-doc .custom-block.warning {
+  border-inline-start-color: color-mix(in srgb, var(--vp-c-warning-1) 70%, var(--line));
+  background: color-mix(in srgb, var(--vp-c-warning-soft) 45%, var(--card));
+}
+.vp-doc .custom-block.danger,
+.vp-doc .custom-block.caution {
+  border-inline-start-color: color-mix(in srgb, var(--vp-c-danger-1) 70%, var(--line));
+  background: color-mix(in srgb, var(--vp-c-danger-soft) 45%, var(--card));
+}
+.vp-doc .custom-block a {
+  color: var(--link);
+}
+.vp-doc .custom-block code {
+  background: var(--raised);
+}
+
+/* Steps: a numbered rail. */
+.vp-doc .steps > ol {
+  counter-reset: step;
+  list-style: none;
+  padding-inline-start: 0;
+  margin: 24px 0;
+}
+.vp-doc .steps > ol > li {
+  counter-increment: step;
+  position: relative;
+  padding-inline-start: 44px;
+  padding-bottom: 8px;
+  margin: 0;
+}
+.vp-doc .steps > ol > li + li {
+  margin-top: 0;
+}
+.vp-doc .steps > ol > li::before {
+  content: counter(step);
+  position: absolute;
+  inset-inline-start: 0;
+  top: 1px;
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line-strong);
+  border-radius: 50%;
+  background: var(--bg);
+  font: 500 12px/1 var(--mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--fg);
+}
+.vp-doc .steps > ol > li::after {
+  content: '';
+  position: absolute;
+  inset-inline-start: 12px;
+  top: 32px;
+  bottom: 4px;
+  width: 1px;
+  background: var(--line);
+}
+.vp-doc .steps > ol > li:last-child::after {
+  display: none;
+}
+
+/* Copy page row + H1 sit tight. */
+.VPDoc .CopyMarkdown + .main,
+.VPDoc .CopyMarkdown + div {
+  margin-top: 0;
+}
+
+/* Doc footer: edit link and prev/next. */
+.VPDocFooter {
+  margin-top: 64px !important;
+}
+.VPDocFooter .edit-link-button {
+  font-size: 13px !important;
+  font-weight: 400 !important;
+  color: var(--subtle) !important;
+}
+.VPDocFooter .edit-link-button:hover {
+  color: var(--fg) !important;
+}
+.VPDocFooter .prev-next {
+  border-top-color: var(--line) !important;
+}
+.VPDocFooter .pager-link {
+  border-color: var(--line) !important;
+  border-radius: 10px !important;
+  background: var(--card);
+  transition: border-color 150ms var(--ease);
+}
+.VPDocFooter .pager-link:hover {
+  border-color: var(--line-strong) !important;
+}
+.VPDocFooter .pager-link .desc {
+  font-size: 12px !important;
+  color: var(--subtle) !important;
+}
+.VPDocFooter .pager-link .title {
+  font-size: 15px !important;
+  color: var(--fg) !important;
+}
+
+/* ---------- /docs home: hero + section index ---------- */
+.VPHome {
+  padding-bottom: 32px !important;
+  margin-bottom: 0 !important;
+}
+.VPHero {
+  padding-top: calc(var(--vp-nav-height) + 72px) !important;
+  padding-bottom: 48px !important;
+}
+.VPHero .container,
+.VPFeatures .container {
+  max-width: 1104px !important;
+}
+.VPHero .heading {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.VPHero .name {
+  order: -1;
+  font-size: 15px !important;
+  line-height: 1.4 !important;
+  font-weight: 500 !important;
+  letter-spacing: 0 !important;
+  color: var(--muted) !important;
+  background: none !important;
+  -webkit-text-fill-color: currentColor !important;
+}
+.VPHero .text {
+  max-width: 16ch !important;
+  font-size: clamp(40px, 5vw, 56px) !important;
+  line-height: 1.04 !important;
+  font-weight: 600 !important;
+  letter-spacing: -0.035em !important;
+  text-wrap: balance;
+  color: var(--fg);
+}
+.VPHero .tagline {
+  max-width: 34em !important;
+  padding-top: 20px !important;
+  font-size: 19px !important;
+  line-height: 1.55 !important;
+  font-weight: 400 !important;
+  color: var(--muted) !important;
+  text-wrap: pretty;
+}
+.VPHero .actions {
+  margin: 0 !important;
+  padding-top: 32px !important;
+  gap: 12px;
+}
+.VPHero .action {
+  padding: 0 !important;
+}
+.VPHero .VPButton {
+  height: 46px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 20px !important;
+  border-radius: 10px !important;
+  font-size: 16px !important;
+  font-weight: 500 !important;
+  line-height: 1 !important;
+  border: 1px solid var(--line-strong) !important;
+  background: var(--card) !important;
+  color: var(--fg) !important;
+  transition:
+    background-color 150ms var(--ease),
+    border-color 150ms var(--ease),
+    transform 120ms var(--ease);
+}
+.VPHero .VPButton.brand {
+  background: var(--accent) !important;
+  border-color: var(--accent) !important;
+}
+@media (hover: hover) {
+  .VPHero .VPButton.alt:hover {
+    background: var(--raised) !important;
+    border-color: var(--subtle) !important;
+  }
+  .VPHero .VPButton.brand:hover {
+    background: color-mix(in srgb, var(--accent) 90%, var(--bg)) !important;
+  }
+}
+.VPHero .VPButton:active {
+  transform: scale(0.97);
+}
+
+/* Section index: one ruled grid, not a pile of cards. */
+.VPFeatures .items {
+  display: grid !important;
+  grid-template-columns: 1fr;
+  gap: 1px;
+  margin: 0 !important;
+  padding: 0;
+  background: var(--line);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+}
+@media (min-width: 40rem) {
+  .VPFeatures .items {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+@media (min-width: 60rem) {
+  .VPFeatures .items {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+.VPFeatures .item {
+  width: auto !important;
+  padding: 0 !important;
+  background: var(--bg);
+}
+.VPFeature {
+  height: 100%;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: var(--bg) !important;
+  transition: background-color 150ms var(--ease);
+}
+.VPFeature .box {
+  padding: 22px 24px 26px !important;
+}
+.VPFeature .title {
+  padding-top: 0 !important;
+  font-size: 16px !important;
+  line-height: 1.4 !important;
+  font-weight: 500 !important;
+  color: var(--fg);
+  transition: color 150ms var(--ease);
+}
+.VPFeature .details {
+  padding-top: 6px !important;
+  font-size: 14px !important;
+  line-height: 1.55 !important;
+  font-weight: 400 !important;
+  color: var(--muted) !important;
+  text-wrap: pretty;
+}
+@media (hover: hover) {
+  a.VPFeature:hover {
+    background: var(--card) !important;
+  }
+  a.VPFeature:hover .title {
+    color: var(--link);
+  }
+}
+a.VPFeature:focus-visible {
+  outline-offset: -2px;
+  border-radius: 0;
+}
+@media (max-width: 40rem) {
+  .VPHero {
+    padding-top: calc(var(--vp-nav-height) + 32px) !important;
+  }
+}
+@media (max-width: 40rem) {
+  .VPFeature .box {
+    padding: 18px 20px 20px !important;
+  }
+}

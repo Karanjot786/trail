@@ -1,0 +1,245 @@
+/* Page chrome around the docs: body, sidebar, local nav, outline, search. */
+
+body {
+  font: 400 16px/1.7 var(--sans);
+  font-feature-settings: 'ss01';
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--accent) 45%, transparent);
+  color: var(--fg);
+}
+
+:focus-visible {
+  outline: 2px solid var(--link);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+table,
+time,
+code,
+kbd {
+  font-variant-numeric: tabular-nums;
+}
+
+/* chrome.css styles .nav for the landing header. VitePress's sidebar also
+   has a <nav class="nav">, so undo it there. */
+.VPSidebar .nav {
+  display: block;
+  height: auto;
+}
+
+/* ---------- Search button in the header ---------- */
+.TrailNavBar .VPNavBarSearch {
+  padding: 0;
+}
+.TrailNavBar .VPNavBarSearchButton {
+  height: 40px;
+  padding: 0 10px;
+  font-size: 18px;
+  color: var(--muted);
+  border-radius: 8px;
+}
+@media (min-width: 48rem) {
+  .TrailNavBar .VPNavBarSearch {
+    padding-inline: 16px 8px;
+  }
+  .TrailNavBar .VPNavBarSearchButton {
+    width: 100%;
+    max-width: 320px;
+    height: 36px;
+    padding: 0 8px 0 12px;
+    gap: 8px;
+    font: 400 14px/1 var(--sans);
+    background: var(--card);
+    border: 1px solid var(--line);
+    transition: border-color 150ms var(--ease), color 150ms var(--ease);
+  }
+  .TrailNavBar .VPNavBarSearchButton .text {
+    flex: 1;
+    text-align: start;
+  }
+  .TrailNavBar .VPNavBarSearchButton .keys {
+    display: inline-flex;
+    gap: 2px;
+  }
+  .TrailNavBar .VPNavBarSearchButton kbd {
+    min-width: 20px;
+    height: 20px;
+    padding: 0 5px;
+    display: inline-grid;
+    place-items: center;
+    font: 500 11px/1 var(--sans);
+    color: var(--subtle);
+    background: var(--raised);
+    border: 1px solid var(--line);
+    border-radius: 5px;
+  }
+}
+@media (hover: hover) {
+  .TrailNavBar .VPNavBarSearchButton:hover {
+    color: var(--fg);
+    border-color: var(--line-strong);
+  }
+}
+
+/* ---------- Sidebar ---------- */
+.VPSidebar {
+  border-inline-end: 1px solid transparent;
+}
+@media (min-width: 60rem) {
+  .VPSidebar {
+    border-inline-end-color: var(--line);
+    padding-top: calc(var(--vp-nav-height) + 8px);
+    scrollbar-width: thin;
+    scrollbar-color: var(--line-strong) transparent;
+  }
+}
+.VPSidebar .group + .group {
+  border-top: 0 !important;
+  padding-top: 8px !important;
+}
+.VPSidebarItem.level-0 {
+  padding-bottom: 16px !important;
+}
+.VPSidebarItem.level-0 > .item > .text,
+.VPSidebarItem.level-0 > .item .text:is(h2, h3, p) {
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  line-height: 32px !important;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--subtle) !important;
+}
+.VPSidebarItem.level-1 .item {
+  position: relative;
+}
+.VPSidebarItem .link .text {
+  font-size: 14px !important;
+  line-height: 20px !important;
+  padding-block: 6px !important;
+}
+.VPSidebarItem.level-1 .link {
+  margin-inline: -10px;
+  padding-inline: 10px;
+  border-radius: 6px;
+  width: calc(100% + 20px);
+}
+.VPSidebarItem.level-1 .link .text {
+  color: var(--muted);
+}
+@media (hover: hover) {
+  .VPSidebarItem.level-1 .link:hover .text {
+    color: var(--fg);
+  }
+}
+.VPSidebarItem.level-1.is-active > .item > .link {
+  background: var(--raised);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+.VPSidebarItem.level-1.is-active > .item > .link .text {
+  color: var(--fg) !important;
+  font-weight: 500;
+}
+.VPSidebarItem .indicator {
+  display: none;
+}
+
+@media (max-width: 959px) {
+  .VPSidebar.open {
+    border-inline-end-color: var(--line);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .VPSidebar,
+  .VPSidebar.open {
+    transform: none !important;
+    transition: opacity 120ms linear !important;
+  }
+}
+
+/* ---------- Local nav (mobile: Menu + On this page) ---------- */
+.VPLocalNav {
+  border-bottom-color: var(--line) !important;
+}
+.VPLocalNav .menu,
+.VPLocalNavOutlineDropdown > button {
+  font-size: 13px !important;
+  color: var(--muted) !important;
+}
+
+/* ---------- Outline (right rail) ---------- */
+.VPDocAsideOutline .outline-title {
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--subtle);
+}
+.VPDocAsideOutline .content {
+  border-inline-start-color: var(--line) !important;
+}
+.VPDocAsideOutline .outline-marker {
+  background-color: var(--accent) !important;
+  width: 2px !important;
+}
+.VPDocOutlineItem .outline-link {
+  font-size: 13px !important;
+  color: var(--subtle) !important;
+}
+.VPDocOutlineItem .outline-link:hover,
+.VPDocOutlineItem .outline-link.active {
+  color: var(--fg) !important;
+}
+
+/* ---------- Local search modal ---------- */
+.VPLocalSearchBox .shell {
+  border: 1px solid var(--line-strong);
+  border-radius: 12px !important;
+  box-shadow: 0 24px 64px color-mix(in srgb, var(--bg) 80%, transparent);
+}
+.VPLocalSearchBox .search-bar {
+  border-color: var(--line-strong) !important;
+  border-radius: 8px !important;
+  background: var(--bg);
+}
+.VPLocalSearchBox .search-input:focus-visible {
+  outline: none;
+}
+.VPLocalSearchBox .search-bar:focus-within {
+  border-color: var(--subtle) !important;
+}
+.VPLocalSearchBox .results {
+  gap: 2px !important;
+}
+.VPLocalSearchBox .result {
+  border: 1px solid transparent !important;
+  border-radius: 8px !important;
+  font-size: 14px;
+}
+.VPLocalSearchBox .result.selected {
+  background: var(--raised) !important;
+  border-color: var(--line-strong) !important;
+}
+.VPLocalSearchBox .result .title-icon {
+  color: var(--subtle) !important;
+}
+.VPLocalSearchBox .result.selected .title-icon {
+  color: var(--accent) !important;
+}
+.VPLocalSearchBox .titles,
+.VPLocalSearchBox .excerpt {
+  font-feature-settings: 'ss01';
+}
+.VPLocalSearchBox mark {
+  background: transparent;
+  color: var(--link);
+  font-weight: 600;
+}
+.VPLocalSearchBox .search-keyboard-shortcuts kbd {
+  background: var(--raised) !important;
+  border-color: var(--line) !important;
+}

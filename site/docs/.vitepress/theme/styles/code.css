@@ -1,0 +1,107 @@
+/* Code: inline code, blocks, code-group tabs, copy button. */
+
+.vp-doc :not(pre) > code {
+  padding: 0.12em 0.38em;
+  border-radius: 5px;
+  background: var(--raised);
+  color: var(--fg);
+  font-size: 0.85em;
+  font-weight: 450;
+  overflow-wrap: anywhere;
+}
+.vp-doc a > code {
+  color: var(--link);
+}
+.vp-doc :is(h1, h2, h3) > code {
+  font-size: 0.9em;
+}
+
+/* Blocks keep their box at every width (no full-bleed on phones). */
+.vp-doc div[class*='language-'] {
+  margin: 20px 0 !important;
+  border: 1px solid var(--line);
+  border-radius: 8px !important;
+  background: var(--card) !important;
+}
+.vp-doc div[class*='language-'] pre {
+  padding: 16px 0 !important;
+}
+.vp-doc div[class*='language-'] code {
+  padding: 0 18px !important;
+  font-size: 13.5px;
+  line-height: 1.7;
+  font-weight: 400;
+}
+.vp-doc [class*='language-'] > span.lang {
+  top: 6px !important;
+  right: 12px !important;
+  font: 500 11px/1 var(--mono) !important;
+  color: var(--subtle) !important;
+}
+
+/* Highlighted, focused and diff lines. */
+.vp-doc [class*='language-'] code .highlighted {
+  background-color: var(--vp-code-line-highlight-color);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+/* Copy button: shown on hover and on keyboard focus. */
+.vp-doc [class*='language-'] > button.copy {
+  top: 8px !important;
+  right: 8px !important;
+  width: 32px !important;
+  height: 32px !important;
+  border-radius: 6px !important;
+}
+.vp-doc [class*='language-'] > button.copy:focus-visible {
+  opacity: 1;
+  outline: 2px solid var(--link);
+  outline-offset: 2px;
+}
+
+/* Code groups: tab bar on the raised surface, active tab underlined in accent. */
+.vp-doc .vp-code-group {
+  margin: 20px 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--card);
+}
+.vp-doc .vp-code-group .tabs {
+  margin: 0 !important;
+  padding: 0 8px;
+  border-radius: 0 !important;
+  background: var(--raised);
+  box-shadow: inset 0 -1px var(--line);
+}
+.vp-doc .vp-code-group .tabs label {
+  padding: 0 10px;
+  line-height: 40px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted);
+}
+.vp-doc .vp-code-group .tabs label::after {
+  inset-inline: 10px;
+  border-radius: 0;
+}
+.vp-doc .vp-code-group input:checked + label {
+  color: var(--fg);
+}
+.vp-doc .vp-code-group input:checked + label::after {
+  background-color: var(--accent);
+}
+.vp-doc .vp-code-group input:focus-visible + label {
+  outline: 2px solid var(--link);
+  outline-offset: -6px;
+  border-radius: 8px;
+}
+.vp-doc .vp-code-group div[class*='language-'] {
+  margin: 0 !important;
+  border: 0;
+  border-radius: 0 !important;
+}
+/* The tab already names the block. */
+.vp-doc .vp-code-group span.lang {
+  display: none;
+}

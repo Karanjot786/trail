@@ -1,0 +1,59 @@
+/* Motion. Only color, background, opacity and transform move; every rule
+   that moves anything sits behind prefers-reduced-motion. The page enter
+   lives in ../motion.ts. */
+
+.vp-doc a,
+.VPSidebarItem .link .text,
+.VPDocOutlineItem .outline-link,
+.TrailNavBar nav a,
+.TrailFooter nav a,
+.CopyMarkdown button,
+.CopyMarkdown a,
+.vp-code-group .tabs label {
+  transition:
+    color 150ms var(--ease),
+    background-color 150ms var(--ease),
+    text-decoration-color 150ms var(--ease);
+}
+.VPSidebarItem.level-1 .link {
+  transition: background-color 150ms var(--ease);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+
+  .VPLocalSearchBox .shell {
+    animation: trail-search-in 160ms var(--ease);
+  }
+  .VPLocalSearchBox .backdrop {
+    animation: trail-fade-in 160ms var(--ease);
+  }
+
+  .CopyMarkdown button {
+    transition:
+      color 150ms var(--ease),
+      background-color 150ms var(--ease),
+      transform 120ms var(--ease);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .VPLocalSearchBox .shell,
+  .VPLocalSearchBox .backdrop {
+    animation: trail-fade-in 120ms linear;
+  }
+}
+
+@keyframes trail-search-in {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+}
+@keyframes trail-fade-in {
+  from {
+    opacity: 0;
+  }
+}
