@@ -1,7 +1,18 @@
 import { test, expect, type Page } from '@playwright/test'
 import AxeBuilder from '@axe-core/playwright'
+import { scrollThrough } from './helpers'
+
+// Axe computes contrast from live opacity, so let every reveal finish first.
+async function settle(page: Page) {
+  const y = await page.evaluate(() => window.scrollY)
+  await scrollThrough(page, 600, 60)
+  await page.evaluate((yy) => window.scrollTo(0, yy), y)
+  await page.waitForFunction(() => document.getAnimations().every((a) => a.effect?.getComputedTiming().iterations === Infinity || a.playState === 'finished'))
+  await page.waitForTimeout(400)
+}
 
 async function axe(page: Page) {
+  await settle(page)
   const r = await new AxeBuilder({ page }).analyze()
   const bad = r.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical')
   expect(bad.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(' | ')}`)).toEqual([])
