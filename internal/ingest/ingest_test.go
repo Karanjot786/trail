@@ -90,7 +90,7 @@ func TestValidPageview(t *testing.T) {
 }
 
 func TestRejects(t *testing.T) {
-	big := `{"s":"s1","t":"pageview","a":"a","u":"https://example.com/","n":"` + strings.Repeat("x", 33<<10) + `"}`
+	big := `{"s":"s1","t":"pageview","a":"a","u":"https://example.com/","n":"` + strings.Repeat("x", 65<<10) + `"}`
 	var props []string
 	for i := range 21 {
 		props = append(props, fmt.Sprintf(`"k%d":"v"`, i))
@@ -218,18 +218,6 @@ func TestBatchRejected(t *testing.T) {
 			}
 			return pageview
 		})},
-		{"one invalid", batch(3, func(i int) string {
-			if i == 1 {
-				return strings.Replace(pageview, `"pageview"`, `"click"`, 1)
-			}
-			return pageview
-		})},
-		{"one nested props", batch(2, func(i int) string {
-			if i == 1 {
-				return `{"s":"s1","t":"event","a":"a","n":"x","d":{"k":[1]}}`
-			}
-			return pageview
-		})},
 		{"not objects", `[1,2]`},
 	}
 	for _, tt := range tests {
@@ -246,10 +234,49 @@ func TestBatchRejected(t *testing.T) {
 	}
 }
 
+func TestBatchOneInvalid(t *testing.T) {
+	bad := []string{
+		strings.Replace(pageview, `"pageview"`, `"click"`, 1),
+		`{"s":"s1","t":"event","a":"a","n":"x","d":{"k":[1]}}`,
+	}
+	for _, b := range bad {
+		st, h := setup(t)
+		w := post(h, batch(3, func(i int) string {
+			if i == 1 {
+				return b
+			}
+			return pageview
+		}))
+		if w.Code != http.StatusNoContent {
+			t.Fatalf("status %d, want 204", w.Code)
+		}
+		if got := w.Header().Get("X-Trail-Accepted"); got != "2" {
+			t.Errorf("X-Trail-Accepted = %q, want 2", got)
+		}
+		if got := w.Header().Get("X-Trail-Rejected"); got != "1" {
+			t.Errorf("X-Trail-Rejected = %q, want 1", got)
+		}
+		if n := rows(t, st); n != 2 {
+			t.Errorf("rows = %d, want 2", n)
+		}
+	}
+}
+
+func TestBatchAllInvalid400(t *testing.T) {
+	st, h := setup(t)
+	bad := strings.Replace(pageview, `"pageview"`, `"click"`, 1)
+	if w := post(h, batch(2, func(int) string { return bad })); w.Code != http.StatusBadRequest {
+		t.Errorf("status %d, want 400", w.Code)
+	}
+	if n := rows(t, st); n != 0 {
+		t.Errorf("rows = %d, want 0", n)
+	}
+}
+
 func TestBatchBodyLimit(t *testing.T) {
 	st, h := setup(t)
-	ev := strings.Replace(pageview, `"r":`, `"n":"`+strings.Repeat("x", 1000)+`","r":`, 1)
-	w := post(h, batch(40, func(int) string { return ev }))
+	ev := strings.Replace(pageview, `"r":`, `"n":"`+strings.Repeat("x", 2000)+`","r":`, 1)
+	w := post(h, batch(50, func(int) string { return ev }))
 	if w.Code != http.StatusRequestEntityTooLarge {
 		t.Errorf("status %d, want 413", w.Code)
 	}
@@ -379,11 +406,8 @@ func TestModeRejects(t *testing.T) {
 	for name, body := range map[string]string{
 		"private identify": `{"s":"s1","t":"identify","m":"p","a":"","uid":"u1"}`,
 		"unknown mode":     strings.Replace(pageview, `{`, `{"m":"x",`, 1),
-		"private in batch": batch(2, func(i int) string {
-			if i == 1 {
-				return `{"s":"s1","t":"identify","m":"p","uid":"u1"}`
-			}
-			return privatePV
+		"private identify in batch": batch(2, func(int) string {
+			return `{"s":"s1","t":"identify","m":"p","uid":"u1"}`
 		}),
 	} {
 		t.Run(name, func(t *testing.T) {

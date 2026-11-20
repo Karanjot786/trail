@@ -43,7 +43,7 @@ func mustRead(name string) []byte {
 }
 
 const (
-	maxBody  = 32 << 10
+	maxBody  = 64 << 10
 	maxBatch = 50
 	maxProps = 20
 	maxRetry = 1000
@@ -139,26 +139,47 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, msg, http.StatusBadRequest)
 		return
 	}
-	// Validate the whole batch before enqueuing anything.
-	evs := make([]store.Event, 0, len(ps))
+	// Whole-batch failures: mixed sites and unknown site.
 	for i := range ps {
-		p := &ps[i]
-		if p.S != ps[0].S {
+		if ps[i].S != ps[0].S {
 			http.Error(w, "mixed sites in batch", http.StatusBadRequest)
 			return
 		}
-		domain, ok := h.sites[p.S]
-		if msg := validate(p, ok); msg != "" {
-			http.Error(w, msg, http.StatusBadRequest)
-			return
+	}
+	domain, ok := h.sites[ps[0].S]
+	if !ok {
+		http.Error(w, "unknown site", http.StatusBadRequest)
+		return
+	}
+	// Invalid events inside a batch are skipped; the rest are stored.
+	evs := make([]store.Event, 0, len(ps))
+	valid := make([]payload, 0, len(ps))
+	var firstErr string
+	for i := range ps {
+		p := &ps[i]
+		msg := validate(p, true)
+		var props string
+		if msg == "" {
+			var err error
+			if props, err = flatProps(p.D); err != nil {
+				msg = err.Error()
+			}
 		}
-		props, err := flatProps(p.D)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
+		if msg != "" {
+			if firstErr == "" {
+				firstErr = msg
+			}
+			continue
 		}
+		valid = append(valid, *p)
 		evs = append(evs, h.event(r, p, domain, props))
 	}
+	if len(evs) == 0 {
+		http.Error(w, firstErr, http.StatusBadRequest)
+		return
+	}
+	rejected := len(ps) - len(evs)
+	ps = valid
 
 	// Private events get a server-side identity. One request has one IP and
 	// UA, so Identify runs once; the IP is used only for this hash.
@@ -183,6 +204,7 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 	w.Header().Set("X-Trail-Accepted", strconv.Itoa(len(evs)))
+	w.Header().Set("X-Trail-Rejected", strconv.Itoa(rejected))
 	w.WriteHeader(http.StatusNoContent)
 }
 
