@@ -11,16 +11,20 @@ const nums = hero.nums.flatMap((n) => {
   return b ? [{ dt: n.dt, dd: `${b.toLocaleString('en-US')} B` }] : []
 })
 
-// Labels follow the generator's placement (top = ly), but anchor the edge nearest their ring rather than the
-// top-left corner: the text does not scale with the art box, so a corner anchor would drift onto the footprint.
+// Labels follow the generator's placement (top = ly). A label beside its ring anchors the edge nearest the ring
+// rather than its top-left corner: the text does not scale with the art box, so a corner anchor would drift onto
+// the footprint. A label the generator moved above or below its ring keeps its top-left corner as given.
+// lh: label height as % of the frame (about 41 px of 1000 on desktop, 36 px of 480 on phones).
 const pct = (n: number, px = 0) => `calc(${n.toFixed(2)}% + ${px}px)`
-const place = (x: number, r: number, lx: number) =>
-  lx < x - r ? { l: 'auto', r: pct(100 - x + r, 12), t: '0' } // left of the ring
-  : lx > x + r ? { l: pct(x + r, 12), r: 'auto', t: '0' } // right of the ring
-  : { l: pct(x), r: 'auto', t: '-50%' } // centred above or below it
+const place = (x: number, y: number, r: number, lx: number, ly: number, lh: number) =>
+  !(y - ly > 0 && y - ly < lh) ? { l: pct(lx), r: 'auto' } // above or below the ring
+  : lx < x ? { l: 'auto', r: pct(100 - x + r, 12) } // left of the ring
+  : { l: pct(x + r, 12), r: 'auto' } // right of the ring
 const labels = waypoints.map((w) => {
-  const d = place(w.x, w.r, w.lx), m = place(w.mx, w.mr, w.mlx)
-  return { ...w, style: `--dl:${d.l};--dr:${d.r};--dt:${d.t};--dy:${w.ly}%;--ml:${m.l};--mr:${m.r};--mt:${m.t};--my:${w.mly}%;--d:${w.delay + 90}ms` }
+  const d = place(w.x, w.y, w.r, w.lx, w.ly, 4.1), m = place(w.mx, w.my, w.mr, w.mlx, w.mly, 7.5)
+  // Between the phone layout and 1180 px the legend is hidden, so every side label can sit right of its ring.
+  const al = d.r === 'auto' ? d.l : pct(w.x + w.r, 12)
+  return { ...w, style: `--al:${al};--dl:${d.l};--dr:${d.r};--dy:${w.ly}%;--ml:${m.l};--mr:${m.r};--my:${w.mly}%;--d:${w.delay + 90}ms` }
 })
 ---
 <section class="hero" id="top" aria-labelledby="hero-title">
@@ -62,11 +66,16 @@ const labels = waypoints.map((w) => {
 </section>
 
 <style>
-  .hero{position:relative;min-height:max(780px,min(100dvh,940px));padding-top:var(--head-h);background:var(--blue);color:#fff;overflow:hidden;isolation:isolate;display:flex;flex-direction:column}
+  .hero{position:relative;min-height:max(780px,min(100dvh,940px));padding-top:var(--head-h);background:linear-gradient(#0a72ef,#0a6ae2 60%,#0650b0);color:#fff;overflow:hidden;isolation:isolate;display:flex;flex-direction:column}
   /* sky: a flat, faint dot grid above the art box, brightening toward the horizon */
   .hero::before{content:"";position:absolute;inset:0;z-index:-2;background-image:radial-gradient(circle,rgb(255 255 255 / .13) .9px,transparent 1.4px);background-size:18px 18px;-webkit-mask-image:linear-gradient(transparent,#000 60%);mask-image:linear-gradient(transparent,#000 60%)}
 
-  .hero-art{position:absolute;left:0;right:0;bottom:0;aspect-ratio:1600 / 1000;z-index:-1;pointer-events:none}
+  /* The art keeps a 1100–1600 px box, centred: narrower screens crop its sides, wider ones fade its edges into the
+     sky. Inside that range the route, the copy column and the legend keep the proportions the labels were placed for. */
+  .hero-art{position:absolute;left:50%;bottom:0;width:clamp(1100px,100%,1600px);translate:-50% 0;aspect-ratio:1600 / 1000;z-index:-1;pointer-events:none}
+  @media (min-width:1601px){
+    .hero-art{-webkit-mask-image:linear-gradient(90deg,transparent,#000 14%,#000 86%,transparent);mask-image:linear-gradient(90deg,transparent,#000 14%,#000 86%,transparent)}
+  }
   .hero-art img{display:block;width:100%;height:100%}
   .steps{position:absolute;inset:0}
   .steps :global(svg){display:block;width:100%;height:100%;overflow:visible}
@@ -93,7 +102,7 @@ const labels = waypoints.map((w) => {
   .legend .k i.lg::before{width:12px;height:12px;background:none;border:2.5px solid var(--signal);box-shadow:none}
 
   /* waypoint chips over the art, placed in % of the art box */
-  .wp{position:absolute;left:var(--dl);right:var(--dr);top:var(--dy);transform:translateX(var(--dt));background:rgb(6 20 46 / .82);border:1px solid rgb(255 255 255 / .18);border-radius:8px;padding:6px 10px 7px;font:500 13px/1.35 var(--mono);color:#fff;white-space:nowrap;backdrop-filter:blur(4px)}
+  .wp{position:absolute;left:var(--dl);right:var(--dr);top:var(--dy);background:rgb(6 20 46 / .82);border:1px solid rgb(255 255 255 / .18);border-radius:8px;padding:6px 10px 7px;font:500 13px/1.35 var(--mono);color:#fff;white-space:nowrap;backdrop-filter:blur(4px)}
   .wp span{display:block;font-size:12px;color:#c7d8f7}
   .wp.goal{border-color:var(--signal)}
   .wp.goal b{color:var(--signal);font-weight:600}
@@ -110,9 +119,11 @@ const labels = waypoints.map((w) => {
 
   @media (max-width:1180px){
     .nums{gap:28px}.nums dd{font-size:36px}
-  }
-  @media (max-width:900px){
     .legend{display:none}
+    .wp{left:var(--al);right:auto}
+  }
+  @media (max-width:1000px){
+    .nums{display:grid;grid-template-columns:auto auto;gap:20px 28px}
   }
   /* phone: the art box drops into the flow between the CTAs and the numbers, with its own crop */
   @media (max-width:700px){
@@ -121,10 +132,10 @@ const labels = waypoints.map((w) => {
     .hero h1{font-size:44px}
     .hero .lede{font-size:17.5px}
     .ctas .btn{flex:none}
-    .hero-art{position:relative;bottom:auto;aspect-ratio:390 / 480;z-index:0}
+    .hero-art{position:relative;left:auto;bottom:auto;width:100%;translate:none;aspect-ratio:390 / 480;z-index:0}
     .steps-d{display:none}
     .steps-m{display:block}
-    .wp{left:var(--ml);right:var(--mr);top:var(--my);transform:translateX(var(--mt));font-size:11.5px;padding:5px 8px}
+    .wp{left:var(--ml);right:var(--mr);top:var(--my);font-size:11.5px;padding:5px 8px}
     .wp span{font-size:11px}
     .hero-foot{padding-top:0;padding-bottom:48px}
     .nums{display:grid;grid-template-columns:1fr 1fr;gap:20px 16px;width:100%}

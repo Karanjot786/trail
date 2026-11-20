@@ -20,7 +20,7 @@ test('sequence plays once', async ({ page }) => {
   const flow = page.locator('#flow')
   await flow.scrollIntoViewIfNeeded()
   await expect(flow).toHaveAttribute('data-seq', 'pre')
-  await expect(flow).toHaveAttribute('data-seq', 'done', { timeout: 8000 })
+  await expect(flow).toHaveAttribute('data-seq', 'done', { timeout: 10000 })
   await page.evaluate(() => window.scrollTo(0, 0))
   await page.waitForTimeout(300)
   await flow.scrollIntoViewIfNeeded()

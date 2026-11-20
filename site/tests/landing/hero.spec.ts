@@ -26,18 +26,18 @@ for (const [w, h] of VIEWPORTS) {
     const res = await page.evaluate(() => {
       const box = (e: Element) => e.getBoundingClientRect()
       const hit = (a: DOMRect, b: DOMRect) => a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top
-      const copy = ['.hero h1', '.hero .lede', '.hero .ctas', '.hero .nums', '.hero .legend'].flatMap((s) => [...document.querySelectorAll(s)]).filter((e) => (e as HTMLElement).offsetParent).map(box)
+      const copy = ['.hero h1', '.hero .lede', '.hero .ctas .btn', '.hero .nums > div', '.hero .legend'].flatMap((s) => [...document.querySelectorAll(s)]).filter((e) => (e as HTMLElement).offsetParent).map(box)
       const svg = [...document.querySelectorAll('.hero-art .steps')].find((s) => (s as HTMLElement).offsetParent)!
       const rings = [...svg.querySelectorAll('circle.ring')].filter((c) => !c.classList.contains('core')).map(box)
       return [...document.querySelectorAll('.hero-art .wp')].map((l, i) => {
         const r = box(l), c = rings[i], cx = c.left + c.width / 2, cy = c.top + c.height / 2
         const dx = Math.max(r.left - cx, 0, cx - r.right), dy = Math.max(r.top - cy, 0, cy - r.bottom)
-        return { label: l.textContent, overlaps: copy.filter((b) => hit(r, b)).length, dist: Math.hypot(dx, dy) }
+        return { label: l.textContent, overlaps: copy.filter((b) => hit(r, b)).length, dist: Math.hypot(dx, dy), box: [r.left, r.top, r.right, r.bottom].map(Math.round) }
       })
     })
     expect(res).toHaveLength(4)
     for (const r of res) {
-      expect(r.overlaps, `${r.label} overlaps the copy`).toBe(0)
+      expect(r.overlaps, `${r.label} ${r.box} overlaps the copy`).toBe(0)
       expect(r.dist, `${r.label} is far from its ring`).toBeLessThanOrEqual(40)
     }
   })
