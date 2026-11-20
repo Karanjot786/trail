@@ -16,9 +16,13 @@ export interface InjectProps {
   vitals?: boolean;
   /** Opt in to rage-click detection (needs the full tracker build). */
   rage?: boolean;
+  /** `private` loads the cookieless `/_t/t.p.js` build (unless `src` is set). Maps to data-mode. */
+  mode?: 'full' | 'private';
+  /** `false` ignores Do Not Track / Global Privacy Control (data-dnt="off"). Default honours them. */
+  dnt?: boolean;
 }
 
-type Method = 'track' | 'identify' | 'reset' | 'pageview';
+type Method = 'track' | 'identify' | 'reset' | 'pageview' | 'consent';
 type Queued = ((...a: unknown[]) => void) & { q?: unknown };
 
 const MARK = 'data-trail-sdk';
@@ -58,7 +62,7 @@ export function inject(o: InjectProps): void {
   if (w.__trail || w.document.querySelector(`script[${MARK}]`)) return;
   const s: HTMLScriptElement = w.document.createElement('script');
   s.defer = true;
-  s.src = o.src || '/_t/t.js';
+  s.src = o.src || (o.mode === 'private' ? '/_t/t.p.js' : '/_t/t.js');
   s.setAttribute(MARK, '');
   s.dataset.site = o.site;
   if (o.api) s.dataset.api = o.api;
@@ -67,6 +71,8 @@ export function inject(o: InjectProps): void {
   if (o.dev) s.dataset.dev = '';
   if (o.vitals) s.dataset.vitals = '';
   if (o.rage) s.dataset.rage = '';
+  if (o.mode) s.dataset.mode = o.mode;
+  if (o.dnt === false) s.dataset.dnt = 'off';
   w.document.head.appendChild(s);
 }
 
@@ -76,6 +82,8 @@ export const track = (name: string, props?: Props): void => call('track', name, 
 export const identify = (userId: string): void => call('identify', userId);
 /** Call on logout. */
 export const reset = (): void => call('reset');
+/** Record the visitor's consent choice. Queued until the tracker loads. */
+export const consent = (granted: boolean): void => call('consent', granted);
 /** Manual pageview, optional route template. */
 export const pageview = (opts?: { route?: string }): void => call('pageview', opts);
 

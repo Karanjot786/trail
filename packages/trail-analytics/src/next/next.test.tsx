@@ -56,6 +56,13 @@ describe('next Analytics', () => {
     expect((s[0] as HTMLScriptElement).dataset.route).toBe('/blog/[slug]');
   });
 
+  it('mode="private" renders the t.p.js script', async () => {
+    await act(async () => root.render(<Analytics site="s" mode="private" />));
+    const s = document.querySelector('script[data-site]') as HTMLScriptElement;
+    expect(s.getAttribute('src')).toBe('/_t/t.p.js');
+    expect(s.dataset.mode).toBe('private');
+  });
+
   it('records exactly one pageview per navigation, with the new route', async () => {
     await render();
     loadFakeTracker();

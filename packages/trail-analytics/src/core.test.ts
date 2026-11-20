@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { identify, inject, pageview, reset, track } from './index';
+import { consent, identify, inject, pageview, reset, track } from './index';
 
 const w = window as any;
 const scripts = () => document.querySelectorAll('script[data-site]');
@@ -42,6 +42,59 @@ describe('inject', () => {
     w.__trail = 1;
     inject({ site: 's' });
     expect(scripts()).toHaveLength(0);
+  });
+});
+
+describe('modes', () => {
+  it('inject({mode:private}) uses t.p.js and data-mode', () => {
+    inject({ site: 's', mode: 'private' });
+    const s = scripts()[0] as HTMLScriptElement;
+    expect(s.getAttribute('src')).toBe('/_t/t.p.js');
+    expect(s.dataset.mode).toBe('private');
+  });
+
+  it('an explicit src wins over the mode default', () => {
+    inject({ site: 's', mode: 'private', src: '/x.js' });
+    expect((scripts()[0] as HTMLScriptElement).getAttribute('src')).toBe('/x.js');
+  });
+
+  it('mode full keeps t.js and sets data-mode', () => {
+    inject({ site: 's', mode: 'full' });
+    const s = scripts()[0] as HTMLScriptElement;
+    expect(s.getAttribute('src')).toBe('/_t/t.js');
+    expect(s.dataset.mode).toBe('full');
+  });
+
+  it('dnt:false sets data-dnt="off"; omitted sets no attribute', () => {
+    inject({ site: 's', dnt: false });
+    expect((scripts()[0] as HTMLScriptElement).getAttribute('data-dnt')).toBe('off');
+    document.head.innerHTML = '';
+    delete w.__trail;
+    inject({ site: 's' });
+    expect((scripts()[0] as HTMLScriptElement).hasAttribute('data-dnt')).toBe(false);
+    document.head.innerHTML = '';
+    inject({ site: 's', dnt: true });
+    expect((scripts()[0] as HTMLScriptElement).hasAttribute('data-dnt')).toBe(false);
+  });
+
+  it('consent is queued before load and replayed in order', () => {
+    track('a');
+    consent(true);
+    track('b');
+    consent(false);
+    expect(Array.from(w.trailq, (c: any) => Array.from(c))).toEqual([
+      ['track', 'a', undefined],
+      ['consent', true],
+      ['track', 'b', undefined],
+      ['consent', false],
+    ]);
+  });
+
+  it('consent calls the real API once loaded', () => {
+    const calls: unknown[][] = [];
+    w.trail = { consent: (...a: unknown[]) => calls.push(a) };
+    consent(true);
+    expect(calls).toEqual([[true]]);
   });
 });
 

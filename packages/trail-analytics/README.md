@@ -1,6 +1,6 @@
 # trail-analytics
 
-Client SDK for [Trail](https://github.com/Karanjot786/trail), self-hosted web analytics. It adds the tracker script, queues calls made before it loads, and gives you typed `track`, `identify`, `reset` and `pageview`. About 0.8 kB gzipped, no runtime dependencies.
+Client SDK for [Trail](https://github.com/Karanjot786/trail), self-hosted web analytics. It adds the tracker script, queues calls made before it loads, and gives you typed `track`, `identify`, `reset` and `pageview`. About 0.9 kB gzipped, no runtime dependencies.
 
 ```sh
 npm i trail-analytics
@@ -45,7 +45,50 @@ inject({ site: 'mysite' }); // idempotent, no-op on the server
 track('signup_clicked', { plan: 'pro' });
 ```
 
-`inject` options: `site` (required), `src` (default `/_t/t.js`), `api`, `env`, `dev`, `route`, `vitals`, `rage`. They map to the tracker's `data-*` attributes.
+`inject` options: `site` (required), `src` (default `/_t/t.js`), `api`, `env`, `dev`, `route`, `vitals`, `rage`, `mode` (`'full' | 'private'`), `dnt`. They map to the tracker's `data-*` attributes.
+
+## Modes
+
+| Mode | Script | Behaviour |
+|------|--------|-----------|
+| default (no `mode`) | `/_t/t.js` | Private until consent: no cookies or storage, pageviews counted anonymously. Calling `consent(true)` upgrades to full tracking. |
+| `full` | `/_t/t.js` | Full tracking from the first pageview (visitor id, sessions, identify). Use where you do not need a banner. |
+| `private` | `/_t/t.p.js` | Always cookieless and anonymous. Smaller build, no consent needed. `identify` and `consent` do nothing. |
+
+```tsx
+<Analytics site="mysite" mode="private" /> // loads /_t/t.p.js
+```
+
+`t.p.js` is a trimmed build of the tracker, a fraction of the size of `t.js` (see the Trail repo for the exact gzip numbers). An explicit `src` always wins over the mode default.
+
+## Consent banner
+
+```tsx
+import { consent } from 'trail-analytics';
+
+function Banner() {
+  return (
+    <div role="dialog">
+      <button onClick={() => consent(true)}>Accept</button>
+      <button onClick={() => consent(false)}>Decline</button>
+    </div>
+  );
+}
+```
+
+`consent()` is queued until the tracker loads and replayed in order, like `track`.
+
+## Do Not Track and Global Privacy Control
+
+The tracker honours `navigator.doNotTrack` and `navigator.globalPrivacyControl` by default: a visitor who sets either stays in private mode even after `consent(true)`. To ignore the signals, pass `dnt={false}` (`data-dnt="off"`).
+
+## Named clicks
+
+Add `data-trail` to any element and the tracker records a click event with that name, no code needed:
+
+```html
+<button data-trail="Signup">Sign up</button>
+```
 
 ## Identify and reset
 
