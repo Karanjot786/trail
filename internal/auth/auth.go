@@ -24,6 +24,7 @@ type Auth struct {
 	pwHash [32]byte
 	secret []byte
 	now    func() time.Time
+	bearer bearer
 }
 
 // New returns an Auth for password. secret signs cookies; a random per-boot
