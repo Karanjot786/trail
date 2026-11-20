@@ -2,7 +2,7 @@
 // per site and answers every dashboard endpoint from it with the same rules the Go server uses
 // (person = earliest identified user for the anon, engaged-session bounce, prev period, hour/day
 // buckets in TZ). Only api.ts imports this module.
-import type { BreakdownRow, Dim, Metric, Query, Series, Session, Site, Stats, Step, Visitor } from './api'
+import type { BreakdownRow, Delivery, Dim, Goal, GoalRow, GoalStats, Metric, Query, Series, Session, Site, Stats, Step, Visitor } from './api'
 import { DAY, HOUR, MIN, TZ, startOfDay, startOfHour } from './time'
 
 interface Ev {
@@ -357,4 +357,73 @@ export function journey(site: string, person: string): Promise<Session[]> {
   }))
   out.sort((a, b) => a.start - b.start)
   return delay(out)
+}
+
+// Goals: in-memory per site, validated like the server. `blog` starts empty to show the empty state.
+const GOALS = new Map<string, Goal[]>([
+  ['reelcn', [
+    { id: 1, name: 'Signup', kind: 'event', match: 'Signup' },
+    { id: 2, name: 'Viewed pricing', kind: 'page', match: '/pricing' },
+    { id: 3, name: 'Read the docs', kind: 'page', match: '/docs/components/*' },
+    { id: 4, name: 'Downloaded a template', kind: 'event', match: 'Download Template' },
+  ]],
+  ['notes', [{ id: 5, name: 'Viewed pricing', kind: 'page', match: '/pricing' }]],
+])
+let nextGoal = 100
+
+class MockHttpError extends Error {
+  status = 400
+}
+
+export function goals(site: string): Promise<Goal[]> {
+  return delay([...(GOALS.get(site) ?? [])])
+}
+
+export function createGoal(site: string, g: Omit<Goal, 'id'>): Promise<Goal> {
+  const list = GOALS.get(site) ?? []
+  const name = g.name.trim()
+  if (!name || name.length > 60 || !g.match || g.match.length > 200 || (g.kind !== 'page' && g.kind !== 'event'))
+    return Promise.reject(new MockHttpError('invalid goal'))
+  if (list.some((x) => x.name === name)) return Promise.reject(new MockHttpError('a goal with that name already exists'))
+  const goal = { ...g, name, id: nextGoal++ }
+  GOALS.set(site, [...list, goal])
+  return delay(goal)
+}
+
+export function deleteGoal(site: string, id: number): Promise<void> {
+  GOALS.set(site, (GOALS.get(site) ?? []).filter((g) => g.id !== id))
+  return delay(undefined)
+}
+
+function goalHits(g: Goal, evs: Ev[]): GoalStats & { all: number } {
+  const prefix = g.kind === 'page' && g.match.endsWith('*') ? g.match.slice(0, -1) : null
+  const hit = (e: Ev) =>
+    g.kind === 'event'
+      ? e.type === 'event' && e.name === g.match
+      : e.type === 'pageview' && (prefix != null ? e.path.startsWith(prefix) : e.path === g.match)
+  const persons = new Set<string>()
+  let conversions = 0
+  for (const e of evs) if (hit(e)) (conversions++, persons.add(e.person))
+  const all = new Set(evs.map((e) => e.person)).size
+  return { conversions, visitors: persons.size, rate: all ? persons.size / all : 0, all }
+}
+
+export function goalReport(q: Query): Promise<GoalRow[]> {
+  const span = q.to - q.from
+  const cur = select(q)
+  const prev = select(q, q.from - span, q.from - 1)
+  return delay(
+    (GOALS.get(q.site) ?? []).map((g) => {
+      const { all: _a, ...c } = goalHits(g, cur)
+      const { all: _b, ...p } = goalHits(g, prev)
+      return { ...g, ...c, prev: p }
+    }),
+  )
+}
+
+export function delivery(q: Query): Promise<Delivery> {
+  const events = select(q).length
+  // ~1.7% of events land on a retry in the fixture, a plausible mobile-heavy figure.
+  const retried = Math.round(events * 0.017)
+  return delay({ events, retried, retriedRate: events ? retried / events : 0 })
 }

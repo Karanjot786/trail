@@ -81,7 +81,12 @@ body {
   animation: pop-in 140ms var(--ease-ui);
 }
 
-/* Modal: centered scale 0.96 → 1 plus fade, 200ms. */
+/* Segmented control thumb: retargetable transform transition (a quick re-click reverses mid-flight). */
+.seg-thumb {
+  transition: transform 220ms var(--ease-ui);
+}
+
+/* Modal: centered scale 0.96 → 1 plus fade, 200ms; exits faster than it enters. */
 .modal[data-state='open'] {
   animation: modal-in 200ms var(--ease-ui);
 }
@@ -189,5 +194,14 @@ input[type='date']::-webkit-calendar-picker-indicator {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+  /* Reduced motion keeps a short cross-fade on dialogs (no scale) so they don't pop in from nowhere. */
+  .modal[data-state='open'],
+  .overlay[data-state='open'] {
+    animation: fade-in 150ms ease-out !important;
+  }
+  .modal[data-state='closed'],
+  .overlay[data-state='closed'] {
+    animation: fade-out 100ms ease-out !important;
   }
 }

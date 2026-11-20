@@ -1,4 +1,4 @@
-import { EyeIcon, ZapIcon } from 'lucide-react'
+import { ZapIcon } from 'lucide-react'
 import { api } from './api'
 import { queryKey, useDashboard } from './state'
 import { useFetch } from './useFetch'
@@ -6,6 +6,7 @@ import { KpiTabs } from './components/KpiTabs'
 import { MainChart } from './components/MainChart'
 import { Panel } from './components/Panel'
 import { EmptyState } from './components/EmptyState'
+import { GoalsPanel } from './components/GoalsPanel'
 
 export function Dashboard() {
   const d = useDashboard()
@@ -65,31 +66,8 @@ export function Dashboard() {
             </EmptyState>
           }
         />
-        <FlagsPanel />
+        <GoalsPanel />
       </div>
     </div>
-  )
-}
-
-/** Feature flags are a non-goal; the panel exists only in its empty state, like Vercel's. */
-function FlagsPanel() {
-  return (
-    <section className="flex min-w-0 flex-col overflow-hidden rounded-xl border border-border bg-black" aria-label="Flags">
-      <header className="flex h-16 items-stretch justify-between gap-3 border-b border-border pl-3 pr-4 sm:pl-4 sm:pr-6">
-        <div className="relative flex items-center px-2 text-[15px] text-fg sm:px-3">
-          Flags
-          <span className="absolute inset-x-0 bottom-0 h-0.5 bg-white" aria-hidden />
-        </div>
-        <div className="flex items-center gap-6 text-[13px] font-medium uppercase tracking-[0.02em] text-muted">
-          <span>Visitors</span>
-          <span>Total</span>
-        </div>
-      </header>
-      <div className="h-[304px]">
-        <EmptyState icon={EyeIcon} title="No flags">
-          Gain insights into how active feature flags impact user behavior.
-        </EmptyState>
-      </div>
-    </section>
   )
 }

@@ -71,6 +71,26 @@ export interface Session {
   steps: Step[]
 }
 
+export interface Goal {
+  id: number
+  name: string
+  kind: 'page' | 'event'
+  match: string
+}
+export interface GoalStats {
+  conversions: number
+  visitors: number
+  rate: number
+}
+export interface GoalRow extends Goal, GoalStats {
+  prev: GoalStats
+}
+export interface Delivery {
+  events: number
+  retried: number
+  retriedRate: number
+}
+
 /** Common query: site, range (unix ms), env and dashboard-wide filters (dim → value). */
 export interface Query {
   site: string
@@ -86,6 +106,29 @@ export class Unauthorized extends Error {
   }
 }
 
+/** A non-2xx response; `message` is the server's own text when it sent one. */
+export class HttpError extends Error {
+  constructor(
+    readonly status: number,
+    message: string,
+  ) {
+    super(message)
+  }
+}
+
+async function fail(res: Response, path: string): Promise<never> {
+  if (res.status === 401) throw new Unauthorized()
+  const text = (await res.text().catch(() => '')).trim()
+  let msg = text
+  try {
+    const j = JSON.parse(text)
+    msg = typeof j === 'string' ? j : (j.error ?? j.message ?? text)
+  } catch {
+    /* plain text body */
+  }
+  throw new HttpError(res.status, msg || `${path}: ${res.status}`)
+}
+
 const MOCK = import.meta.env.VITE_MOCK === '1'
 const mock = MOCK ? import('./mock') : null
 
@@ -98,8 +141,7 @@ function params(q: Query, extra: Record<string, string | number | undefined> = {
 
 async function get<T>(path: string, p: URLSearchParams, signal?: AbortSignal): Promise<T> {
   const res = await fetch(`${path}?${p}`, { signal, credentials: 'same-origin' })
-  if (res.status === 401) throw new Unauthorized()
-  if (!res.ok) throw new Error(`${path}: ${res.status}`)
+  if (!res.ok) return fail(res, path)
   return res.json() as Promise<T>
 }
 
@@ -166,5 +208,38 @@ export const api = {
       ...s,
       steps: (s.steps ?? []).map((st) => ({ ...st, props: normProps(st.props) })),
     }))
+  },
+
+  async goals(site: string, signal?: AbortSignal): Promise<Goal[]> {
+    if (mock) return (await mock).goals(site)
+    return (await get<Goal[] | null>('/api/goals', new URLSearchParams({ site }), signal)) ?? []
+  },
+
+  async createGoal(site: string, g: Omit<Goal, 'id'>): Promise<Goal> {
+    if (mock) return (await mock).createGoal(site, g)
+    const res = await fetch('/api/goals', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ site, ...g }),
+    })
+    if (!res.ok) return fail(res, '/api/goals')
+    return res.json() as Promise<Goal>
+  },
+
+  async deleteGoal(site: string, id: number): Promise<void> {
+    if (mock) return (await mock).deleteGoal(site, id)
+    const res = await fetch(`/api/goals/${id}?${new URLSearchParams({ site })}`, { method: 'DELETE', credentials: 'same-origin' })
+    if (!res.ok) return fail(res, '/api/goals')
+  },
+
+  async goalReport(q: Query, signal?: AbortSignal): Promise<GoalRow[]> {
+    if (mock) return (await mock).goalReport(q)
+    return (await get<GoalRow[] | null>('/api/goals/report', params(q), signal)) ?? []
+  },
+
+  async delivery(q: Query, signal?: AbortSignal): Promise<Delivery> {
+    if (mock) return (await mock).delivery(q)
+    return get('/api/delivery', params(q), signal)
   },
 }
