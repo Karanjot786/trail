@@ -169,7 +169,7 @@ func (s *server) site(id string) error {
 // error (isError:true); a nil slice becomes [] so clients never see null.
 func wrap[T any](v T, err error) (*sdk.CallToolResult, any, error) {
 	if err != nil {
-		if errors.Is(err, query.ErrBadDim) {
+		if errors.Is(err, query.ErrBadDim) || errors.Is(err, query.ErrBadMetric) {
 			return nil, nil, err
 		}
 		log.Printf("mcp: query: %v", err)

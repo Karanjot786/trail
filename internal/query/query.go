@@ -14,6 +14,9 @@ import (
 // ErrBadDim is returned for a breakdown or filter dimension outside the allowlist.
 var ErrBadDim = errors.New("unknown dimension")
 
+// ErrBadMetric is returned for a series metric outside the allowlist.
+var ErrBadMetric = errors.New("unknown metric")
+
 // dims maps public dimension names to columns. User input never becomes a column name.
 var dims = map[string]string{
 	"path": "path", "route": "route", "host": "host", "referrer": "referrer_host",
@@ -173,7 +176,7 @@ func Series(db *sql.DB, p Params, metric string) (SeriesResult, error) {
 	switch metric {
 	case "visitors", "pageviews", "bounce":
 	default:
-		return SeriesResult{}, fmt.Errorf("metric %q: %w", metric, ErrBadDim)
+		return SeriesResult{}, fmt.Errorf("metric %q: %w", metric, ErrBadMetric)
 	}
 	loc := p.TZ
 	if loc == nil {

@@ -281,3 +281,11 @@ func TestMCPGoalReport(t *testing.T) {
 		t.Fatalf("rows %+v", rows)
 	}
 }
+
+func TestMCPBadMetricText(t *testing.T) {
+	h, _ := setup(t)
+	res := callTool(t, h, "get_series", map[string]any{"site": "s", "metric": "zzz"})
+	if !res.IsError || len(res.Content) == 0 || !strings.Contains(res.Content[0].Text, "unknown metric") {
+		t.Fatalf("got %+v", res)
+	}
+}
