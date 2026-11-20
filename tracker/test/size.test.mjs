@@ -16,3 +16,9 @@ for (const f of files)
     const gz = gzipSync(readFileSync(new URL(f, dir)), { level: 9 }).length;
     assert.ok(gz <= 2048, `${f} is ${gz} bytes gzipped`);
   });
+
+test('t.p.js has no storage code', () => {
+  const src = readFileSync(new URL('t.p.js', dir), 'utf8');
+  assert.match(src, /__trail/);
+  assert.doesNotMatch(src, /localStorage|sessionStorage|cookie/);
+});

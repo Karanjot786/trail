@@ -19,6 +19,7 @@ for (const f of ['t.js', 't.p.js']) {
   // skip files not built yet (missing, or a tiny placeholder)
   if (existsSync(ingest(f)) && readFileSync(ingest(f)).length > 200) variants.push([f, `<script defer src="/_t/${f}" data-site="bench" data-dev></script>`]);
 }
+variants.push(['t.js full', '<script defer src="/_t/t.js" data-site="bench" data-mode="full" data-dev></script>']);
 variants.push(['t.js+x', '<script defer src="/_t/t.js" data-site="bench" data-dev data-vitals data-rage></script>']);
 // --ref <file>: also bench an older build in the same run (same machine load), e.g.
 //   git show HEAD:internal/ingest/t.js > /tmp/ref.js && node bench/bench.mjs --ref /tmp/ref.js

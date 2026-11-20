@@ -250,7 +250,7 @@ test('queued window.trailq calls are flushed; API is exposed', async ({ page }) 
   await expect.poll(() => c.of('event').length).toBe(1);
   expect(c.of('event')[0]).toMatchObject({ n: 'early', d: { k: 1 } });
   const keys = await page.evaluate(() => Object.keys((window as any).trail).sort());
-  expect(keys).toEqual(['identify', 'pageview', 'reset', 'track']);
+  expect(keys).toEqual(['consent', 'identify', 'pageview', 'reset', 'track']);
 });
 
 test('pageview({route}) and data-route fill rt', async ({ page }) => {
@@ -259,9 +259,25 @@ test('pageview({route}) and data-route fill rt', async ({ page }) => {
   await page.evaluate(() => (window as any).trail.pageview({ route: '/blog/[slug]' }));
   await expect.poll(() => c.of('pageview').length).toBe(2);
   expect(c.of('pageview')[1].rt).toBe('/blog/[slug]');
-  await page.goto('/full.html');
+  await page.goto('/extras.html');
   await expect.poll(() => c.of('pageview').length).toBe(3);
   expect(c.of('pageview')[2].rt).toBe('/home');
+});
+
+test('forms and errors are opt-in (data-forms, data-errors)', async ({ page }) => {
+  const c = await capture(page);
+  await page.setContent('<p>x</p>'); // blank first, so goto below is a fresh load
+  await page.goto('/full.html');
+  await expect.poll(() => c.of('pageview').length).toBe(1);
+  await page.evaluate(() => {
+    document.body.insertAdjacentHTML('beforeend', '<form id="f" onsubmit="return false"><button id="fb">go</button></form>');
+  });
+  await page.click('#fb');
+  await page.addScriptTag({ content: 'throw new Error("nope")' });
+  await hide(page);
+  await page.waitForTimeout(200);
+  expect(c.of('form')).toHaveLength(0);
+  expect(c.of('error')).toHaveLength(0);
 });
 
 test.describe('delivery: batching, beacon, retry', () => {
@@ -350,7 +366,7 @@ test.describe('delivery: batching, beacon, retry', () => {
 test.describe('opt-in vitals and rage clicks (t.x.js)', () => {
   test('rage click: 3 fast clicks -> rage_click event', async ({ page }) => {
     const c = await capture(page);
-    await page.goto('/full.html');
+    await page.goto('/extras.html');
     await page.click('#b', { clickCount: 3, delay: 20 });
     await hide(page);
     await expect.poll(() => c.of('event').filter((e) => e.n === 'rage_click').length).toBe(1);
@@ -358,7 +374,7 @@ test.describe('opt-in vitals and rage clicks (t.x.js)', () => {
 
   test('vitals reported on hide only when data-vitals', async ({ page }) => {
     const c = await capture(page);
-    await page.goto('/full.html'); // waits for load, which waits for the injected t.x.js
+    await page.goto('/extras.html'); // waits for load, which waits for the injected t.x.js
     await expect.poll(() => c.of('pageview').length).toBe(1);
     await page.waitForTimeout(300); // let PerformanceObserver deliver the LCP entry
     await hide(page);
@@ -376,11 +392,11 @@ test.describe('opt-in vitals and rage clicks (t.x.js)', () => {
     expect(c.of('event')).toHaveLength(0);
   });
 
-  test('no extras file is requested without data-vitals/data-rage', async ({ page }) => {
+  test('no extras file is requested without data-vitals/-rage/-forms/-errors', async ({ page }) => {
     const urls: string[] = [];
     page.on('request', (r) => urls.push(r.url()));
     const c = await capture(page);
-    await page.goto('/index.html');
+    await page.goto('/full.html');
     await expect.poll(() => c.of('pageview').length).toBe(1);
     await page.waitForTimeout(200);
     expect(urls.filter((u) => u.includes('t.x.js'))).toHaveLength(0);
@@ -388,7 +404,197 @@ test.describe('opt-in vitals and rage clicks (t.x.js)', () => {
 
   test('extras file is loaded from next to t.js when asked for', async ({ page }) => {
     const req = page.waitForRequest('**/_t/t.x.js');
-    await page.goto('/full.html');
+    await page.goto('/extras.html');
     await req;
+  });
+});
+
+// Records every storage write: localStorage/sessionStorage setItem/removeItem and document.cookie sets.
+const spy = () => {
+  const w = window as any;
+  w.__w = [];
+  for (const k of ['setItem', 'removeItem'] as const) {
+    const f = Storage.prototype[k];
+    Storage.prototype[k] = function (this: Storage, ...a: any[]) {
+      w.__w.push(`${this === localStorage ? 'ls' : 'ss'}.${k}:${a[0]}`);
+      return (f as any).apply(this, a);
+    };
+  }
+  const c = Object.getOwnPropertyDescriptor(Document.prototype, 'cookie')!;
+  Object.defineProperty(document, 'cookie', {
+    configurable: true,
+    get: () => c.get!.call(document),
+    set: (v) => (w.__w.push('cookie:' + v), c.set!.call(document, v)),
+  });
+};
+const writes = (page: Page): Promise<string[]> => page.evaluate(() => (window as any).__w);
+const trail = (page: Page, m: string, ...a: any[]) => page.evaluate(([m, a]) => (window as any).trail[m](...a), [m, a] as const);
+
+test.describe('modes and consent', () => {
+  test.beforeEach(({ page }) => page.addInitScript(spy));
+
+  test('default: no storage writes, events have m:"p" and a:""', async ({ page }) => {
+    const c = await capture(page);
+    await page.goto('/default.html');
+    await expect.poll(() => c.of('pageview').length).toBe(1);
+    await trail(page, 'track', 'x');
+    await hide(page);
+    await expect.poll(() => c.of('event').length).toBe(1);
+    expect(c.events.every((e) => e.m === 'p' && e.a === '' && e.ss === '')).toBe(true);
+    expect(await writes(page)).toEqual([]);
+  });
+
+  test('default: consent(true) -> storage written, next events m:"f" with a uuid a; reload keeps full', async ({ page }) => {
+    const c = await capture(page);
+    await page.goto('/default.html');
+    await expect.poll(() => c.of('pageview').length).toBe(1);
+    await trail(page, 'consent', true);
+    expect(await writes(page)).toEqual(expect.arrayContaining(['ls.setItem:_t_c', 'ls.setItem:_t_id']));
+    expect(await page.evaluate(() => document.cookie)).toMatch(/_t_id=/);
+    await trail(page, 'track', 'x');
+    await hide(page);
+    await expect.poll(() => c.of('event').length).toBe(1);
+    expect(c.of('event')[0]).toMatchObject({ m: 'f', a: expect.stringMatching(/^[0-9a-f-]{36}$/) });
+    await page.reload();
+    await expect.poll(() => c.of('pageview').length).toBe(2);
+    expect(c.of('pageview')[1]).toMatchObject({ m: 'f', a: c.of('event')[0].a });
+  });
+
+  test('consent(true) keeps events already queued', async ({ page }) => {
+    const c = await capture(page);
+    await page.goto('/default.html');
+    await expect.poll(() => c.of('pageview').length).toBe(1);
+    await trail(page, 'track', 'before');
+    await trail(page, 'consent', true);
+    await hide(page);
+    await expect.poll(() => c.of('event').length).toBe(1);
+    expect(c.of('event')[0]).toMatchObject({ n: 'before', m: 'p', a: '' });
+  });
+
+  test('default: identify("u1") upgrades like consent(true)', async ({ page }) => {
+    const c = await capture(page);
+    await page.goto('/default.html');
+    await expect.poll(() => c.of('pageview').length).toBe(1);
+    await trail(page, 'identify', 'u1');
+    await hide(page);
+    await expect.poll(() => c.of('identify').length).toBe(1);
+    expect(c.of('identify')[0]).toMatchObject({ m: 'f', uid: 'u1', a: expect.stringMatching(/^[0-9a-f-]{36}$/) });
+    expect(await page.evaluate(() => localStorage.getItem('_t_c'))).toBe('1');
+  });
+
+  test('consent(false) after true -> state wiped, _t_c="0", nothing sent, reload sends nothing', async ({ page }) => {
+    const c = await capture(page);
+    await page.goto('/default.html');
+    await expect.poll(() => c.of('pageview').length).toBe(1);
+    await trail(page, 'consent', true);
+    await trail(page, 'identify', 'u1');
+    await trail(page, 'track', 'queued-before-denial');
+    await trail(page, 'consent', false);
+    const st = await page.evaluate(() => ({ c: document.cookie, ls: { ...localStorage }, ss: { ...sessionStorage } }));
+    expect(st.c).not.toMatch(/_t_id=/);
+    expect(st.ls).toEqual({ _t_c: '0' });
+    expect(st.ss).toEqual({});
+    const n = c.reqs.length;
+    await trail(page, 'track', 'after');
+    await trail(page, 'pageview');
+    await hide(page);
+    await page.evaluate(() => dispatchEvent(new PageTransitionEvent('pagehide')));
+    await page.waitForTimeout(200);
+    expect(c.reqs).toHaveLength(n);
+    await page.reload();
+    await page.waitForTimeout(300);
+    expect(c.reqs).toHaveLength(n);
+  });
+
+  test('consent(true) after a denial resumes and clears the denial', async ({ page }) => {
+    const c = await capture(page);
+    await page.goto('/default.html');
+    await trail(page, 'consent', false);
+    await page.reload();
+    await trail(page, 'consent', true);
+    expect(await page.evaluate(() => localStorage.getItem('_t_c'))).toBe('1');
+    await trail(page, 'track', 'back');
+    await hide(page);
+    await expect.poll(() => c.of('event').length).toBe(1);
+    expect(c.of('event')[0].m).toBe('f');
+  });
+
+  test('data-mode=full: storage from first pageview, m:"f"', async ({ page }) => {
+    const c = await capture(page);
+    await page.goto('/full.html');
+    await expect.poll(() => c.of('pageview').length).toBe(1);
+    expect(c.of('pageview')[0]).toMatchObject({ m: 'f', a: expect.stringMatching(/^[0-9a-f-]{36}$/) });
+    expect(await writes(page)).toEqual(expect.arrayContaining([expect.stringMatching(/^cookie:_t_id=/), 'ls.setItem:_t_id', 'ls.setItem:_t_s']));
+  });
+
+  test('data-mode=private: consent(true) and identify do not upgrade, no storage ever', async ({ page }) => {
+    const c = await capture(page);
+    await page.goto('/private.html');
+    await expect.poll(() => c.of('pageview').length).toBe(1);
+    await trail(page, 'consent', true);
+    await trail(page, 'identify', 'u1');
+    await trail(page, 'track', 'x');
+    await hide(page);
+    await expect.poll(() => c.of('event').length).toBe(1);
+    expect(c.events.every((e) => e.m === 'p' && e.a === '')).toBe(true);
+    expect(c.of('identify')).toHaveLength(0); // the server rejects identify in private mode
+    expect(await writes(page)).toEqual([]);
+  });
+
+  for (const [name, init] of [
+    ['DNT=1', () => Object.defineProperty(Navigator.prototype, 'doNotTrack', { get: () => '1' })],
+    ['GPC', () => Object.defineProperty(Navigator.prototype, 'globalPrivacyControl', { get: () => true })],
+  ] as const)
+    test(`${name} -> zero requests, no storage`, async ({ page }) => {
+      await page.addInitScript(init);
+      const c = await capture(page);
+      await page.goto('/full.html');
+      await page.waitForTimeout(300);
+      await hide(page);
+      await page.waitForTimeout(100);
+      expect(c.reqs).toHaveLength(0);
+      expect(await writes(page)).toEqual([]);
+    });
+
+  test('data-dnt=off with DNT=1 -> requests flow', async ({ page }) => {
+    await page.addInitScript(() => Object.defineProperty(Navigator.prototype, 'doNotTrack', { get: () => '1' }));
+    const c = await capture(page);
+    await page.goto('/dnt.html');
+    await expect.poll(() => c.of('pageview').length).toBe(1);
+  });
+
+  test('named click: click inside [data-trail] -> event n=<name>; not in private mode', async ({ page }) => {
+    const c = await capture(page);
+    await page.goto('/full.html');
+    await page.click('#named');
+    await hide(page);
+    await expect.poll(() => c.of('event').length).toBe(1);
+    expect(c.of('event')[0]).toMatchObject({ n: 'Signup', m: 'f' });
+
+    const p = await capture(page);
+    await page.goto('/default.html');
+    await expect.poll(() => p.of('pageview').length).toBe(1);
+    await page.click('#named');
+    await hide(page);
+    await page.waitForTimeout(200);
+    expect(p.of('event')).toHaveLength(0);
+  });
+
+  test('t.p.js: no storage, no upgrade; pageview, engage, outbound, error still work', async ({ page }) => {
+    await page.clock.install();
+    const c = await capture(page);
+    await page.goto('/p.html');
+    await expect.poll(() => c.of('pageview').length).toBe(1);
+    await trail(page, 'consent', true);
+    await trail(page, 'identify', 'u1');
+    await page.click('#out');
+    await page.click('#named');
+    await page.addScriptTag({ content: 'throw new Error("p1")' });
+    await page.clock.runFor(500);
+    await hide(page);
+    await expect.poll(() => c.reqs.length).toBe(2);
+    expect(c.reqs[1].map((e) => e.t).sort()).toEqual(['engage', 'error', 'outbound']);
+    expect(c.events.every((e) => e.m === 'p' && e.a === '')).toBe(true);
+    expect(await writes(page)).toEqual([]);
   });
 });
