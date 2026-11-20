@@ -1,0 +1,307 @@
+---
+import '@fontsource-variable/geist';
+import '@fontsource-variable/geist-mono';
+import '../styles/landing.css';
+import { Image } from 'astro:assets';
+import Demo from '../components/Demo.astro';
+import Copy from '../components/Copy.astro';
+import journeyShot from '../assets/journey.png';
+import { stats, benchData } from '../lib/numbers';
+import { SITE_URL, DEMO_URL, GITHUB_URL, NPM_URL } from '../config';
+
+const title = 'Trail: self-hosted analytics that shows the whole visitor journey';
+const description =
+  'The smallest tracker that still shows the whole visitor journey. Private by default until your visitor says yes, on one self-hosted binary. MIT licensed.';
+const canonical = new URL('/', SITE_URL).href;
+const numbers = stats();
+
+const faq = [
+  {
+    q: 'Do I need a cookie banner for Trail?',
+    a: 'In the default mode the tracker writes nothing to the browser until you call trail.consent(true) or trail.identify(). Until then it stores no cookie and no localStorage. Whether your site needs a banner for other reasons is a question for your own legal advice.',
+  },
+  {
+    q: 'Will ad blockers stop it?',
+    a: 'Serve the tracker and its endpoint from your own domain with a /_t/* rewrite. The browser then sees a first-party script and a first-party request.',
+  },
+  {
+    q: 'What do I need to run it?',
+    a: 'One machine that can run a static Go binary, or Docker. The database is SQLite inside the same process, so there is nothing else to install or keep running.',
+  },
+  {
+    q: 'How do I back up or move my data?',
+    a: 'All data is one SQLite file. Snapshot it with sqlite3 .backup on a schedule, and copy the file to move to a new server.',
+  },
+  {
+    q: 'Can one server track several sites?',
+    a: 'Yes. List them in TRAIL_SITES as id=domain pairs and switch between them in the dashboard.',
+  },
+  {
+    q: 'What does it cost?',
+    a: 'Nothing. Trail is MIT licensed and there is no hosted plan or paid tier. You pay only for the server you run it on.',
+  },
+];
+
+const jsonld = [
+  {
+    '@context': 'https://schema.org',
+    '@type': 'SoftwareApplication',
+    name: 'Trail',
+    applicationCategory: 'DeveloperApplication',
+    operatingSystem: 'Linux, macOS, Windows',
+    description,
+    url: canonical,
+    license: 'https://opensource.org/licenses/MIT',
+    codeRepository: GITHUB_URL,
+    offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
+  },
+  {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: faq.map((f) => ({ '@type': 'Question', name: f.q, acceptedAnswer: { '@type': 'Answer', text: f.a } })),
+  },
+];
+
+const mcpJson = `{
+  "mcpServers": {
+    "trail": {
+      "type": "http",
+      "url": "https://stats.example.com/mcp",
+      "headers": { "Authorization": "Bearer <read-token>" }
+    }
+  }
+}`;
+const mcpCli = `claude mcp add --transport http trail https://stats.example.com/mcp \\
+  --header "Authorization: Bearer <read-token>"`;
+
+const docker = `git clone ${GITHUB_URL} && cd trail
+docker build -t trail .
+docker run -d -p 8080:8080 -v trail-data:/data \\
+  -e TRAIL_PASSWORD=change-me \\
+  -e TRAIL_SITES=mysite=example.com \\
+  trail`;
+const fly = `cp fly.toml.example fly.toml   # set app
+fly launch --no-deploy --copy-config
+fly volumes create trail_data --size 1
+fly secrets set TRAIL_PASSWORD=change-me TRAIL_SITES=mysite=example.com
+fly deploy`;
+const tag = `<script defer src="/_t/t.js" data-site="mysite"></script>`;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonical} />
+    <link rel="icon" href="/favicon.ico" sizes="48x48" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+    <meta name="theme-color" content="#000000" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Trail" />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:image" content={new URL('/og.png', SITE_URL).href} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="alternate" type="application/rss+xml" title="Trail changelog" href="/changelog.xml" />
+    <script type="application/ld+json" set:html={JSON.stringify(jsonld)} />
+  </head>
+  <body>
+    <a class="skip" href="#main">Skip to content</a>
+    <header class="nav wrap">
+      <a class="brand" href="/" aria-label="Trail home">
+        <svg viewBox="0 0 256 256" width="22" height="22" aria-hidden="true"><rect x="40" y="34" width="176" height="44" rx="22" fill="currentColor"></rect><circle cx="128" cy="122" r="22" fill="currentColor"></circle><circle cx="128" cy="170" r="18" fill="currentColor"></circle><circle cx="128" cy="212" r="14" fill="var(--accent)"></circle></svg>
+        Trail
+      </a>
+      <nav aria-label="Main">
+        <a href="/docs/quickstart/">Docs</a>
+        <a href={DEMO_URL}>Demo</a>
+        <a href={GITHUB_URL}>GitHub</a>
+      </nav>
+    </header>
+
+    <main id="main">
+      <section class="hero wrap">
+        <div class="hero-copy">
+          <h1>Follow every visitor from first click to signup.</h1>
+          <p class="lede">
+            Trail is the smallest tracker that still shows the whole visitor journey. It stays private until your visitor says yes,
+            and it runs as one binary on your own server.
+          </p>
+          <div class="ctas">
+            <a class="btn primary" href={DEMO_URL}>Try the live demo</a>
+            <a class="btn" href="#self-host">Self-host in 2 minutes</a>
+          </div>
+          <p class="fine">Open source under MIT. Go and SQLite, nothing else to run.</p>
+        </div>
+        <div class="hero-stage">
+          <Demo />
+        </div>
+      </section>
+
+      <div class="trail-line">
+        <section class="block numbers wrap" aria-labelledby="h-numbers">
+          <div class="head">
+            <h2 id="h-numbers">Measured, not promised.</h2>
+            <p>
+              These numbers are read when this page is built: sizes from the tracker files the server ships{benchData ? ', timings from the latest benchmark run' : ''}.
+              Anyone can rerun them. <a href="/docs/tracking/cost/">How we measure</a>
+            </p>
+          </div>
+          {numbers.length === 0 && <p class="empty">Run <code>make build</code> and rebuild this page to fill in the measured numbers.</p>}
+          <dl class="stats">
+            {numbers.map((n) => (
+              <div class="stat">
+                <dt>{n.label}</dt>
+                <dd><span class="v">{n.value}</span>{n.unit && <span class="u">{n.unit}</span>}</dd>
+              </div>
+            ))}
+          </dl>
+        </section>
+
+        <section class="block journeys wrap" aria-labelledby="h-journeys">
+          <div class="head">
+            <h2 id="h-journeys">One visitor, start to finish.</h2>
+            <p>
+              Totals tell you how many. A journey tells you what happened: where someone came from, each page in order, how long they stayed
+              and how far they scrolled, when they came back, and the click that turned them into a signup. Call
+              <code>identify</code> at login and their earlier anonymous visits join the same timeline.
+            </p>
+          </div>
+          <div class="shot">
+            <Image src={journeyShot} alt="A visitor's journey in the Trail dashboard: four visits over three days, each listing the referrer, pages with time on page and scroll depth, a Signup event and the identify moment." widths={[720, 1080, 1440]} sizes="(min-width: 1200px) 1320px, (max-width: 760px) 260vw, 120vw" loading="lazy" />
+          </div>
+        </section>
+
+        <section class="block privacy wrap" aria-labelledby="h-privacy">
+          <div class="head">
+            <h2 id="h-privacy">Private until they say yes.</h2>
+            <p>Pick a mode with one attribute. The default stores nothing in the browser until your visitor agrees, then the journey starts from that moment.</p>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr><th scope="col">Mode</th><th scope="col">How to choose it</th><th scope="col">Stored in the browser</th><th scope="col">Journeys</th></tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row">Private until consent <span class="tag">default</span></th>
+                  <td data-l="How to choose it">No <code>data-mode</code></td>
+                  <td data-l="Stored in the browser">Nothing, until <code>trail.consent(true)</code> or <code>trail.identify()</code></td>
+                  <td data-l="Journeys">From the moment of consent</td>
+                </tr>
+                <tr>
+                  <th scope="row">Private</th>
+                  <td data-l="How to choose it"><code>data-mode="private"</code>, or load <code>t.p.js</code></td>
+                  <td data-l="Stored in the browser">Nothing, ever</td>
+                  <td data-l="Journeys">Within one day, counted on the server</td>
+                </tr>
+                <tr>
+                  <th scope="row">Full</th>
+                  <td data-l="How to choose it"><code>data-mode="full"</code></td>
+                  <td data-l="Stored in the browser">A random id in a first-party cookie and localStorage</td>
+                  <td data-l="Journeys">Across visits, and across devices with <code>identify</code></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <ul class="notes">
+            <li>Visitors who send Do Not Track or Global Privacy Control are not tracked at all. Set <code>data-dnt="off"</code> if you decide otherwise.</li>
+            <li><code>trail.consent(false)</code> clears the stored ids and stops sending, on this page and the next ones.</li>
+          </ul>
+        </section>
+
+        <section class="block ai wrap" aria-labelledby="h-ai">
+          <div class="head">
+            <h2 id="h-ai">Ask your numbers in plain words.</h2>
+            <p>
+              Trail serves an MCP endpoint at <code>/mcp</code>. Give your assistant a read token and it can pull stats, breakdowns, visitor
+              journeys and goal conversions straight from your server.
+            </p>
+            <ul class="tools" aria-label="MCP tools">
+              <li>list_sites</li><li>get_stats</li><li>get_series</li><li>get_breakdown</li><li>list_visitors</li><li>get_journey</li><li>goal_report</li>
+            </ul>
+          </div>
+          <div class="codes">
+            <Copy label="Claude Code" code={mcpCli} />
+            <Copy label="mcp.json" code={mcpJson} />
+          </div>
+        </section>
+
+        <section class="block host wrap" id="self-host" aria-labelledby="h-host">
+          <div class="head">
+            <h2 id="h-host">Your server, one file of data.</h2>
+            <p>
+              Build the image or deploy to Fly.io, then add one script tag. Everything Trail records lives in a single SQLite file you can back
+              up with <code>sqlite3 .backup</code> and move with <code>cp</code>. <a href="/docs/quickstart/">Read the quickstart</a>
+            </p>
+          </div>
+          <div class="codes">
+            <Copy label="Docker" code={docker} />
+            <Copy label="Fly.io" code={fly} />
+            <Copy label="Your site's HTML" code={tag} />
+          </div>
+        </section>
+
+        <section class="block stored wrap" aria-labelledby="h-stored">
+          <div class="head">
+            <h2 id="h-stored">What Trail keeps, and what it doesn't.</h2>
+          </div>
+          <div class="cols">
+            <div>
+              <h3>Kept</h3>
+              <ul>
+                <li>Page path, referrer and UTM tags</li>
+                <li>Country, device, browser and OS, worked out on the server</li>
+                <li>Time on page and scroll depth</li>
+                <li>Custom events and the properties you send with them</li>
+                <li>The user id you pass to <code>identify</code></li>
+              </ul>
+            </div>
+            <div>
+              <h3>Never kept</h3>
+              <ul>
+                <li>Raw IP addresses. They are read in memory for location and bot checks, then dropped</li>
+                <li>The daily key that counts private visitors. It lives in memory and changes every midnight</li>
+                <li>Every click on the page. Only links out, form submits and elements you name with <code>data-trail</code></li>
+                <li>Anything sent to a third party. There are no outside requests</li>
+              </ul>
+            </div>
+          </div>
+        </section>
+
+        <section class="block faq wrap" aria-labelledby="h-faq">
+          <div class="head"><h2 id="h-faq">Questions</h2></div>
+          <div class="qa">
+            {faq.map((f) => (
+              <details>
+                <summary>{f.q}</summary>
+                <p>{f.a}</p>
+              </details>
+            ))}
+          </div>
+        </section>
+      </div>
+    </main>
+
+    <footer class="foot wrap">
+      <span class="brand small">
+        <svg viewBox="0 0 256 256" width="18" height="18" aria-hidden="true"><rect x="40" y="34" width="176" height="44" rx="22" fill="currentColor"></rect><circle cx="128" cy="122" r="22" fill="currentColor"></circle><circle cx="128" cy="170" r="18" fill="currentColor"></circle><circle cx="128" cy="212" r="14" fill="var(--accent)"></circle></svg>
+        Trail
+      </span>
+      <nav aria-label="Footer">
+        <a href="/docs/quickstart/">Docs</a>
+        <a href={GITHUB_URL}>GitHub</a>
+        <a href={NPM_URL}>npm</a>
+        <a href="/docs/changelog/">Changelog</a>
+        <a href={GITHUB_URL + '/blob/main/LICENSE'}>MIT License</a>
+      </nav>
+    </footer>
+  </body>
+</html>

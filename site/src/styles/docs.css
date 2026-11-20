@@ -1,0 +1,31 @@
+:root {
+  --sl-font: 'Geist Variable', ui-sans-serif, system-ui, sans-serif;
+  --sl-font-mono: 'Geist Mono Variable', ui-monospace, monospace;
+}
+:root[data-theme='dark'] {
+  --sl-color-accent-low: #0c1f3d;
+  --sl-color-accent: #0a72ef;
+  --sl-color-accent-high: #a8d1ff;
+  --sl-color-black: #000;
+  --sl-color-gray-6: #121212;
+  --sl-color-gray-5: #2e2e2e;
+}
+:root[data-theme='light'] {
+  --sl-color-accent-low: #d8e9ff;
+  --sl-color-accent: #0a5fc7;
+  --sl-color-accent-high: #062e63;
+}
+.copy-md {
+  margin-top: 0.75rem;
+  font: 500 0.8125rem var(--sl-font);
+  color: var(--sl-color-gray-2);
+  background: transparent;
+  border: 1px solid var(--sl-color-gray-5);
+  border-radius: 0.5rem;
+  padding: 0.35rem 0.7rem;
+  cursor: pointer;
+}
+.copy-md:hover {
+  color: var(--sl-color-white);
+  border-color: var(--sl-color-gray-4);
+}
