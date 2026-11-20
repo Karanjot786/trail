@@ -1,9 +1,10 @@
 /* Code: inline code, blocks, code-group tabs, copy button. */
 
 .vp-doc :not(pre) > code {
-  padding: 0.12em 0.38em;
+  padding: 1px 5px;
+  border: 1px solid var(--line);
   border-radius: 5px;
-  background: var(--raised);
+  background: #0f0f0f;
   color: var(--fg);
   font-size: 0.85em;
   font-weight: 450;
@@ -23,13 +24,17 @@
   border-radius: 8px !important;
   background: var(--card) !important;
 }
-.vp-doc div[class*='language-'] pre {
+/* One surface per block: Shiki paints its theme background on the pre,
+   which would sit as a second box inside the container. */
+.vp-doc div[class*='language-'] pre,
+.vp-doc .shiki {
   padding: 16px 0 !important;
+  background: transparent !important;
 }
 .vp-doc div[class*='language-'] code {
   padding: 0 18px !important;
   font-size: 13.5px;
-  line-height: 1.7;
+  line-height: 22px;
   font-weight: 400;
 }
 .vp-doc [class*='language-'] > span.lang {
@@ -104,4 +109,12 @@
 /* The tab already names the block. */
 .vp-doc .vp-code-group span.lang {
   display: none;
+}
+
+@media (max-width: 639px) {
+  .vp-doc div[class*='language-'] code {
+    padding: 0 14px !important;
+    font-size: 13px;
+    line-height: 20px;
+  }
 }

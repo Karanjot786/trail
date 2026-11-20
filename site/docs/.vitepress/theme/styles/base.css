@@ -86,6 +86,15 @@ kbd {
   }
 }
 
+/* The trigger sits at one x on every page. TrailNavBar.vue only widens the
+   brand column when the page has a sidebar, so /docs (no sidebar) used to
+   put it 170px further left. Widen it everywhere. */
+@media (min-width: 60rem) {
+  .TrailNavBar .nav.wrap .lead {
+    width: calc(var(--vp-sidebar-width) - 32px);
+  }
+}
+
 /* ---------- Sidebar ---------- */
 .VPSidebar {
   border-inline-end: 1px solid transparent;

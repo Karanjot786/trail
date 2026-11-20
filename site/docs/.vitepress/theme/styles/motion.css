@@ -31,6 +31,19 @@
     animation: trail-fade-in 160ms var(--ease);
   }
 
+  /* The outline marker slides to the active heading. */
+  .VPDocAsideOutline .outline-marker {
+    transition:
+      top 200ms var(--ease),
+      height 200ms var(--ease),
+      opacity 200ms var(--ease) !important;
+  }
+
+  /* Copied: the check grows in from .8 while it fades up. */
+  .vp-doc [class*='language-'] > button.copy.copied {
+    animation: trail-copied 150ms var(--ease);
+  }
+
   .CopyMarkdown button {
     transition:
       color 150ms var(--ease),
@@ -50,6 +63,12 @@
   from {
     opacity: 0;
     transform: scale(0.98);
+  }
+}
+@keyframes trail-copied {
+  from {
+    background-size: 16px;
+    opacity: 0.4;
   }
 }
 @keyframes trail-fade-in {
