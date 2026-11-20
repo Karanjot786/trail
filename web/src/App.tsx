@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { api, type Site } from './api'
+import { api, isDemo, type Site } from './api'
 import { useDashboard } from './state'
 import { onUnauthorized, useFetch } from './useFetch'
 import { Header } from './components/Header'
@@ -9,11 +9,13 @@ import { Dashboard } from './Dashboard'
 import { TabStrip } from './components/TabStrip'
 import { VisitorsView } from './components/VisitorsView'
 import { JourneyView } from './components/JourneyView'
+import { ReadOnlyToast } from './components/ReadOnlyToast'
 
 export function App() {
   const [authed, setAuthed] = useState(true)
   const [gen, setGen] = useState(0)
-  useEffect(() => onUnauthorized(() => setAuthed(false)), [])
+  // The demo never asks for a password.
+  useEffect(() => (isDemo ? undefined : onUnauthorized(() => setAuthed(false))), [])
   const { data: sites, error } = useFetch<Site[]>(authed ? `sites|${gen}` : null, (s) => api.sites(s))
 
   if (!authed)
@@ -57,6 +59,7 @@ function Shell({ sites }: { sites: Site[] }) {
       </nav>
       {!d.person && <FilterChips />}
       {d.person ? <JourneyView person={d.person} /> : d.view === 'visitors' ? <VisitorsView /> : <Dashboard />}
+      {isDemo && <ReadOnlyToast />}
     </div>
   )
 }

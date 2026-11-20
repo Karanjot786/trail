@@ -129,6 +129,21 @@ body {
   }
 }
 
+/* Toast: rises 8px and fades in; leaves faster than it arrives. Transitions, so rapid repeats retarget. */
+.toast {
+  opacity: 0;
+  translate: 0 8px;
+  transition-property: opacity, translate;
+  transition-duration: 140ms;
+  transition-timing-function: ease-out;
+}
+.toast[data-shown] {
+  opacity: 1;
+  translate: 0 0;
+  transition-duration: 220ms;
+  transition-timing-function: var(--ease-ui);
+}
+
 /* Top rows of a panel fade out at the bottom. */
 .fade-bottom {
   mask-image: linear-gradient(to bottom, #000 calc(100% - 64px), transparent 96%);

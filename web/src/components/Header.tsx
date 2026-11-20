@@ -11,7 +11,7 @@ import {
   RefreshCwIcon,
   UsersIcon,
 } from 'lucide-react'
-import { api, type Env, type Site } from '@/api'
+import { api, isDemo, type Env, type Site } from '@/api'
 import { RANGES, queryKey, useDashboard, type Range } from '@/state'
 import { useFetch } from '@/useFetch'
 import { Select, SelectContent, SelectGroup, SelectItem, SelectSeparator, SelectTrigger, SelectValue } from './ui/select'
@@ -33,30 +33,53 @@ export function Header({ sites }: { sites: Site[] }) {
   const site = sites.find((s) => s.id === d.site) ?? sites[0]
 
   return (
-    <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+    <>
+      {isDemo && <DemoBar />}
+      <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 items-center gap-3">
+          <SiteSwitcher sites={sites} site={site} />
+          <span className="h-6 w-px shrink-0 bg-border" aria-hidden />
+          <Online />
+        </div>
+        <div className="flex min-w-0 flex-wrap items-center gap-2 sm:justify-end lg:flex-nowrap">
+          <Select value={d.env} onValueChange={(v) => d.set({ env: v as Env })}>
+            <SelectTrigger aria-label="Environment" className="min-w-0 flex-1 sm:w-44 sm:flex-none">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                <SelectItem value="production">Production</SelectItem>
+                <SelectItem value="preview">Preview</SelectItem>
+                <SelectItem value="all">All Environments</SelectItem>
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+          <RangeSelect />
+          <MoreMenu />
+          {d.range === 'custom' && <CustomRange />}
+        </div>
+      </header>
+    </>
+  )
+}
+
+/** Public demo: say it's sample data, and point at the way to run your own. */
+function DemoBar() {
+  return (
+    <div className="flex min-w-0 items-center justify-between gap-3 rounded-xl border border-border bg-card py-2 pl-2 pr-2 sm:pl-3">
       <div className="flex min-w-0 items-center gap-3">
-        <SiteSwitcher sites={sites} site={site} />
-        <span className="h-6 w-px shrink-0 bg-border" aria-hidden />
-        <Online />
+        <span className="shrink-0 rounded-md border border-border-strong bg-raised px-2 py-1 text-[13px] font-medium text-fg">
+          Demo · sample data
+        </span>
+        <span className="hidden truncate text-sm text-muted md:block">A read-only Trail with 30 days of generated traffic.</span>
       </div>
-      <div className="flex min-w-0 flex-wrap items-center gap-2 sm:justify-end lg:flex-nowrap">
-        <Select value={d.env} onValueChange={(v) => d.set({ env: v as Env })}>
-          <SelectTrigger aria-label="Environment" className="min-w-0 flex-1 sm:w-44 sm:flex-none">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectGroup>
-              <SelectItem value="production">Production</SelectItem>
-              <SelectItem value="preview">Preview</SelectItem>
-              <SelectItem value="all">All Environments</SelectItem>
-            </SelectGroup>
-          </SelectContent>
-        </Select>
-        <RangeSelect />
-        <MoreMenu />
-        {d.range === 'custom' && <CustomRange />}
-      </div>
-    </header>
+      <a
+        href="https://github.com/Karanjot786/trail#quick-start"
+        className="pressable inline-flex h-8 shrink-0 items-center gap-1 rounded-lg bg-fg px-3 text-sm font-medium text-black outline-none hover:bg-white focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        Self-host Trail <span aria-hidden>→</span>
+      </a>
+    </div>
   )
 }
 
@@ -84,15 +107,17 @@ function SiteSwitcher({ sites, site }: { sites: Site[]; site?: Site }) {
           </DropdownMenuGroup>
         </DropdownMenuContent>
       </DropdownMenu>
-      <a
-        href={`https://${site.domain}`}
-        target="_blank"
-        rel="noreferrer"
-        aria-label={`Open ${site.domain}`}
-        className="pressable -m-1.5 grid size-8 shrink-0 place-items-center rounded-md text-muted hover:text-fg"
-      >
-        <ExternalLinkIcon className="size-4" strokeWidth={1.75} />
-      </a>
+      {!isDemo && (
+        <a
+          href={`https://${site.domain}`}
+          target="_blank"
+          rel="noreferrer"
+          aria-label={`Open ${site.domain}`}
+          className="pressable -m-1.5 grid size-8 shrink-0 place-items-center rounded-md text-muted hover:text-fg"
+        >
+          <ExternalLinkIcon className="size-4" strokeWidth={1.75} />
+        </a>
+      )}
     </div>
   )
 }

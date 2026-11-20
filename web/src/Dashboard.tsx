@@ -1,5 +1,5 @@
 import { ZapIcon } from 'lucide-react'
-import { api } from './api'
+import { api, isDemo } from './api'
 import { queryKey, useDashboard } from './state'
 import { useFetch } from './useFetch'
 import { KpiTabs } from './components/KpiTabs'
@@ -66,7 +66,7 @@ export function Dashboard() {
             </EmptyState>
           }
         />
-        <GoalsPanel />
+        <GoalsPanel readOnly={isDemo} />
       </div>
     </div>
   )

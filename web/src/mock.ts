@@ -368,6 +368,11 @@ const GOALS = new Map<string, Goal[]>([
     { id: 4, name: 'Downloaded a template', kind: 'event', match: 'Download Template' },
   ]],
   ['notes', [{ id: 5, name: 'Viewed pricing', kind: 'page', match: '/pricing' }]],
+  // Matches the demo backend's two seeded goals.
+  ['demo', [
+    { id: 6, name: 'Signup', kind: 'event', match: 'Signup' },
+    { id: 7, name: 'Pricing', kind: 'page', match: '/pricing' },
+  ]],
 ])
 let nextGoal = 100
 

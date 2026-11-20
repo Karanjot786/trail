@@ -118,6 +118,7 @@ export class HttpError extends Error {
 
 async function fail(res: Response, path: string): Promise<never> {
   if (res.status === 401) throw new Unauthorized()
+  if (res.status === 403 && isDemo) readOnlyListeners.forEach((f) => f())
   const text = (await res.text().catch(() => '')).trim()
   let msg = text
   try {
@@ -131,6 +132,20 @@ async function fail(res: Response, path: string): Promise<never> {
 
 const MOCK = import.meta.env.VITE_MOCK === '1'
 const mock = MOCK ? import('./mock') : null
+
+/** `/demo*` reads the public, read-only demo API; everything else the real one. */
+export function apiBase(pathname: string): string {
+  return /^\/demo(\/|$)/.test(pathname) ? '/api/demo' : '/api'
+}
+const BASE = apiBase(location.pathname)
+/** True on the public demo: no login, one sample site, nothing editable. */
+export const isDemo = BASE === '/api/demo'
+export const DEMO_SITE: Site = { id: 'demo', domain: 'demo.trail.dev' }
+
+type Listener = () => void
+const readOnlyListeners = new Set<Listener>()
+/** Fires when the demo server refuses a write (403). */
+export const onReadOnly = (f: Listener) => (readOnlyListeners.add(f), () => void readOnlyListeners.delete(f))
 
 function params(q: Query, extra: Record<string, string | number | undefined> = {}) {
   const p = new URLSearchParams({ site: q.site, from: String(q.from), to: String(q.to), env: q.env })
@@ -171,18 +186,20 @@ export const api = {
   },
 
   async sites(signal?: AbortSignal): Promise<Site[]> {
+    // The demo API serves a single fixed site and has no /sites route.
+    if (isDemo) return [DEMO_SITE]
     if (mock) return (await mock).sites()
     return get('/api/sites', new URLSearchParams(), signal)
   },
 
   async stats(q: Query, signal?: AbortSignal): Promise<Stats> {
     if (mock) return (await mock).stats(q)
-    return get('/api/stats', params(q), signal)
+    return get(`${BASE}/stats`, params(q), signal)
   },
 
   async series(q: Query, metric: Metric, signal?: AbortSignal): Promise<Series> {
     if (mock) return (await mock).series(q, metric)
-    return get('/api/series', params(q, { metric }), signal)
+    return get(`${BASE}/series`, params(q, { metric }), signal)
   },
 
   async breakdown(
@@ -192,18 +209,18 @@ export const api = {
     signal?: AbortSignal,
   ): Promise<BreakdownRow[]> {
     if (mock) return (await mock).breakdown(q, dim, opts.q ?? '', opts.limit ?? 10)
-    return get('/api/breakdown', params(q, { dim, limit: opts.limit, q: opts.q }), signal)
+    return get(`${BASE}/breakdown`, params(q, { dim, limit: opts.limit, q: opts.q }), signal)
   },
 
   async visitors(q: Query, opts: { limit?: number; q?: string } = {}, signal?: AbortSignal): Promise<Visitor[]> {
     if (mock) return (await mock).visitors(q, opts.q ?? '', opts.limit ?? 100)
-    return get('/api/visitors', params(q, { limit: opts.limit, q: opts.q }), signal)
+    return get(`${BASE}/visitors`, params(q, { limit: opts.limit, q: opts.q }), signal)
   },
 
   async journey(site: string, person: string, signal?: AbortSignal): Promise<Session[]> {
     const raw = mock
       ? await (await mock).journey(site, person)
-      : await get<Session[]>('/api/journey', new URLSearchParams({ site, person }), signal)
+      : await get<Session[]>(`${BASE}/journey`, new URLSearchParams({ site, person }), signal)
     return (raw ?? []).map((s) => ({
       ...s,
       steps: (s.steps ?? []).map((st) => ({ ...st, props: normProps(st.props) })),
@@ -212,34 +229,34 @@ export const api = {
 
   async goals(site: string, signal?: AbortSignal): Promise<Goal[]> {
     if (mock) return (await mock).goals(site)
-    return (await get<Goal[] | null>('/api/goals', new URLSearchParams({ site }), signal)) ?? []
+    return (await get<Goal[] | null>(`${BASE}/goals`, new URLSearchParams({ site }), signal)) ?? []
   },
 
   async createGoal(site: string, g: Omit<Goal, 'id'>): Promise<Goal> {
     if (mock) return (await mock).createGoal(site, g)
-    const res = await fetch('/api/goals', {
+    const res = await fetch(`${BASE}/goals`, {
       method: 'POST',
       credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ site, ...g }),
     })
-    if (!res.ok) return fail(res, '/api/goals')
+    if (!res.ok) return fail(res, `${BASE}/goals`)
     return res.json() as Promise<Goal>
   },
 
   async deleteGoal(site: string, id: number): Promise<void> {
     if (mock) return (await mock).deleteGoal(site, id)
-    const res = await fetch(`/api/goals/${id}?${new URLSearchParams({ site })}`, { method: 'DELETE', credentials: 'same-origin' })
-    if (!res.ok) return fail(res, '/api/goals')
+    const res = await fetch(`${BASE}/goals/${id}?${new URLSearchParams({ site })}`, { method: 'DELETE', credentials: 'same-origin' })
+    if (!res.ok) return fail(res, `${BASE}/goals`)
   },
 
   async goalReport(q: Query, signal?: AbortSignal): Promise<GoalRow[]> {
     if (mock) return (await mock).goalReport(q)
-    return (await get<GoalRow[] | null>('/api/goals/report', params(q), signal)) ?? []
+    return (await get<GoalRow[] | null>(`${BASE}/goals/report`, params(q), signal)) ?? []
   },
 
   async delivery(q: Query, signal?: AbortSignal): Promise<Delivery> {
     if (mock) return (await mock).delivery(q)
-    return get('/api/delivery', params(q), signal)
+    return get(`${BASE}/delivery`, params(q), signal)
   },
 }
