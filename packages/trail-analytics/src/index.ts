@@ -16,6 +16,10 @@ export interface InjectProps {
   vitals?: boolean;
   /** Opt in to rage-click detection (needs the full tracker build). */
   rage?: boolean;
+  /** Opt in to form-submit tracking, records form id or name, never field values (data-forms). Loads t.x.js. */
+  forms?: boolean;
+  /** Opt in to JS error tracking, at most 5 per page (data-errors). Loads t.x.js. */
+  errors?: boolean;
   /** `private` loads the cookieless `/_t/t.p.js` build (unless `src` is set). Maps to data-mode. */
   mode?: 'full' | 'private';
   /** `false` ignores Do Not Track / Global Privacy Control (data-dnt="off"). Default honours them. */
@@ -71,6 +75,8 @@ export function inject(o: InjectProps): void {
   if (o.dev) s.dataset.dev = '';
   if (o.vitals) s.dataset.vitals = '';
   if (o.rage) s.dataset.rage = '';
+  if (o.forms) s.dataset.forms = '';
+  if (o.errors) s.dataset.errors = '';
   if (o.mode) s.dataset.mode = o.mode;
   if (o.dnt === false) s.dataset.dnt = 'off';
   w.document.head.appendChild(s);

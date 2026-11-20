@@ -24,6 +24,19 @@ describe('inject', () => {
     expect(s.dataset.rage).toBe('');
   });
 
+  it('forms and errors set data-forms and data-errors only when true', () => {
+    inject({ site: 's', forms: true, errors: true });
+    const s = scripts()[0] as HTMLScriptElement;
+    expect(s.dataset.forms).toBe('');
+    expect(s.dataset.errors).toBe('');
+    document.head.innerHTML = '';
+    delete w.__trail;
+    inject({ site: 's', forms: false, errors: false });
+    const f = scripts()[0] as HTMLScriptElement;
+    expect(f.dataset.forms).toBeUndefined();
+    expect(f.dataset.errors).toBeUndefined();
+  });
+
   it('omits unset options and false flags', () => {
     inject({ site: 's', dev: false });
     const s = scripts()[0] as HTMLScriptElement;

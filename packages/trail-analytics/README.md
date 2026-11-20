@@ -45,7 +45,7 @@ inject({ site: 'mysite' }); // idempotent, no-op on the server
 track('signup_clicked', { plan: 'pro' });
 ```
 
-`inject` options: `site` (required), `src` (default `/_t/t.js`), `api`, `env`, `dev`, `route`, `vitals`, `rage`, `mode` (`'full' | 'private'`), `dnt`. They map to the tracker's `data-*` attributes.
+`inject` options: `site` (required), `src` (default `/_t/t.js`), `api`, `env`, `dev`, `route`, `vitals`, `rage`, `forms`, `errors`, `mode` (`'full' | 'private'`), `dnt`. They map to the tracker's `data-*` attributes.
 
 ## Modes
 
@@ -59,7 +59,15 @@ track('signup_clicked', { plan: 'pro' });
 <Analytics site="mysite" mode="private" /> // loads /_t/t.p.js
 ```
 
-`t.p.js` is about 1.2 KB gzipped, much smaller than the full `t.js`. An explicit `src` always wins over the mode default.
+`t.p.js` is 1.5 KB gzipped (1,490 B), much smaller than the full `t.js`. An explicit `src` always wins over the mode default.
+
+## Extras
+
+`vitals` (Core Web Vitals), `rage` (rage clicks), `forms` (form submits, records the form id or name, never field values) and `errors` (JS errors, at most 5 per page) are opt-in. `t.x.js` loads only when `data-vitals`, `data-rage`, `data-forms` or `data-errors` is set.
+
+```tsx
+<Analytics site="mysite" vitals forms errors />
+```
 
 ## Consent banner
 
