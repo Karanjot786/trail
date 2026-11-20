@@ -280,12 +280,6 @@
   }
 }
 
-/* Copy page row + H1 sit tight. */
-.VPDoc .CopyMarkdown + .main,
-.VPDoc .CopyMarkdown + div {
-  margin-top: 0;
-}
-
 /* Doc footer: edit link and prev/next. */
 .VPDocFooter {
   margin-top: 64px !important;
@@ -324,89 +318,9 @@
   padding-bottom: 32px !important;
   margin-bottom: 0 !important;
 }
-.VPHero {
-  padding-top: calc(var(--vp-nav-height) + 72px) !important;
-  padding-bottom: 48px !important;
-}
-.VPHero .container,
 .VPFeatures .container {
   max-width: 1104px !important;
 }
-.VPHero .heading {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-.VPHero .name {
-  order: -1;
-  font-size: 15px !important;
-  line-height: 1.4 !important;
-  font-weight: 500 !important;
-  letter-spacing: 0 !important;
-  color: var(--muted) !important;
-  background: none !important;
-  -webkit-text-fill-color: currentColor !important;
-}
-.VPHero .text {
-  max-width: 16ch !important;
-  font-size: clamp(40px, 5vw, 56px) !important;
-  line-height: 1.04 !important;
-  font-weight: 600 !important;
-  letter-spacing: -0.035em !important;
-  text-wrap: balance;
-  color: var(--fg);
-}
-.VPHero .tagline {
-  max-width: 34em !important;
-  padding-top: 20px !important;
-  font-size: 19px !important;
-  line-height: 1.55 !important;
-  font-weight: 400 !important;
-  color: var(--muted) !important;
-  text-wrap: pretty;
-}
-.VPHero .actions {
-  margin: 0 !important;
-  padding-top: 32px !important;
-  gap: 12px;
-}
-.VPHero .action {
-  padding: 0 !important;
-}
-.VPHero .VPButton {
-  height: 46px;
-  display: inline-flex;
-  align-items: center;
-  padding: 0 20px !important;
-  border-radius: 10px !important;
-  font-size: 16px !important;
-  font-weight: 500 !important;
-  line-height: 1 !important;
-  border: 1px solid var(--line-strong) !important;
-  background: var(--card) !important;
-  color: var(--fg) !important;
-  transition:
-    background-color 150ms var(--ease),
-    border-color 150ms var(--ease),
-    transform 120ms var(--ease);
-}
-.VPHero .VPButton.brand {
-  background: var(--accent) !important;
-  border-color: var(--accent) !important;
-}
-@media (hover: hover) {
-  .VPHero .VPButton.alt:hover {
-    background: var(--raised) !important;
-    border-color: var(--subtle) !important;
-  }
-  .VPHero .VPButton.brand:hover {
-    background: color-mix(in srgb, var(--accent) 90%, var(--bg)) !important;
-  }
-}
-.VPHero .VPButton:active {
-  transform: scale(0.97);
-}
-
 /* Section index: one ruled grid, not a pile of cards. */
 .VPFeatures .items {
   display: grid !important;
@@ -471,11 +385,6 @@
 a.VPFeature:focus-visible {
   outline-offset: -2px;
   border-radius: 0;
-}
-@media (max-width: 40rem) {
-  .VPHero {
-    padding-top: calc(var(--vp-nav-height) + 32px) !important;
-  }
 }
 @media (max-width: 40rem) {
   .VPFeature .box {

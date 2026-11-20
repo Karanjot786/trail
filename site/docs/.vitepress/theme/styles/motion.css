@@ -7,8 +7,6 @@
 .VPDocOutlineItem .outline-link,
 .TrailNavBar nav a,
 .TrailFooter nav a,
-.CopyMarkdown button,
-.CopyMarkdown a,
 .vp-code-group .tabs label {
   transition:
     color 150ms var(--ease),
@@ -44,12 +42,6 @@
     animation: trail-copied 150ms var(--ease);
   }
 
-  .CopyMarkdown button {
-    transition:
-      color 150ms var(--ease),
-      background-color 150ms var(--ease),
-      transform 120ms var(--ease);
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {
