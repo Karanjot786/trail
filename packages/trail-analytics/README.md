@@ -51,15 +51,15 @@ track('signup_clicked', { plan: 'pro' });
 
 | Mode | Script | Behaviour |
 |------|--------|-----------|
-| default (no `mode`) | `/_t/t.js` | Private until consent: no cookies or storage, pageviews counted anonymously. Calling `consent(true)` upgrades to full tracking. |
-| `full` | `/_t/t.js` | Full tracking from the first pageview (visitor id, sessions, identify). Use where you do not need a banner. |
-| `private` | `/_t/t.p.js` | Always cookieless and anonymous. Smaller build, no consent needed. `identify` and `consent` do nothing. |
+| default (no `mode`) | `/_t/t.js` | Private until consent: nothing is stored in the browser. `consent(true)` or `identify(id)` upgrades the visitor to full mode; `consent(false)` clears browser state and stops. |
+| `full` | `/_t/t.js` | Always full: id in localStorage and a first-party cookie, sessions, journeys, identify. For sites that need no consent. |
+| `private` | `/_t/t.p.js` | Always private, never upgrades. Pageviews, SPA navigation, engagement, consent. No storage. |
 
 ```tsx
 <Analytics site="mysite" mode="private" /> // loads /_t/t.p.js
 ```
 
-`t.p.js` is a trimmed build of the tracker, a fraction of the size of `t.js` (see the Trail repo for the exact gzip numbers). An explicit `src` always wins over the mode default.
+`t.p.js` is about 1.2 KB gzipped, much smaller than the full `t.js`. An explicit `src` always wins over the mode default.
 
 ## Consent banner
 
@@ -80,7 +80,7 @@ function Banner() {
 
 ## Do Not Track and Global Privacy Control
 
-The tracker honours `navigator.doNotTrack` and `navigator.globalPrivacyControl` by default: a visitor who sets either stays in private mode even after `consent(true)`. To ignore the signals, pass `dnt={false}` (`data-dnt="off"`).
+The tracker honours `navigator.doNotTrack` and `navigator.globalPrivacyControl` by default: a visitor who sets either is not tracked at all (nothing is sent). To ignore the signals, pass `dnt={false}` (`data-dnt="off"`).
 
 ## Named clicks
 
