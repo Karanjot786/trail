@@ -157,9 +157,39 @@ func TestAPIRejectsHugeRange(t *testing.T) {
 }
 
 func send(h http.Handler, method, url, body string) *httptest.ResponseRecorder {
+	r := httptest.NewRequest(method, url, bytes.NewBufferString(body))
+	if body != "" {
+		r.Header.Set("Content-Type", "application/json")
+	}
 	w := httptest.NewRecorder()
-	h.ServeHTTP(w, httptest.NewRequest(method, url, bytes.NewBufferString(body)))
+	h.ServeHTTP(w, r)
 	return w
+}
+
+func sendCT(h http.Handler, url, ct, body string) *httptest.ResponseRecorder {
+	r := httptest.NewRequest(http.MethodPost, url, bytes.NewBufferString(body))
+	if ct != "" {
+		r.Header.Set("Content-Type", ct)
+	}
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+	return w
+}
+
+func TestAPIGoalsContentType(t *testing.T) {
+	h := setup(t)
+	body := `{"site":"s","name":"CT","kind":"page","match":"/ct"}`
+	for _, ct := range []string{"text/plain", "", "application/x-www-form-urlencoded", "garbage;;"} {
+		if w := sendCT(h, "/api/goals", ct, body); w.Code != http.StatusUnsupportedMediaType {
+			t.Errorf("Content-Type %q: status %d, want 415", ct, w.Code)
+		}
+	}
+	if w := get(h, "/api/goals?site=s"); string(bytes.TrimSpace(w.Body.Bytes())) != "[]" {
+		t.Fatalf("rejected posts created a row: %s", w.Body)
+	}
+	if w := sendCT(h, "/api/goals", "application/json; charset=utf-8", body); w.Code != http.StatusCreated {
+		t.Fatalf("json+charset: %d %s", w.Code, w.Body)
+	}
 }
 
 func TestAPIGoals(t *testing.T) {

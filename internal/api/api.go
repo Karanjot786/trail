@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log"
+	"mime"
 	"net/http"
 	"slices"
 	"strconv"
@@ -94,6 +95,11 @@ func (s *server) listGoals(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) createGoal(w http.ResponseWriter, r *http.Request) {
+	// A non-JSON type (e.g. text/plain) is what a cross-site form can send.
+	if mt, _, err := mime.ParseMediaType(r.Header.Get("Content-Type")); err != nil || mt != "application/json" {
+		http.Error(w, "Content-Type must be application/json", http.StatusUnsupportedMediaType)
+		return
+	}
 	var in struct {
 		Site, Name, Kind, Match string
 	}
@@ -133,7 +139,7 @@ func (s *server) deleteGoal(w http.ResponseWriter, r *http.Request) {
 // fail maps err to 400, 404 or 500.
 func (s *server) fail(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
-	case errors.Is(err, errBadRequest) || errors.Is(err, query.ErrBadDim) || errors.Is(err, query.ErrBadGoal):
+	case errors.Is(err, errBadRequest) || errors.Is(err, query.ErrBadDim) || errors.Is(err, query.ErrBadMetric) || errors.Is(err, query.ErrBadGoal):
 		http.Error(w, err.Error(), http.StatusBadRequest)
 	case errors.Is(err, query.ErrGoalNotFound):
 		http.Error(w, err.Error(), http.StatusNotFound)
