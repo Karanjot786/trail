@@ -7,6 +7,8 @@ export default defineConfig({
   site: SITE_URL,
   trailingSlash: 'ignore',
   build: { inlineStylesheets: 'always' },
+  // IPv4 loopback: Node may bind 'localhost' to ::1 only, which Firefox can't reach via localhost.
+  server: { host: '127.0.0.1' },
   vite: { server: { fs: { allow: ['..'] } } },
   integrations: [
     starlight({
