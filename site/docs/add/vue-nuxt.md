@@ -1,11 +1,11 @@
 ---
 title: Vue and Nuxt
-description: Add Trail to a Vue app or a Nuxt site.
+description: Add Trail to a Vue app with inject(), or to Nuxt with a client-only plugin and a route rule.
 ---
 
 # Vue and Nuxt
 
-## Install
+## Install in Vue and Nuxt
 
 ```sh
 npm i trail-analytics
@@ -44,7 +44,7 @@ export default defineNuxtConfig({
 ```
 :::
 
-## Track an event
+## Track an event in Vue and Nuxt
 
 ```vue
 <script setup lang="ts">
@@ -56,25 +56,22 @@ import { track } from 'trail-analytics';
 </template>
 ```
 
-## Mode and consent
+## Set consent in Vue and Nuxt
 
-By default the tracker is private until consent: nothing is stored in the browser until you call `consent(true)` or `identify()`. Wire your banner to `consent`:
+The tracker is private until consent: it stores nothing in the browser until you call `consent(true)` or `identify()`. Call `consent(true)` from your banner's accept button and `consent(false)` from decline. To skip consent, set `mode: 'full'` or `mode: 'private'`. See [Privacy modes and consent](/tracking/privacy).
 
-```ts
-import { consent } from 'trail-analytics';
-
-acceptButton.onclick = () => consent(true);
-declineButton.onclick = () => consent(false);
-```
-
-To skip consent, pass `mode: 'full'` (a site that needs no banner) or `mode: 'private'` (never stores anything, loads the smaller `t.p.js`). See [Privacy modes](/tracking/privacy).
-
-## Avoid double pageviews
+## Avoid double pageviews in Vue and Nuxt
 
 Vue Router uses the History API, which the tracker already follows. Do not call `pageview()` in `router.afterEach`.
 
-## Verify
+## Verify the Vue and Nuxt install
 
-Load a page and look in the network panel for `POST /_t/e` answered with `204`. The dashboard header should show **1 online**. On `localhost`, add `dev` (or `data-dev`) first, and pick **All Environments** in the dashboard. More in [Troubleshooting](/operations/troubleshooting).
+Load a page. The network panel should show `POST /_t/e` answered with `204`, and the dashboard header should show **1 online**. On `localhost`, add `data-dev` (`dev` in code) and pick **All Environments** in the dashboard. If nothing arrives, see [Troubleshooting](/operations/troubleshooting).
+
+## Next
+
+- [Track events](/tracking/custom-events) and [named clicks](/tracking/named-clicks).
+- Pick a [privacy mode](/tracking/privacy).
+- Read your numbers in the [dashboard](/dashboard/overview).
 
 <small>Reviewed on 2026-11-20 against `trail-analytics` 0.2.0.</small>

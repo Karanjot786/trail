@@ -17,7 +17,7 @@ description: What each number and panel on the Overview tab means, and how Setti
 
 Under the header, the tabs are **Overview**, **Visitors** and **Settings**.
 
-## The numbers
+## How the numbers are defined
 
 | Number | Definition |
 |---|---|
@@ -49,3 +49,9 @@ The **Settings** tab lists every site Trail accepts events for. Each card shows 
 - **Delete site**: type the site id to confirm. Trail stops accepting its events at once and keeps its data, so adding the same id again brings it back. Tick **Also delete its data** to remove every event, goal and identity for the site. That cannot be undone.
 
 Sites listed in `TRAIL_SITES` are added at startup if they are missing. Edits made in Settings are kept across restarts. Everything here is also on the [API](/api/read-api#sites).
+
+## Next
+
+- Follow one person: [Visitors and journeys](/dashboard/visitors).
+- Track a conversion: [Goals](/dashboard/goals).
+- Check [delivery health](/dashboard/delivery).

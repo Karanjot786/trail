@@ -30,3 +30,8 @@ Use an id that means nothing outside your app, such as a database key. Avoid ema
 | `data-mode="private"` and `t.p.js` | Nothing |
 
 If the visitor has said no with `consent(false)`, `identify` does nothing until they say yes.
+
+## Next
+
+- Read a person's [journey](/dashboard/visitors).
+- Decide when to identify under [privacy modes](/tracking/privacy).

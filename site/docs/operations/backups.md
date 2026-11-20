@@ -43,3 +43,8 @@ Moving to a new server is the same: copy the file over and point `TRAIL_DB` at i
 ## What a backup does not hold
 
 The private-mode daily key and the sessions of private visitors live only in memory. After a restart or a restore, a private visitor who comes back the same day is counted as new.
+
+## Next
+
+- Keep the file safe across versions: [Upgrades](/operations/upgrades).
+- Everything else is set in [Configuration](/operations/configuration).

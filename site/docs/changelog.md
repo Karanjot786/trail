@@ -1,6 +1,6 @@
 ---
 title: Changelog
-description: What changed in each Trail release.
+description: What changed in each Trail release, newest first.
 ---
 
 # Changelog

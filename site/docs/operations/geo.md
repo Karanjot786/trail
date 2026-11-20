@@ -1,6 +1,6 @@
 ---
 title: Geo database
-description: Add country data with the free DB-IP Lite City database.
+description: Add country data with the free DB-IP Lite City database and the TRAIL_GEO_DB variable.
 ---
 
 # Geo database
@@ -16,3 +16,8 @@ The file is opened once at startup, so to refresh it, replace the file and resta
 ## Attribution
 
 DB-IP Lite is licensed under CC BY 4.0, which requires attribution where you show the data. For example: "IP geolocation by DB-IP.com".
+
+## Next
+
+- Set `TRAIL_GEO_DB` and other options in [Configuration](/operations/configuration).
+- Countries still empty? See [Troubleshooting](/operations/troubleshooting).

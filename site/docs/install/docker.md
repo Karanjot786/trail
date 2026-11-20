@@ -29,7 +29,7 @@ The image sets `TRAIL_DB=/data/trail.db` and `TRAIL_ADDR=:8080`. Every other set
 
 `TRAIL_SECRET` is optional, but without it the session-signing key is random on every start, so a restart signs you out. It must be at least 32 characters.
 
-Each client IP may send 50 event requests per second to `/_t/e` (with a burst of 100). Over that is a `429`. Change it with `TRAIL_INGEST_RPS`, or set `0` to turn it off.
+Each client IP may send 50 event requests per second to `/_t/e`. Change it with `TRAIL_INGEST_RPS`; see [Rate limit](/operations/configuration#rate-limit).
 
 ## Docker Compose
 
@@ -63,3 +63,9 @@ To get countries, mount a DB-IP Lite City file and point `TRAIL_GEO_DB` at it. S
 ```sh
 docker run ... -v /srv/geo:/geo:ro -e TRAIL_GEO_DB=/geo/dbip-city-lite.mmdb trail
 ```
+
+## Next
+
+- Serve the tracker from your own domain: [Rewrites](/install/rewrites).
+- Back up the volume: [Backups](/operations/backups).
+- Then [add the script tag](/add/script-tag) to your site.

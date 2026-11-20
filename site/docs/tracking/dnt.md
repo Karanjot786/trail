@@ -1,6 +1,6 @@
 ---
 title: Do Not Track and GPC
-description: How Trail treats the Do Not Track and Global Privacy Control signals.
+description: 'Trail skips visitors who send Do Not Track or Global Privacy Control. See how to count them anyway with data-dnt="off".'
 ---
 
 # Do Not Track and GPC
@@ -16,3 +16,7 @@ To count those visitors anyway, set `data-dnt="off"`:
 With the npm package, pass `dnt: false`. Only do this if you have decided the signals do not apply to your site; the rest of the mode rules (private until consent, and so on) still apply.
 
 The check runs in the browser, so the server never learns that a visitor opted out.
+
+## Next
+
+- [Privacy modes and consent](/tracking/privacy).

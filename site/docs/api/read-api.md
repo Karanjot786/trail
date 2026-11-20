@@ -101,3 +101,8 @@ curl -X POST -H "Authorization: Bearer $WRITE_TOKEN" -H "Content-Type: applicati
   -d '{"site":"mysite","name":"Signed up","kind":"event","match":"Signup"}' \
   "$TRAIL/api/v1/goals"
 ```
+
+## Next
+
+- Create a [token](/api/tokens).
+- Ask an assistant instead: [MCP](/api/mcp).

@@ -1,6 +1,6 @@
 ---
 title: Troubleshooting
-description: A checklist for when events do not show up.
+description: 'A step-by-step checklist for when events do not show up: script loading, HTTP status codes, allowed origins, environments and bots.'
 ---
 
 # Troubleshooting
@@ -27,3 +27,8 @@ Work down the list. Most problems turn up in the first four steps.
 7. **Signed out after every restart?** Set `TRAIL_SECRET` to a fixed value of 32 or more characters.
 8. **Some visits are missing?** Requests that look automated are stored with a bot flag and left out of every report. That includes browsers driven by Playwright, Puppeteer or Selenium, which set `navigator.webdriver`. Visitors who send Do Not Track or Global Privacy Control are not tracked unless you set `data-dnt="off"`.
 9. **Still stuck?** Run the server in the foreground, watch its log while you load the page, and [open an issue](https://github.com/karanjot786/trail/issues) with what you saw.
+
+## Next
+
+- [Configuration](/operations/configuration) lists every setting mentioned above.
+- [Script tag](/add/script-tag) lists every attribute.

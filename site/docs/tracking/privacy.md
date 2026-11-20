@@ -52,3 +52,9 @@ Whether you need a banner at all depends on your site and where your visitors ar
 `t.js` holds all three modes. If you know you will never ask for consent and never want journeys across days, `t.p.js` is smaller and contains no storage code at all. See [Tracker cost](/tracking/cost) for the sizes.
 
 Do Not Track and Global Privacy Control are covered on [their own page](/tracking/dnt).
+
+## Next
+
+- [Do Not Track and GPC](/tracking/dnt).
+- [Identify](/tracking/identify) known users.
+- Pick your framework guide under [Add to a site](/add/script-tag).

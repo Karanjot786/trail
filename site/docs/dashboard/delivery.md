@@ -1,6 +1,6 @@
 ---
 title: Delivery health
-description: How many events reached the server, and how many needed a retry.
+description: See how many events reached the server and how many needed a retry, and what a rising retry share means.
 ---
 
 # Delivery health
@@ -15,3 +15,8 @@ The tracker sends each pageview at once. Other events are queued and sent togeth
 A small retry share is normal: it is mostly phones on weak connections. A share that climbs suddenly points at a problem between visitors and your server, such as a proxy or rewrite that fails some of the time, or a [rate limit](/operations/configuration#rate-limit) set too low.
 
 The API returns the same numbers at `GET /api/v1/delivery` as `{events, retried, retriedRate}`.
+
+## Next
+
+- Fix a failing proxy: [Rewrites](/install/rewrites).
+- Tune the [rate limit](/operations/configuration#rate-limit).

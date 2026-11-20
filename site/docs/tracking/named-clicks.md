@@ -20,3 +20,8 @@ Give an element a `data-trail` name and every click on it, or on anything inside
 - Named clicks are sent in **full mode**, which includes the default mode after `consent(true)` or `identify()`. Private visitors do not send them, and `t.p.js` does not include them.
 
 Trail does not record every click on the page. Only the elements you name are tracked, plus links to other sites (outbound clicks), which are recorded in every mode.
+
+## Next
+
+- Count a named click as a [goal](/dashboard/goals).
+- Send richer events with [custom events](/tracking/custom-events).

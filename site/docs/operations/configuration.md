@@ -1,6 +1,6 @@
 ---
 title: Configuration
-description: Every environment variable the Trail server reads.
+description: Every environment variable the Trail server reads, plus allowed origins, the ingest rate limit, environments and the trail commands.
 ---
 
 # Configuration
@@ -65,3 +65,9 @@ trail seed       # fill TRAIL_DB with ~30 days of generated data, for trying the
 ```
 
 `trail seed` uses the ids in `TRAIL_SITES`, or `demo` and `docs` when it is empty. It writes events only, so add the same ids in Settings (or `TRAIL_SITES`) to see them in the dashboard. Do not run it against a production database.
+
+## Next
+
+- Run Trail under [Docker](/install/docker) or a [binary with systemd](/install/binary).
+- Create [API tokens](/api/tokens).
+- Keep the data safe with [Backups](/operations/backups).

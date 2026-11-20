@@ -44,3 +44,8 @@ npm run bench              # builds, then benchmarks; RUNS=15 for a steadier med
 ```
 
 It prints a table and writes `bench/last.json`, which this page reads on the next build.
+
+## Next
+
+- Pick a smaller file: [privacy modes](/tracking/privacy).
+- Turn on [extras](/tracking/extras) only when you need them.

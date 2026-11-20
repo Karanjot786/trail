@@ -54,14 +54,19 @@ Then the script tag needs no host:
 <script defer src="/_t/t.js" data-site="mysite"></script>
 ```
 
-## Check it
+## Check the rewrite
 
 Open your site, then the browser's network panel. You should see `t.js` load from your own domain with status 200, and a `POST /_t/e` answered with `204` and an `X-Trail-Accepted` header.
 
-Two other answers mean something specific. A `403` means the page's domain is not on the site's allowed origins; see [Allowed origins](/add/script-tag#allowed-origins). A `429` means one IP sent more than `TRAIL_INGEST_RPS` event requests per second.
+Two other answers mean something specific. A `403` means the page's domain is not on the site's allowed origins; see [Allowed origins](/operations/configuration#allowed-origins). A `429` means one IP sent more than `TRAIL_INGEST_RPS` event requests per second.
 
 Trail serves `t.js` gzipped, with an `ETag` and `Vary: Accept-Encoding`. A proxy in front can cache it or compress it again without trouble.
 
-## Visitor IP behind a rewrite
+## Forward the visitor IP
 
 Trail takes the visitor IP from the first `X-Forwarded-For` entry. Vercel, Netlify and Caddy add the original client IP there. If your proxy does not, every visitor appears to come from the proxy: countries go wrong, in private mode visitors from different people can merge, and the per-IP rate limit (`TRAIL_INGEST_RPS`, default 50 per second) applies to the proxy as a whole. Make sure the header is forwarded.
+
+## Next
+
+- Add the tag for your stack: [script tag](/add/script-tag), [npm](/add/npm) or a framework guide.
+- Check [Troubleshooting](/operations/troubleshooting) if `t.js` returns a `404`.

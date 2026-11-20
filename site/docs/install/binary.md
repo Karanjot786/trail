@@ -92,3 +92,8 @@ sudo systemctl reload caddy
 ```
 
 Then add the `/_t/*` rewrite on the sites you track, so the tracker loads from their own domain. See [Rewrites](/install/rewrites).
+
+## Next
+
+- Back up the database: [Backups](/operations/backups).
+- Then [add the script tag](/add/script-tag) to your site.

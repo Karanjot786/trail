@@ -49,3 +49,8 @@ API tokens cannot sign in to the dashboard, and the dashboard password does not 
 ## Rotating
 
 Add the new token next to the old one, restart, move your clients over, then remove the old entry and restart again.
+
+## Next
+
+- Call the [Read API](/api/read-api).
+- Connect an assistant over [MCP](/api/mcp).

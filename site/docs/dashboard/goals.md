@@ -18,7 +18,7 @@ Click **Add goal** in the Goals panel and choose a kind:
 
 Names are 1 to 60 characters and unique per site. Matches are 1 to 200 characters and exact, apart from the trailing `*`. Prefix matches are case-sensitive. A site can have up to 50 goals.
 
-## The numbers
+## What the goal numbers mean
 
 - **Conversions**: how many times the goal was hit.
 - **Visitors**: distinct people who hit it.
@@ -31,3 +31,7 @@ Goals are evaluated when you look, over the events already stored, so a new goal
 ## From the API
 
 `GET /api/v1/goals/report` returns the same numbers, and a write token can create and delete goals. See [Read API](/api/read-api).
+
+## Next
+
+- Send the events goals match: [custom events](/tracking/custom-events) and [named clicks](/tracking/named-clicks).

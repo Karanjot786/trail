@@ -35,3 +35,8 @@ Run exactly one machine. SQLite is a local file, so a second machine would have 
 ## Backups
 
 Fly takes daily volume snapshots. For a copy you control, see [Backups](/operations/backups); on Fly run the commands through `fly ssh console`.
+
+## Next
+
+- Serve the tracker from your own domain: [Rewrites](/install/rewrites).
+- Then [add the script tag](/add/script-tag) to your site.

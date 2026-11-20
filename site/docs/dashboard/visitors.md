@@ -27,3 +27,8 @@ Each visit is one row, grouped by day, read left to right:
 - In **private mode** nothing is stored in the browser. The server groups a visitor's pageviews within one day, so a journey covers a single day at most.
 
 See [Privacy modes](/tracking/privacy) for how to choose.
+
+## Next
+
+- Join visits to your users with [identify](/tracking/identify).
+- Count conversions with [goals](/dashboard/goals).

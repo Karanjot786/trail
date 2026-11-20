@@ -76,3 +76,8 @@ curl -s https://stats.example.com/mcp \
 ```
 
 The endpoint is stateless: each `POST` carries one JSON-RPC message (`initialize`, `tools/list`, `tools/call`) and gets one JSON reply. Requests count against the token's 300-per-minute limit.
+
+## Next
+
+- Mint a read token: [Keys and tokens](/api/tokens).
+- Need raw HTTP? See the [Read API](/api/read-api).

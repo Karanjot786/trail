@@ -55,3 +55,11 @@ test('copy as markdown', async ({ page, context, browserName }) => {
   await expect(page.getByRole('button', { name: 'Copied' })).toBeVisible()
   expect(await page.evaluate(() => navigator.clipboard.readText())).toMatch(/^(---\n[\s\S]*?\n---\n+)?# Quickstart/)
 })
+
+test('quickstart steps are headings listed in the outline', async ({ page }) => {
+  await page.goto('/docs/quickstart')
+  await expect(page.locator('.vp-doc .steps h3')).toHaveCount(3)
+  const links = page.locator('.VPDocAsideOutline a.outline-link')
+  expect(await links.count()).toBeGreaterThanOrEqual(3)
+  await expect(links.filter({ hasText: 'Start the server' })).toHaveCount(1)
+})

@@ -37,21 +37,11 @@ To name clicks on buttons and links without code, add `data-trail="Name"` to the
 
 ## Add a site
 
-Open **Settings** in the dashboard and click **Add site**. Enter the domain the site runs on, such as `example.com`. Trail suggests a site id from it; that id goes in `data-site` and cannot be changed later.
+Open **Settings** in the dashboard, click **Add site** and enter the domain, such as `example.com`. Trail suggests a site id. That id goes in `data-site` and cannot change later. The site's **Install** panel has copy-ready code filled in with your id and Trail host. You can also seed sites at startup with `TRAIL_SITES=id=domain,...`. See [Settings](/dashboard/overview#settings) for the rest.
 
-The site's **Install** panel has copy-ready code for a script tag, npm, Next.js, React and a Vercel rewrite, filled in with your site id and Trail host. It checks the server every 3 seconds and reads "Waiting for the first event…" until one arrives, then "Receiving data" with the time of the last event.
+## Origins that can send events
 
-You can also seed sites at startup with `TRAIL_SITES=id=domain,...`. Sites you edit in the dashboard keep their edits.
-
-## Allowed origins
-
-`/_t/e` takes events for a site only from a browser page on an allowed host. Trail reads the `Origin` header, or the `Referer` host when there is no `Origin`. These are allowed:
-
-- the site's domain and any subdomain of it (`example.com` and `www.example.com`, but not `evil-example.com`);
-- each entry in the site's allowed origins: an exact host such as `staging.example.org`, or a pattern such as `*.vercel.app` for every subdomain of `vercel.app` (Vercel preview deployments). Up to 20 entries;
-- `localhost`, `127.0.0.1` and `[::1]`, so local development works.
-
-Anything else gets an empty `403`, and the dashboard warns that events were rejected (counted for about the last 24 hours, reset on restart). A request with neither header is refused too. A [rewrite](/install/rewrites) on your own domain still works, because the browser sends your domain as the `Origin`. Edit the list under **Settings → ⋯ → Allowed origins**.
+`/_t/e` accepts events for a site only from its own domain, its subdomains, hosts on the site's allowed-origins list (up to 20, wildcards such as `*.vercel.app` work) and `localhost`. Anything else gets an empty `403`. A [rewrite](/install/rewrites) on your own domain still works. The full rules and the `rejected24h` counter are in [Allowed origins](/operations/configuration#allowed-origins).
 
 ## The private-only file
 
@@ -78,10 +68,16 @@ The tag is `defer`, so code that runs earlier cannot call `trail` yet. Define a 
 
 Before the tracker loads, call the stub with the method name first, as in `trail('track', 'Signup', { plan: 'pro' })`. Once it has loaded, `window.trail` is the real API: `trail.track('Signup')`. If the same code can run on either side of that moment, the [npm package](/add/npm) handles both for you.
 
-## Avoid double pageviews
+## Avoid double pageviews with the script tag
 
 The tracker records a pageview on load, on every `history.pushState`, and on back and forward navigation. Do not also call `trail.pageview()` on route changes, or each navigation counts twice. Call it yourself only when the URL does not change but you want a new view, such as a modal that acts as a page.
 
-## Check it
+## Check the tag
 
-Open the page, then look in the network panel for a `POST /_t/e` with status `204`. In the dashboard, the site's **Install** panel under Settings switches from "Waiting for the first event…" to "Receiving data", and the header shows **1 online**. If nothing arrives, follow [Troubleshooting](/operations/troubleshooting).
+Open the page and look in the network panel for `POST /_t/e` with status `204`. The site's **Install** panel under Settings switches from "Waiting for the first event…" to "Receiving data", and the header shows **1 online**. If nothing arrives, see [Troubleshooting](/operations/troubleshooting).
+
+## Next
+
+- [Track custom events](/tracking/custom-events) and [named clicks](/tracking/named-clicks).
+- Choose a [privacy mode](/tracking/privacy).
+- Using a framework? See the [npm package](/add/npm).

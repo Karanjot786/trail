@@ -1,11 +1,11 @@
 ---
 title: Plain HTML
-description: Add Trail to a static site with nothing but HTML.
+description: Add Trail to a static site with one script tag in the head, no build step, plus event tracking and consent.
 ---
 
 # Plain HTML
 
-## Install
+## Install in plain HTML
 
 Add the tag to the `<head>` of every page, and the [rewrite](/install/rewrites) on your host:
 
@@ -20,7 +20,7 @@ If you cannot add a rewrite, point both URLs at the Trail host instead. Ad block
   data-api="https://stats.example.com/_t/e"></script>
 ```
 
-## Track an event
+## Track an event in plain HTML
 
 ```html
 <button data-trail="Signup">Sign up</button>
@@ -30,16 +30,22 @@ If you cannot add a rewrite, point both URLs at the Trail host instead. Ad block
 </script>
 ```
 
-## Mode and consent
+## Set consent in plain HTML
 
-The default is private until consent. From your banner, call `trail.consent(true)` on accept and `trail.consent(false)` on decline. To skip consent, add `data-mode="full"` or `data-mode="private"` to the tag. See [Privacy modes](/tracking/privacy).
+The tracker is private until consent. Call `trail.consent(true)` from your banner's accept button and `trail.consent(false)` from decline. To skip consent, set `data-mode="full"` or `data-mode="private"` on the tag. See [Privacy modes and consent](/tracking/privacy).
 
-## Avoid double pageviews
+## Avoid double pageviews in plain HTML
 
 Each page load is one pageview. If your site swaps pages with JavaScript and the History API, those count too; do not call `trail.pageview()` as well.
 
-## Verify
+## Verify the plain HTML install
 
-Load a page and look in the network panel for `POST /_t/e` answered with `204`. The dashboard header should show **1 online**. On `localhost`, add `dev` (or `data-dev`) first, and pick **All Environments** in the dashboard. More in [Troubleshooting](/operations/troubleshooting).
+Load a page. The network panel should show `POST /_t/e` answered with `204`, and the dashboard header should show **1 online**. On `localhost`, add `data-dev` (`dev` in code) and pick **All Environments** in the dashboard. If nothing arrives, see [Troubleshooting](/operations/troubleshooting).
+
+## Next
+
+- [Track events](/tracking/custom-events) and [named clicks](/tracking/named-clicks).
+- Pick a [privacy mode](/tracking/privacy).
+- Read your numbers in the [dashboard](/dashboard/overview).
 
 <small>Reviewed on 2026-11-20 against `trail-analytics` 0.2.0.</small>

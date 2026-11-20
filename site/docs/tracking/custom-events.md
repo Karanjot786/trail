@@ -1,6 +1,6 @@
 ---
 title: Custom events
-description: Send your own events with properties, from code.
+description: Send your own events with flat properties using trail.track(), and name them so goals keep matching.
 ---
 
 # Custom events
@@ -36,3 +36,8 @@ track('Signup', { plan: 'pro' });
 Pick names a person would read in a report, such as `Signup` or `Invite sent`, and keep them stable: renaming an event starts a new row, and goals that match the old name stop counting.
 
 To record a click without writing code, use a [named click](/tracking/named-clicks) instead.
+
+## Next
+
+- Count an event as a [goal](/dashboard/goals).
+- Link events to people with [identify](/tracking/identify).
