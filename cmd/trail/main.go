@@ -25,6 +25,7 @@ import (
 	"trail/internal/auth"
 	"trail/internal/enrich"
 	"trail/internal/ingest"
+	"trail/internal/mcp"
 	"trail/internal/seed"
 	"trail/internal/store"
 	"trail/web"
@@ -126,13 +127,17 @@ func runServe() error {
 		return err
 	}
 	defer geo.Close()
-	st, err := store.Open(env("TRAIL_DB", "trail.db"))
+	secret, err := parseSecret(os.Getenv("TRAIL_SECRET"))
 	if err != nil {
 		return err
 	}
-	secret := make([]byte, 32)
-	if _, err := rand.Read(secret); err != nil {
-		return fmt.Errorf("session secret: %w", err)
+	tokens, err := auth.ParseTokens(os.Getenv("TRAIL_API_TOKENS"))
+	if err != nil {
+		return err
+	}
+	st, err := store.Open(env("TRAIL_DB", "trail.db"))
+	if err != nil {
+		return err
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -144,12 +149,8 @@ func runServe() error {
 		return err
 	}
 	a := auth.New(password, secret)
-	mux := http.NewServeMux()
-	mux.Handle("/_t/e", ingest.New(st, geo, sites))
-	mux.Handle("/_t/t.js", ingest.TrackerHandler(ingest.JS))
-	mux.HandleFunc("POST /api/login", a.Login)
-	mux.Handle("/api/", a.Require(api.New(st.DB(), sites, tz)))
-	mux.Handle("/", spaHandler(dist))
+	a.SetTokens(tokens)
+	mux := routes(st, geo, sites, tz, a, dist)
 
 	srv := &http.Server{
 		Addr:              env("TRAIL_ADDR", ":8080"),
@@ -161,7 +162,7 @@ func runServe() error {
 	}
 	errc := make(chan error, 1)
 	go func() { errc <- srv.ListenAndServe() }()
-	log.Printf("trail listening on %s (sites: %d)", srv.Addr, len(sites))
+	log.Printf("trail listening on %s (sites: %d, api tokens: %d)", srv.Addr, len(sites), len(tokens))
 
 	select {
 	case err = <-errc:
@@ -174,6 +175,55 @@ func runServe() error {
 		err = nil
 	}
 	return errors.Join(err, st.Close())
+}
+
+// routes builds the server's handler tree.
+func routes(st *store.Store, geo *enrich.Geo, sites map[string]string, tz *time.Location, a *auth.Auth, dist fs.FS) *http.ServeMux {
+	apiH := api.New(st.DB(), sites, tz)
+	v1 := rewrite("/api/v1/", "/api/", apiH)
+	v1Read, v1Write := a.Bearer("read", v1), a.Bearer("write", v1)
+
+	mux := http.NewServeMux()
+	mux.Handle("/_t/e", ingest.New(st, geo, sites, ingest.WithPrivate(ingest.NewPrivate(tz, time.Now))))
+	mux.Handle("/_t/", ingest.TrackerFiles())
+	mux.HandleFunc("POST /api/login", a.Login)
+	mux.Handle("/api/", a.Require(apiH))
+	mux.Handle("/api/v1/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet || r.Method == http.MethodHead {
+			v1Read.ServeHTTP(w, r)
+			return
+		}
+		v1Write.ServeHTTP(w, r) // goal create/delete
+	}))
+	mux.Handle("/mcp", a.Bearer("read", mcp.New(st.DB(), sites, tz)))
+	mux.Handle("/", spaHandler(dist))
+	return mux
+}
+
+// rewrite serves h with the path prefix from replaced by to.
+func rewrite(from, to string, h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		r2 := r.Clone(r.Context())
+		r2.URL.Path = to + strings.TrimPrefix(r.URL.Path, from)
+		r2.URL.RawPath = ""
+		h.ServeHTTP(w, r2)
+	})
+}
+
+// parseSecret returns TRAIL_SECRET's bytes, which sign session cookies so
+// logins survive restarts. Unset means a random per-boot secret.
+func parseSecret(s string) ([]byte, error) {
+	if s == "" {
+		secret := make([]byte, 32)
+		if _, err := rand.Read(secret); err != nil {
+			return nil, fmt.Errorf("session secret: %w", err)
+		}
+		return secret, nil
+	}
+	if len(s) < 32 {
+		return nil, errors.New("TRAIL_SECRET must be at least 32 chars (e.g. openssl rand -hex 32)")
+	}
+	return []byte(s), nil
 }
 
 // spaHandler serves the built dashboard, falling back to index.html for
