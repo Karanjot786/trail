@@ -4,7 +4,7 @@ import { gzipSync } from 'node:zlib'
 import net from 'node:net'
 
 const PAGES = [{ path: '/', limit: 15360 }, { path: '/docs/quickstart', limit: 92160 }]
-const PORT = 4173
+const PORT = Number(process.env.TRAIL_PORT ?? 4173)
 const free = await new Promise((res) => {
   const s = net.createServer().once('error', () => res(false)).once('listening', () => s.close(() => res(true)))
   s.listen(PORT, '127.0.0.1')
