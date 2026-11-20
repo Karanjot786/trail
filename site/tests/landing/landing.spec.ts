@@ -43,6 +43,8 @@ test('github button has a real count or none', async ({ page }) => {
   await page.goto('/')
   const gh = page.locator('.site-head').getByRole('link', { name: /GitHub/ })
   await expect(gh).toHaveAttribute('href', GITHUB_URL)
+  await expect(gh).toHaveAttribute('target', '_blank')
+  await expect(gh).toHaveAttribute('rel', /noopener/)
   const txt = (await page.locator('[data-stars]').textContent()) ?? ''
   expect(txt).toMatch(/^(|· \d+(\.\d)?K?)$/)
   if (process.env.TRAIL_STARS === 'off') expect(txt).toBe('')
@@ -58,6 +60,7 @@ test('docs header has the same nav items as the landing', async ({ page }) => {
   const docs = await page.locator('header nav[aria-label="Main"] a.nl').allTextContents()
   expect(docs).toEqual(landing)
   await expect(page.locator('header a.gh')).toHaveAttribute('href', GITHUB_URL)
+  await expect(page.locator('header a.gh')).toHaveAttribute('target', '_blank')
 })
 
 for (const w of [390, 701, 1280]) {
@@ -69,3 +72,16 @@ for (const w of [390, 701, 1280]) {
     expect(o.sw).toBeLessThanOrEqual(o.cw)
   })
 }
+
+test('every GitHub link opens in a new tab', async ({ page }) => {
+  for (const path of ['/', '/docs/quickstart']) {
+    await page.goto(path)
+    const links = page.locator(`a[href="${GITHUB_URL}"]`)
+    const n = await links.count()
+    expect(n).toBeGreaterThan(0)
+    for (let i = 0; i < n; i++) {
+      await expect(links.nth(i)).toHaveAttribute('target', '_blank')
+      await expect(links.nth(i)).toHaveAttribute('rel', /noopener/)
+    }
+  }
+})
