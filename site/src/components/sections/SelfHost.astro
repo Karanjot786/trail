@@ -60,7 +60,7 @@ const tabs = Object.entries(s.deployTabs) as [keyof typeof s.deploy, string][]
         <p set:html={s.db.p} />
         <figure class="code bk">
           <div class="code-head"><span>{s.db.backupTitle}</span><CopyButton label="Copy command" text={s.db.backup} /></div>
-          <pre><code>{s.db.backup}</code></pre>
+          <pre tabindex="0"><code>{s.db.backup}</code></pre>
         </figure>
       </div>
     </div>
@@ -132,7 +132,7 @@ const tabs = Object.entries(s.deployTabs) as [keyof typeof s.deploy, string][]
 .frow.sel span:first-child{font-weight:500}
 .frow.sel svg{color:#fff}
 /* the SQLite working files: shown, greyed, not selectable */
-.frow.dim{color:#4e5f7d;opacity:.6}
+.frow.dim{color:#5c6d8a}
 .frow.dim svg{color:currentColor}
 .fnote{margin:6px 20px 0;padding-block:6px 2px;font-size:12.5px;line-height:1.45;color:#4e5f7d;text-wrap:pretty}
 .fstat{margin-top:8px;padding:10px 20px;border-top:1px solid #e3e9f3;font-size:12px;color:#4e5f7d;background:#f7f9fd}

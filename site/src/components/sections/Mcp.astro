@@ -14,7 +14,7 @@ const m = mcp
       </div>
       <figure class="code cmd" data-reveal>
         <div class="code-head"><span>{m.cmdTitle}</span><CopyButton label="Copy command" text={m.cmdCopy} /></div>
-        <pre><code>{m.cmd}</code></pre>
+        <pre tabindex="0"><code>{m.cmd}</code></pre>
       </figure>
       <div class="tools7" data-reveal>
         <span class="t7">{m.toolsLabel}</span>
@@ -34,7 +34,7 @@ const m = mcp
               <code class="cargs">{m.call.args}</code>
               <button type="button" class="jtog" aria-expanded="false" aria-controls="cjson">{m.call.toggle}<svg class="i" aria-hidden="true"><use href="#i-chevd"/></svg></button>
             </div>
-            <div class="cjson" id="cjson" hidden><pre><code>{m.json}</code></pre></div>
+            <div class="cjson" id="cjson" hidden><pre tabindex="0"><code>{m.json}</code></pre></div>
           </div>
           <div class="turn ans">
             <p class="a1 stg" set:html={m.a1} />
