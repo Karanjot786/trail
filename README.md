@@ -10,7 +10,9 @@
 
 # Trail
 
-Self-hosted web analytics for your own sites. One Go binary, SQLite storage, an embedded React dashboard and a tracker script under 2 KB gzipped.
+Self-hosted web analytics for your own sites: the smallest tracker that still shows the whole visitor journey, private by default until your visitor says yes, on one self-hosted binary. Go, SQLite, an embedded React dashboard, and tracker files under 2 KB gzipped.
+
+**[Docs](https://trail.karanjot.dev/docs/quickstart/)** · [Quickstart](https://trail.karanjot.dev/docs/quickstart/) · [Live demo](https://trail.karanjot.dev/demo)
 
 ![Trail dashboard](docs/overview.png)
 
@@ -20,12 +22,15 @@ Follow any visitor across visits and devices — where they came from, every pag
 
 ## Features
 
-- Pageviews (including SPA `pushState` and back/forward), referrers, UTM, country, device, browser, OS
-- Custom events, `identify` / `reset`, JS errors, outbound clicks, form submits
-- Opt-in web vitals and rage clicks
+- Pageviews (including SPA `pushState`, `replaceState` and back/forward), referrers, UTM, country, device, browser, OS
+- Custom events, named clicks (`data-trail="Signup"`), `identify` / `reset`, outbound clicks
+- Opt-in web vitals, rage clicks, form submits and JS errors (`t.x.js`, loaded only when asked for)
 - Per-visitor journey: source, pages in order, time on page, scroll depth, return visits, signup point
+- Goals with conversion rates, and a delivery health check
+- Three privacy modes; private until consent by default; Do Not Track and GPC honoured
+- A read API with bearer tokens and an MCP endpoint for AI assistants
 - Honest bounce rate, live "online" count, previous-period comparison
-- Multiple sites, one password, no cookies banner dependencies, no raw IPs stored
+- Multiple sites, one password, no raw IPs stored
 
 ## Quick start
 
@@ -61,6 +66,9 @@ Open the host in a browser and log in with `TRAIL_PASSWORD`. Run Trail behind HT
 | `TRAIL_SITES` | empty | `id=domain,id2=domain2`. Events for unknown site ids are rejected |
 | `TRAIL_TZ` | `Asia/Kolkata` | Timezone for daily buckets |
 | `TRAIL_GEO_DB` | unset | Path to a DB-IP Lite City `.mmdb`. Without it, country is empty |
+| `TRAIL_SECRET` | random per start | Signs session cookies (32+ chars). Set it so logins survive restarts |
+| `TRAIL_API_TOKENS` | unset | `name:token:scope,...` for the read API and MCP. Scope `read` or `write`; tokens of 24+ chars |
+| `TRAIL_DEMO` | unset | `1` serves a read-only demo with generated data at `/demo` |
 
 ## Adding Trail to a site
 
@@ -112,6 +120,8 @@ trail.track('signup_clicked', { plan: 'pro' }); // custom event, flat props (max
 trail.identify(user.id);                         // call on login
 trail.reset();                                   // call on logout
 trail.pageview({ route: '/blog/[slug]' });       // manual pageview, optional route template
+trail.consent(true);                             // visitor said yes: upgrade to full mode
+trail.consent(false);                            // visitor said no: wipe ids, stop sending
 ```
 
 Calls made before the script loads are queued if you define `window.trail` as a function and collect arguments in `window.trailq`.
@@ -127,14 +137,20 @@ Script attributes:
 | `data-env` | Tag events, e.g. `production` or `preview`; the dashboard can filter on it |
 | `data-dev` | Also track on `localhost` |
 | `data-route` | Default route template for pageviews |
+| `data-mode` | `full` stores an id from the first page; `private` never stores anything. Absent: private until consent |
+| `data-dnt` | `off` tracks visitors who send Do Not Track or Global Privacy Control (they are skipped by default) |
 | `data-vitals` | Opt in to web vitals |
 | `data-rage` | Opt in to rage-click detection |
+| `data-forms` | Opt in to form-submit events |
+| `data-errors` | Opt in to JS error events (max 5 per page) |
+
+Any element with `data-trail="Name"` records a named click event (full mode). `/_t/t.p.js` is a smaller private-only build.
 
 ## What is tracked
 
 - **Pageviews**, with referrer, UTM and country/device/browser/OS derived server-side from the request
 - **Engagement**: visible time on page and scroll depth
-- **Events**: custom events, identify, JS errors (max 5 per page), outbound link clicks, form submits
+- **Events**: custom events, named clicks, identify, outbound link clicks; form submits and JS errors (max 5 per page) when opted in
 - Bots are stored with a flag and excluded from every dashboard number.
 
 Definitions:
@@ -161,10 +177,57 @@ The database is a single SQLite file. Take consistent snapshots with a cron job 
 
 (`%` must be escaped as `\%` inside crontab.) On Fly, use `fly ssh console` or volume snapshots.
 
-## Privacy
+## Privacy modes
 
-- The raw IP address is never written to disk. It is used in memory for geo and bot checks only.
-- The tracker sets a first-party `_t_id` cookie (and a localStorage copy) holding a random id. No third parties are involved.
+| Mode | Set with | Browser storage | Journeys |
+|---|---|---|---|
+| Private until consent (default) | no `data-mode` | none until `trail.consent(true)` or `identify()` | from consent onwards |
+| Private | `data-mode="private"` or `/_t/t.p.js` | none, ever | within one day |
+| Full | `data-mode="full"` | first-party `_t_id` cookie and localStorage | across visits and devices |
+
+- Private visitors are counted on the server as `HMAC-SHA256(daily key, site|IP|UA)`. The key is random, held only in memory and replaced at midnight in `TRAIL_TZ`.
+- `trail.consent(false)` deletes `_t_id`, `_t_s`, `_t_u` and the queue, stops sending, and remembers the choice in `localStorage._t_c`.
+- Do Not Track and Global Privacy Control mean nothing is sent, unless the tag has `data-dnt="off"`.
+- The raw IP address is never written to disk. It is used in memory for geo, bot checks and the private-mode hash only. No third parties are involved.
+
+## Tracker cost
+
+Measured, not promised. Sizes are gzip level 9; timings are the median of 15 runs of `tracker/bench/bench.mjs` in headless Chromium, as the difference from the same page without a tracker (2026-11-20).
+
+| File | Gzipped | Script at load | Heap added | Requests per pageview |
+|---|---|---|---|---|
+| `t.p.js`, private only | 1,494 B | 1.33 ms | 117 KB | 2 |
+| `t.js`, all modes, default private until consent | 2,046 B | 1.61 ms | 120 KB | 2 |
+| `t.js` with `data-mode="full"` | same file | 2.15 ms | 126 KB | 2 |
+| `t.x.js`, extras loaded on demand | 727 B | — | — | — |
+
+Every tracker file must stay at or under 2,048 B gzipped; CI fails otherwise. Rerun with `cd tracker && npm run bench`. Method: [Tracker cost](https://trail.karanjot.dev/docs/tracking/cost/).
+
+## API and MCP
+
+Give scripts and AI assistants read access with a token:
+
+```sh
+TRAIL_API_TOKENS="laptop:$(openssl rand -hex 24):read"
+```
+
+Read API: the dashboard's reports under `/api/v1/` with `Authorization: Bearer <token>`.
+
+```sh
+curl -H "Authorization: Bearer $TOKEN" "https://stats.example.com/api/v1/stats?site=mysite&env=all"
+# {"visitors":1,"pageviews":1,"bounce":1,"prev":{"visitors":0,"pageviews":0,"bounce":0},"online":1}
+```
+
+Routes: `sites`, `stats`, `series`, `breakdown`, `visitors`, `journey`, `goals`, `goals/report`, `delivery`. Creating or deleting goals needs a `write` token. 300 requests per minute per token.
+
+MCP: `POST /mcp` speaks the Model Context Protocol over streamable HTTP, with tools `list_sites`, `get_stats`, `get_series`, `get_breakdown`, `list_visitors`, `get_journey` and `goal_report`.
+
+```sh
+claude mcp add --transport http trail https://stats.example.com/mcp \
+  --header "Authorization: Bearer <read-token>"
+```
+
+Details: [Read API](https://trail.karanjot.dev/docs/api/read-api/), [MCP](https://trail.karanjot.dev/docs/api/mcp/).
 
 ## Development
 
@@ -178,7 +241,7 @@ make dev        # run the server on :8080 with dev.db; `cd web && pnpm dev` for 
 make clean
 ```
 
-The tracker is built from `tracker/t.ts` into `internal/ingest/t.js` and embedded in the binary; the dashboard is built into `web/dist` and embedded too.
+The tracker is built from `tracker/t.ts` and `tracker/x.ts` into `internal/ingest/t.js`, `t.p.js` and `t.x.js`, all embedded in the binary; the dashboard is built into `web/dist` and embedded too. The landing page and docs live in `site/` (`cd site && pnpm install && pnpm dev`).
 
 ## Contributing
 
