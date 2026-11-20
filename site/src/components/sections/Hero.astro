@@ -79,7 +79,7 @@ const labels = waypoints.map((w) => {
   .hero-art img{display:block;width:100%;height:100%}
   .steps{position:absolute;inset:0}
   .steps :global(svg){display:block;width:100%;height:100%;overflow:visible}
-  .steps-m{display:none}
+  .steps-m,.steps-m :global(svg){display:none}
   .steps :global(.st){fill:#fff}
   .steps :global(.ring){transform-box:fill-box;transform-origin:center}
 
@@ -133,8 +133,8 @@ const labels = waypoints.map((w) => {
     .hero .lede{font-size:17.5px}
     .ctas .btn{flex:none}
     .hero-art{position:relative;left:auto;bottom:auto;width:100%;translate:none;aspect-ratio:390 / 480;z-index:0}
-    .steps-d{display:none}
-    .steps-m{display:block}
+    .steps-d,.steps-d :global(svg){display:none}
+    .steps-m,.steps-m :global(svg){display:block}
     .wp{left:var(--ml);right:var(--mr);top:var(--my);font-size:11.5px;padding:5px 8px}
     .wp span{font-size:11px}
     .hero-foot{padding-top:0;padding-bottom:48px}
