@@ -45,15 +45,22 @@ test('markdown twin', async ({ request }) => {
 })
 
 test('copy as markdown', async ({ page, context, browserName }) => {
-  await page.goto('/docs/quickstart')
-  if (browserName !== 'chromium') {
-    await expect(page.locator('.vp-doc a[href$="quickstart.md"], .VPDoc a[href$="quickstart.md"]').first()).toBeAttached()
-    return
+  if (browserName === 'chromium') await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+  else {
+    // Firefox has no clipboard-read permission in Playwright: stub the API and read the stub.
+    await page.addInitScript(() => {
+      const w = window as any
+      Object.defineProperty(navigator, 'clipboard', {
+        value: { write: () => Promise.reject(new Error('stub')), writeText: async (t: string) => void (w.__clip = t) },
+      })
+    })
   }
-  await context.grantPermissions(['clipboard-read', 'clipboard-write'])
-  await page.getByRole('button', { name: 'Copy page as Markdown' }).click()
+  await page.goto('/docs/quickstart')
+  await page.getByRole('button', { name: 'More copy options' }).click()
+  await page.getByRole('menuitem', { name: 'Copy as Markdown' }).click()
   await expect(page.getByRole('button', { name: 'Copied' })).toBeVisible()
-  expect(await page.evaluate(() => navigator.clipboard.readText())).toMatch(/^(---\n[\s\S]*?\n---\n+)?# Quickstart/)
+  const text = browserName === 'chromium' ? await page.evaluate(() => navigator.clipboard.readText()) : await page.evaluate(() => (window as any).__clip)
+  expect(text).toMatch(/^(---\n[\s\S]*?\n---\n+)?# Quickstart/)
 })
 
 test('quickstart steps are headings listed in the outline', async ({ page }) => {

@@ -30,5 +30,10 @@ export default {
       return prev?.(to)
     }
     installPageEnter(router)
+    // Code copy buttons: VitePress shows the check for 2s; bring it back after 1.5s.
+    addEventListener('click', (e) => {
+      const btn = (e.target as Element).closest?.('.vp-doc button.copy')
+      if (btn) setTimeout(() => btn.classList.remove('copied'), 1500)
+    })
   },
 } satisfies Theme

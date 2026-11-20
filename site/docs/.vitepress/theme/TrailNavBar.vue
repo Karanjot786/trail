@@ -67,9 +67,9 @@ nav a.current {
   }
 }
 @media (min-width: 60rem) {
-  /* The brand column lines up with the sidebar, so search starts where the
-     page text starts. */
-  .has-sidebar .lead {
+  /* The brand column matches the sidebar width on every page, so search
+     sits in one place. */
+  .lead {
     width: calc(var(--vp-sidebar-width) - 32px);
   }
 }
