@@ -20,6 +20,7 @@
     "sharp": "^0.35.5"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.14.0",
     "@playwright/test": "1.65.1",
     "serve": "14.2.8",
     "vitepress": "2.0.0-alpha.21",
