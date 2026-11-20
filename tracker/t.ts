@@ -45,11 +45,41 @@
     return S.id;
   };
 
+  // delivery: pageview posts at once; everything else waits in q for the leave beacon.
+  // Failed events (F, with rc counting resends) retry with backoff and, mirrored in
+  // localStorage._t_q, are resent on the next page load.
   let route: string | undefined;
-  const send = (t: string, x: any = {}, src = '') => {
-    const body = JSON.stringify({ s: site, t, a, ss: sess(src), uid: U, u: l.href, rt: route, env: D.env, w: +!!n.webdriver, ...x });
-    fetch(api, { method: 'POST', keepalive: true, headers: { 'Content-Type': 'text/plain' }, body }).catch(() => n.sendBeacon(api, body));
+  let q: any[] = [], F: any[] = [], tries = 0, rtm: any;
+  const save = () => ls('_t_q', F.length ? JSON.stringify(F.slice(-50)) : null);
+  const fail = (evs: any[]) => {
+    for (const e of evs) e.rc = -~e.rc;
+    F.push(...evs);
+    save();
+    if (tries < 5 && !rtm) rtm = setTimeout(() => ((rtm = 0), post(F.splice(0, 50), ++tries)), Math.min(2 ** tries, 60) * 1e3);
   };
+  const post = (evs: any[], retry?: number) =>
+    fetch(api, { method: 'POST', keepalive: true, headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(evs) })
+      .then((r) => {
+        if (r.status > 499 || r.status == 408 || r.status == 429) throw 0;
+        retry && save();
+      })
+      .catch(() => fail(evs));
+  const flush = () => {
+    if (q.length && !n.sendBeacon(api, JSON.stringify(q))) fail(q);
+    q = [];
+  };
+  const send = (t: string, x: any = {}, src = '') => {
+    const ev = { s: site, t, a, ss: sess(src), uid: U, u: l.href, rt: route, env: D.env, w: +!!n.webdriver, ...x };
+    if (t == 'pageview') post([ev]);
+    else if (q.push(ev) > 49) post(q), (q = []);
+  };
+  const old = ls('_t_q');
+  if (old) {
+    ls('_t_q', null);
+    try {
+      post(JSON.parse(old));
+    } catch {}
+  }
 
   // per-page state
   let started = 0, pu = l.href, last = l.pathname + l.search;
@@ -92,6 +122,7 @@
   let left = 0;
   const leave = () => {
     if (!left) (left = 1), (acc = cur()), (t0 = 0), clearTimeout(tm), eng();
+    flush();
   };
   const hide = () => (vis() ? ((left = 0), (t0 = Date.now()), arm()) : leave());
 
@@ -110,9 +141,9 @@
   w.__trail = send; // also the double-load guard; t.x.js reports through it
 
   // queue stub: window.trail was a function collecting into window.trailq
-  const q = typeof w.trail == 'function' ? w.trailq || [] : [];
+  const tq = typeof w.trail == 'function' ? w.trailq || [] : [];
   w.trail = api_;
-  q.forEach((c: any) => (api_ as any)[c[0]]?.(c[1], c[2]));
+  tq.forEach((c: any) => (api_ as any)[c[0]]?.(c[1], c[2]));
 
   d.addEventListener('visibilitychange', hide); // document, not window: Safari doesn't bubble it to window
   addEventListener('pagehide', leave);

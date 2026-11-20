@@ -20,7 +20,7 @@
         done = 1;
         for (const k in m) m[k] && send('vital', { n: k, d: { value: +m[k].toFixed(3) } });
       }
-    });
+    }, true); // capture: runs before the core's listener, so vitals join its leave batch
   }
   if (D.rage != null) {
     let c: number[][] = [];
