@@ -52,3 +52,11 @@ CREATE TABLE IF NOT EXISTS goals(
   created INTEGER NOT NULL,
   UNIQUE(site_id,name)
 );
+
+-- Sites ingest accepts. origins is a comma list of extra hosts or *.suffix patterns.
+CREATE TABLE IF NOT EXISTS sites(
+  id TEXT PRIMARY KEY,
+  domain TEXT NOT NULL,
+  origins TEXT NOT NULL DEFAULT '',
+  created INTEGER NOT NULL
+);
