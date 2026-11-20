@@ -1,4 +1,5 @@
-import type { Metric } from './api'
+import type { Delivery, Metric } from './api'
+import { formatRate } from './goals'
 
 const nf = new Intl.NumberFormat('en-US')
 
@@ -35,4 +36,11 @@ export function dur(ms: number): string {
   const m = Math.floor(s / 60)
   if (m < 60) return s % 60 ? `${m}m${s % 60}s` : `${m}m`
   return `${Math.floor(m / 60)}h${m % 60 ? `${m % 60}m` : ''}`
+}
+
+/** Header "Delivery health" line: "12,840 events in range · 1.7% arrived on a retry". */
+export function deliveryText(d: Partial<Delivery>): string {
+  const n = d.events ?? 0
+  if (!n) return 'No events in range'
+  return `${num(n)} ${n === 1 ? 'event' : 'events'} in range · ${formatRate(d.retriedRate ?? 0)} arrived on a retry`
 }

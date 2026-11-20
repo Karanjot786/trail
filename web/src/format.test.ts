@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { badgeTone, delta, num, pct } from './format'
+import { badgeTone, delta, deliveryText, num, pct } from './format'
 
 describe('format', () => {
   it('delta gives a signed rounded percent change', () => {
@@ -29,5 +29,12 @@ describe('format', () => {
     expect(badgeTone('pageviews', 0.2)).toBe('good')
     expect(badgeTone('bounce', 0.2)).toBe('bad')
     expect(badgeTone('visitors', 0)).toBe('neutral')
+  })
+
+  it('deliveryText summarises delivery health, with a plain line for an empty range', () => {
+    expect(deliveryText({ events: 0 })).toBe('No events in range')
+    expect(deliveryText({ events: 12840, retried: 218, retriedRate: 0.017 })).toBe('12,840 events in range · 1.7% arrived on a retry')
+    expect(deliveryText({ events: 5, retried: 0, retriedRate: 0 })).toBe('5 events in range · 0% arrived on a retry')
+    expect(deliveryText({ events: 1, retried: 0, retriedRate: 0 })).toBe('1 event in range · 0% arrived on a retry')
   })
 })

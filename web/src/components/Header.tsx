@@ -1,7 +1,18 @@
-import { useEffect, useState } from 'react'
-import { CalendarIcon, CheckIcon, ExternalLinkIcon, GlobeIcon, LinkIcon, MoreHorizontalIcon, RefreshCwIcon, UsersIcon } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { Popover } from 'radix-ui'
+import {
+  ActivityIcon,
+  CalendarIcon,
+  CheckIcon,
+  ExternalLinkIcon,
+  GlobeIcon,
+  LinkIcon,
+  MoreHorizontalIcon,
+  RefreshCwIcon,
+  UsersIcon,
+} from 'lucide-react'
 import { api, type Env, type Site } from '@/api'
-import { RANGES, useDashboard, type Range } from '@/state'
+import { RANGES, queryKey, useDashboard, type Range } from '@/state'
 import { useFetch } from '@/useFetch'
 import { Select, SelectContent, SelectGroup, SelectItem, SelectSeparator, SelectTrigger, SelectValue } from './ui/select'
 import {
@@ -14,7 +25,8 @@ import {
   DropdownMenuTrigger,
 } from './ui/dropdown-menu'
 import { dateToTs, dayKey, DAY } from '@/time'
-import { num } from '@/format'
+import { deliveryText, num } from '@/format'
+import { formatRate } from '@/goals'
 
 export function Header({ sites }: { sites: Site[] }) {
   const d = useDashboard()
@@ -172,34 +184,96 @@ function CustomRange() {
 function MoreMenu() {
   const d = useDashboard()
   const [copied, setCopied] = useState(false)
+  const [health, setHealth] = useState(false)
+  // The menu hands focus back to its trigger as it closes; skip that when it is opening the popover,
+  // or the popover would see focus leave and close itself straight away.
+  const toPopover = useRef(false)
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        aria-label="More"
-        className="pressable grid size-10 shrink-0 place-items-center rounded-lg border border-border text-fg outline-none hover:bg-card focus-visible:ring-2 focus-visible:ring-ring data-[state=open]:bg-card"
-      >
-        <MoreHorizontalIcon className="size-5" strokeWidth={1.75} />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        <DropdownMenuItem onSelect={() => d.refresh()}>
-          <RefreshCwIcon strokeWidth={1.5} /> Refresh
-        </DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => d.set({ view: 'visitors', person: '' }, { push: true })}>
-          <UsersIcon strokeWidth={1.5} /> View visitors
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem
-          onSelect={(e) => {
-            e.preventDefault()
-            void navigator.clipboard?.writeText(location.href).then(() => {
-              setCopied(true)
-              setTimeout(() => setCopied(false), 1200)
-            })
+    <Popover.Root open={health} onOpenChange={setHealth}>
+      <DropdownMenu>
+        <Popover.Anchor asChild>
+          <DropdownMenuTrigger
+            aria-label="More"
+            className="pressable grid size-10 shrink-0 place-items-center rounded-lg border border-border text-fg outline-none hover:bg-card focus-visible:ring-2 focus-visible:ring-ring data-[state=open]:bg-card"
+          >
+            <MoreHorizontalIcon className="size-5" strokeWidth={1.75} />
+          </DropdownMenuTrigger>
+        </Popover.Anchor>
+        <DropdownMenuContent
+          align="end"
+          onCloseAutoFocus={(e) => {
+            if (toPopover.current) e.preventDefault()
+            toPopover.current = false
           }}
         >
-          {copied ? <CheckIcon strokeWidth={1.5} /> : <LinkIcon strokeWidth={1.5} />} {copied ? 'Copied' : 'Copy link'}
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+          <DropdownMenuItem onSelect={() => d.refresh()}>
+            <RefreshCwIcon strokeWidth={1.5} /> Refresh
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => d.set({ view: 'visitors', person: '' }, { push: true })}>
+            <UsersIcon strokeWidth={1.5} /> View visitors
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onSelect={() => {
+              toPopover.current = true
+              setHealth(true)
+            }}
+          >
+            <ActivityIcon strokeWidth={1.5} /> Delivery health
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            onSelect={(e) => {
+              e.preventDefault()
+              void navigator.clipboard?.writeText(location.href).then(() => {
+                setCopied(true)
+                setTimeout(() => setCopied(false), 1200)
+              })
+            }}
+          >
+            {copied ? <CheckIcon strokeWidth={1.5} /> : <LinkIcon strokeWidth={1.5} />} {copied ? 'Copied' : 'Copy link'}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <Popover.Portal>
+        <Popover.Content
+          align="end"
+          sideOffset={6}
+          collisionPadding={16}
+          aria-label="Delivery health"
+          className="pop z-50 w-[min(320px,calc(100vw-32px))] rounded-xl border border-border bg-card p-4 shadow-[0_8px_30px_rgb(0_0_0/0.6)] outline-none"
+        >
+          <DeliveryHealth open={health} />
+        </Popover.Content>
+      </Popover.Portal>
+    </Popover.Root>
+  )
+}
+
+/** How many events reached the server, and what share needed a resend. */
+function DeliveryHealth({ open }: { open: boolean }) {
+  const d = useDashboard()
+  const { data } = useFetch(open ? queryKey(d.query, 'delivery') : null, (s) => api.delivery(d.query, s))
+  const empty = data && data.events === 0
+  // Values sit in fixed-height slots, so loading → loaded never changes the popover's size.
+  const value = (v: string | undefined) => (
+    <span className="num block h-8 text-2xl font-semibold leading-8 tracking-[-0.02em] text-fg">{v ?? ''}</span>
+  )
+  return (
+    <div className="flex flex-col gap-3">
+      <p className="text-sm font-medium text-fg">Delivery health</p>
+      <dl className="grid grid-cols-2 gap-3">
+        <div className="flex flex-col gap-1 rounded-lg border border-border bg-black px-3 py-2.5">
+          <dt className="text-[13px] text-muted">Events</dt>
+          <dd>{value(data && (empty ? '—' : num(data.events)))}</dd>
+        </div>
+        <div className="flex flex-col gap-1 rounded-lg border border-border bg-black px-3 py-2.5">
+          <dt className="text-[13px] text-muted">On a retry</dt>
+          <dd>{value(data && (empty ? '—' : formatRate(data.retriedRate)))}</dd>
+        </div>
+      </dl>
+      <p className="min-h-10 text-pretty text-[13px] leading-5 text-muted" aria-live="polite">
+        {data ? `${deliveryText(data)}. ` : ''}A retry means the first send failed, often on a weak mobile connection.
+      </p>
+    </div>
   )
 }
