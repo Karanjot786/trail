@@ -3,9 +3,16 @@
 import { sizes, benchData } from '../lib/numbers';
 const files = [
   ['t.p.js', 'Private only', sizes.private],
-  ['t.js', 'Full, private until consent by default', sizes.full],
-  ['t.x.js', 'Extras: web vitals and rage clicks, loaded only when asked for', sizes.extras],
+  ['t.js', 'All three modes; private until consent by default', sizes.full],
+  ['t.x.js', 'Extras: web vitals, rage clicks, form submits and errors, loaded only when asked for', sizes.extras],
 ] as const;
+const labels: Record<string, string> = {
+  't.js': 't.js, default mode',
+  't.js full': 't.js, data-mode="full"',
+  't.p.js': 't.p.js',
+  't.js+x': 't.js with vitals and rage clicks',
+};
+const rows = benchData ? Object.entries(benchData.results).filter(([v]) => v in labels) : [];
 const r = (m?: { median: number; min: number; max: number }, d = 1) =>
   m ? `${m.median.toFixed(d)} (${m.min.toFixed(d)} to ${m.max.toFixed(d)})` : 'not measured';
 ---
@@ -24,8 +31,8 @@ const r = (m?: { median: number; min: number; max: number }, d = 1) =>
     <table>
       <thead><tr><th>Variant</th><th>Script ms</th><th>Heap KB</th><th>Listeners and timers</th><th>Requests per pageview</th></tr></thead>
       <tbody>
-        {Object.entries(benchData.results).map(([v, m]) => (
-          <tr><td><code>{v}</code></td><td>{r(m.script, 2)}</td><td>{r(m.heap, 0)}</td><td>{r(m.listeners, 0)}</td><td>{r(m.requests, 0)}</td></tr>
+        {rows.map(([v, m]) => (
+          <tr><td>{labels[v]}</td><td>{r(m.script, 2)}</td><td>{r(m.heap, 0)}</td><td>{r(m.listeners, 0)}</td><td>{r(m.requests, 0)}</td></tr>
         ))}
       </tbody>
     </table>

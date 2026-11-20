@@ -44,9 +44,9 @@ export const binary = binaryMB();
 export function stats(): Stat[] {
   const out: Stat[] = [];
   if (sizes.private) out.push({ value: sizes.private.toLocaleString('en-US'), unit: 'B', label: 'Private tracker, t.p.js, gzipped' });
-  if (sizes.full) out.push({ value: sizes.full.toLocaleString('en-US'), unit: 'B', label: 'Full tracker, t.js, gzipped' });
+  if (sizes.full) out.push({ value: sizes.full.toLocaleString('en-US'), unit: 'B', label: 'Standard tracker, t.js, gzipped' });
   const r = benchData?.results?.['t.js'];
-  if (r?.script) out.push({ value: r.script.median.toFixed(1), unit: 'ms', label: 'Script time at page load' });
+  if (r?.script) out.push({ value: r.script.median.toFixed(1), unit: 'ms', label: 'Script time at page load, t.js' });
   if (r?.heap) out.push({ value: Math.max(0, r.heap.median).toFixed(0), unit: 'KB', label: 'Memory added to the page' });
   if (r?.requests) out.push({ value: String(r.requests.median), unit: '', label: 'Requests per pageview' });
   if (binary) out.push({ value: binary.toFixed(0), unit: 'MB', label: 'Server binary, dashboard included' });

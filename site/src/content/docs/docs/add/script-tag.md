@@ -11,7 +11,7 @@ This works on any site, with or without a framework. Set up the [`/_t/*` rewrite
 <script defer src="/_t/t.js" data-site="mysite"></script>
 ```
 
-`data-site` must match an id in `TRAIL_SITES`. That is all you need for pageviews, single-page-app navigation, time on page, scroll depth, outbound link clicks, form submits and JavaScript errors.
+`data-site` must match an id in `TRAIL_SITES`. That is all you need for pageviews, single-page-app navigation, time on page, scroll depth and outbound link clicks. By default the tracker is private until the visitor consents; see [Privacy modes](/docs/tracking/privacy/).
 
 ## Attributes
 
@@ -22,10 +22,26 @@ This works on any site, with or without a framework. Set up the [`/_t/*` rewrite
 | `data-env` | derived by the server | Tag events, e.g. `production` or `preview`. See [Environments](/docs/operations/configuration/#environments) |
 | `data-dev` | off | Also track on `localhost`, `127.*` and `[::1]` |
 | `data-route` | none | Route template for pageviews, such as `/blog/[slug]`, so the dashboard can group them |
-| `data-vitals` | off | Load `t.x.js` and report web vitals |
-| `data-rage` | off | Load `t.x.js` and report rage clicks |
+| `data-mode` | private until consent | `full` stores an id from the first page; `private` never stores anything. See [Privacy modes](/docs/tracking/privacy/) |
+| `data-dnt` | honour the signals | `off` tracks visitors who send Do Not Track or Global Privacy Control. See [DNT and GPC](/docs/tracking/dnt/) |
+| `data-vitals` | off | Report web vitals |
+| `data-rage` | off | Report rage clicks |
+| `data-forms` | off | Report form submits |
+| `data-errors` | off | Report JavaScript errors |
 
-Boolean attributes are on when present, whatever their value: `data-dev` and `data-dev="1"` mean the same.
+On/off attributes are on when present, whatever their value: `data-dev` and `data-dev="1"` mean the same.
+
+The last four load a small second file, `t.x.js`, only when one of them is set. See [Extras](/docs/tracking/extras/).
+
+To name clicks on buttons and links without code, add `data-trail="Name"` to the element itself, not to the script tag. See [Named clicks](/docs/tracking/named-clicks/).
+
+## The private-only file
+
+`/_t/t.p.js` takes the same attributes except `data-mode`. It never stores anything in the browser and leaves out identify, consent upgrades and named clicks, which makes it smaller:
+
+```html
+<script defer src="/_t/t.p.js" data-site="mysite"></script>
+```
 
 ## Calls before the script loads
 
@@ -37,6 +53,8 @@ The tag is `defer`, so code that runs earlier cannot call `trail` yet. Define a 
 </script>
 <script defer src="/_t/t.js" data-site="mysite"></script>
 ```
+
+Before the tracker loads, call the stub with the method name first, as in `trail('track', 'Signup', { plan: 'pro' })`. Once it has loaded, `window.trail` is the real API: `trail.track('Signup')`. If the same code can run on either side of that moment, the [npm package](/docs/add/npm/) handles both for you.
 
 ## Avoid double pageviews
 

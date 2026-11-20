@@ -753,7 +753,7 @@ h3 {
 /* Numbers */
 .stats {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   margin-block: 0;
   border-top: 1px solid var(--line);
 }
