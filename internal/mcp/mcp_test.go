@@ -12,12 +12,19 @@ import (
 
 	"trail/internal/auth"
 	"trail/internal/query"
+	"trail/internal/sites"
 	"trail/internal/store"
 )
 
 var fixedNow = time.Date(2026, 11, 20, 12, 0, 0, 0, time.UTC)
 
 func setup(t *testing.T) (http.Handler, *sql.DB) {
+	t.Helper()
+	h, db, _ := setupReg(t)
+	return h, db
+}
+
+func setupReg(t *testing.T) (http.Handler, *sql.DB, *sites.Registry) {
 	t.Helper()
 	now = func() time.Time { return fixedNow }
 	t.Cleanup(func() { now = time.Now })
@@ -34,7 +41,28 @@ func setup(t *testing.T) (http.Handler, *sql.DB) {
 	if err := st.Flush(); err != nil {
 		t.Fatal(err)
 	}
-	return New(st.DB(), map[string]string{"s": "example.com"}, time.UTC), st.DB()
+	reg, err := sites.Open(st.DB())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := reg.Add(sites.Site{ID: "s", Domain: "example.com"}); err != nil {
+		t.Fatal(err)
+	}
+	return New(st.DB(), reg, time.UTC), st.DB(), reg
+}
+
+func TestMCPListSitesIsLive(t *testing.T) {
+	h, _, reg := setupReg(t)
+	if _, err := reg.Add(sites.Site{ID: "new", Domain: "new.dev"}); err != nil {
+		t.Fatal(err)
+	}
+	res := callTool(t, h, "list_sites", map[string]any{})
+	if string(res.StructuredContent) != `[{"id":"new","domain":"new.dev"},{"id":"s","domain":"example.com"}]` {
+		t.Errorf("list_sites %s", res.StructuredContent)
+	}
+	if res := callTool(t, h, "get_stats", map[string]any{"site": "new"}); res.IsError {
+		t.Errorf("get_stats on a site added after start: %+v", res.Content)
+	}
 }
 
 type rpcResp struct {

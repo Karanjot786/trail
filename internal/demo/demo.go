@@ -17,6 +17,7 @@ import (
 	"trail/internal/api"
 	"trail/internal/query"
 	"trail/internal/seed"
+	"trail/internal/sites"
 	"trail/internal/store"
 )
 
@@ -85,7 +86,16 @@ func (d *demo) reseed() error {
 		_ = st.Close()
 		return err
 	}
-	next := &snapshot{st: st, h: api.New(st.DB(), map[string]string{siteID: domain}, d.tz)}
+	// The registry lives in the same private database, so it holds only the demo site.
+	reg, err := sites.Open(st.DB())
+	if err == nil {
+		_, err = reg.Add(sites.Site{ID: siteID, Domain: domain})
+	}
+	if err != nil {
+		_ = st.Close()
+		return fmt.Errorf("demo site: %w", err)
+	}
+	next := &snapshot{st: st, h: api.New(st.DB(), reg, d.tz)}
 	if old := d.snap.Swap(next); old != nil {
 		time.AfterFunc(grace, func() { _ = old.st.Close() })
 	}

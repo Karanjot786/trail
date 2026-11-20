@@ -10,10 +10,18 @@ import (
 	"testing"
 	"time"
 
+	"trail/internal/sites"
 	"trail/internal/store"
 )
 
 func setup(t *testing.T) http.Handler {
+	t.Helper()
+	h, _ := setupReg(t)
+	return h
+}
+
+// setupReg serves sites s (example.com, one event) and b (b.com, none).
+func setupReg(t *testing.T) (http.Handler, *sites.Registry) {
 	t.Helper()
 	st, err := store.Open(filepath.Join(t.TempDir(), "a.db"))
 	if err != nil {
@@ -25,8 +33,17 @@ func setup(t *testing.T) http.Handler {
 	if err := st.Flush(); err != nil {
 		t.Fatal(err)
 	}
+	reg, err := sites.Open(st.DB())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for id, d := range map[string]string{"s": "example.com", "b": "b.com"} {
+		if _, err := reg.Add(sites.Site{ID: id, Domain: d}); err != nil {
+			t.Fatal(err)
+		}
+	}
 	ist, _ := time.LoadLocation("Asia/Kolkata")
-	return New(st.DB(), map[string]string{"s": "example.com", "b": "b.com"}, ist)
+	return New(st.DB(), reg, ist), reg
 }
 
 func get(h http.Handler, url string) *httptest.ResponseRecorder {
@@ -86,7 +103,7 @@ func TestAPIEndpointsShape(t *testing.T) {
 		{"/api/breakdown?dim=path&" + rng(), []string{"key", "visitors", "pageviews", "total"}},
 		{"/api/visitors?" + rng(), []string{"person", "identified", "firstSeen", "lastSeen", "visits", "country", "device", "source"}},
 		{"/api/journey?site=s&person=A", []string{"sessionId", "start", "source", "steps"}},
-		{"/api/sites", []string{"id", "domain"}},
+		{"/api/sites", []string{"id", "domain", "origins", "created", "lastEventAt", "events24h"}},
 	}
 	for _, tt := range tests {
 		w := get(h, tt.url)

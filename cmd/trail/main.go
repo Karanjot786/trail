@@ -17,6 +17,7 @@ import (
 	"os/signal"
 	"path"
 	"slices"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -28,6 +29,7 @@ import (
 	"trail/internal/ingest"
 	"trail/internal/mcp"
 	"trail/internal/seed"
+	"trail/internal/sites"
 	"trail/internal/store"
 	"trail/web"
 )
@@ -112,12 +114,13 @@ func runServe() error {
 		fmt.Fprintln(os.Stderr, "trail: TRAIL_PASSWORD is required (it protects the dashboard)")
 		os.Exit(1)
 	}
-	sites, err := parseSites(os.Getenv("TRAIL_SITES"))
+	envSites, err := parseSites(os.Getenv("TRAIL_SITES"))
 	if err != nil {
 		return err
 	}
-	if len(sites) == 0 {
-		log.Print("warning: TRAIL_SITES is empty, so every ingest request will be rejected")
+	rps, err := parseRPS(os.Getenv("TRAIL_INGEST_RPS"))
+	if err != nil {
+		return err
 	}
 	tz, err := time.LoadLocation(env("TRAIL_TZ", "Asia/Kolkata"))
 	if err != nil {
@@ -140,6 +143,16 @@ func runServe() error {
 	if err != nil {
 		return err
 	}
+	reg, err := sites.Open(st.DB())
+	if err == nil {
+		err = addEnvSites(reg, envSites)
+	}
+	if err != nil {
+		return errors.Join(err, st.Close())
+	}
+	if len(reg.List()) == 0 {
+		log.Print("no sites yet: add one in the dashboard (Settings) or with TRAIL_SITES")
+	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -158,7 +171,7 @@ func runServe() error {
 		}
 		log.Print("demo: serving sample data at /demo and /api/demo/")
 	}
-	mux := routes(st, geo, sites, tz, a, dist, demoH)
+	mux := routes(st, geo, reg, tz, a, dist, demoH, rps)
 
 	srv := &http.Server{
 		Addr:              env("TRAIL_ADDR", ":8080"),
@@ -170,7 +183,7 @@ func runServe() error {
 	}
 	errc := make(chan error, 1)
 	go func() { errc <- srv.ListenAndServe() }()
-	log.Printf("trail listening on %s (sites: %d, api tokens: %d)", srv.Addr, len(sites), len(tokens))
+	log.Printf("trail listening on %s (sites: %d, api tokens: %d)", srv.Addr, len(reg.List()), len(tokens))
 
 	select {
 	case err = <-errc:
@@ -185,15 +198,44 @@ func runServe() error {
 	return errors.Join(err, st.Close())
 }
 
+// addEnvSites registers TRAIL_SITES entries that the database lacks. Sites
+// already there keep any edits made in the dashboard.
+func addEnvSites(reg *sites.Registry, env map[string]string) error {
+	for id, domain := range env {
+		if _, err := reg.Add(sites.Site{ID: id, Domain: domain}); err != nil && !errors.Is(err, sites.ErrExists) {
+			return fmt.Errorf("TRAIL_SITES %s: %w", id, err)
+		}
+	}
+	return nil
+}
+
+// parseRPS reads TRAIL_INGEST_RPS: requests per second per client IP on
+// /_t/e, with a burst of twice that. Default 50; 0 turns the limit off.
+func parseRPS(s string) (float64, error) {
+	if s == "" {
+		return 50, nil
+	}
+	n, err := strconv.ParseFloat(s, 64)
+	if err != nil || n < 0 || n != n {
+		return 0, fmt.Errorf("TRAIL_INGEST_RPS: want a number >= 0, got %q", s)
+	}
+	return n, nil
+}
+
 // routes builds the server's handler tree. demoH (nil when TRAIL_DEMO is off)
 // is the public demo API; it owns its own DB and refuses anything but GET.
-func routes(st *store.Store, geo *enrich.Geo, sites map[string]string, tz *time.Location, a *auth.Auth, dist fs.FS, demoH http.Handler) *http.ServeMux {
-	apiH := api.New(st.DB(), sites, tz)
+// rps limits ingest per client IP (0: no limit).
+func routes(st *store.Store, geo *enrich.Geo, reg *sites.Registry, tz *time.Location, a *auth.Auth, dist fs.FS, demoH http.Handler, rps float64) *http.ServeMux {
+	apiH := api.New(st.DB(), reg, tz)
+	ingestOpts := []ingest.Option{ingest.WithPrivate(ingest.NewPrivate(tz, time.Now))}
+	if rps > 0 {
+		ingestOpts = append(ingestOpts, ingest.WithRateLimit(rps, int(max(1, 2*rps))))
+	}
 	v1 := rewrite("/api/v1/", "/api/", apiH)
 	v1Read, v1Write := a.Bearer("read", v1), a.Bearer("write", v1)
 
 	mux := http.NewServeMux()
-	mux.Handle("/_t/e", ingest.New(st, geo, sites, ingest.WithPrivate(ingest.NewPrivate(tz, time.Now))))
+	mux.Handle("/_t/e", ingest.New(st, geo, reg, ingestOpts...))
 	mux.Handle("/_t/", ingest.TrackerFiles())
 	mux.HandleFunc("POST /api/login", a.Login)
 	mux.Handle("/api/", a.Require(apiH))
@@ -202,9 +244,9 @@ func routes(st *store.Store, geo *enrich.Geo, sites map[string]string, tz *time.
 			v1Read.ServeHTTP(w, r)
 			return
 		}
-		v1Write.ServeHTTP(w, r) // goal create/delete
+		v1Write.ServeHTTP(w, r) // goal and site changes
 	}))
-	mux.Handle("/mcp", a.Bearer("read", mcp.New(st.DB(), sites, tz)))
+	mux.Handle("/mcp", a.Bearer("read", mcp.New(st.DB(), reg, tz)))
 	if demoH != nil {
 		mux.Handle("/api/demo/", demoH) // unauthenticated; rewrites to /api/ itself
 	}

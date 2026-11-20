@@ -8,23 +8,17 @@ import (
 	"log"
 	"mime"
 	"net/http"
-	"slices"
 	"strconv"
 	"strings"
 	"time"
 
 	"trail/internal/query"
+	"trail/internal/sites"
 )
-
-type site struct {
-	ID     string `json:"id"`
-	Domain string `json:"domain"`
-}
 
 type server struct {
 	db    *sql.DB
-	sites map[string]string
-	list  []site
+	sites *sites.Registry
 	tz    *time.Location
 }
 
@@ -34,16 +28,16 @@ const maxSpan = 400 * 24 * 60 * 60 * 1000
 // errBadRequest marks client errors that map to 400.
 var errBadRequest = errors.New("bad request")
 
-// New returns the /api/* handler. sites maps id to domain; tz sets day buckets.
-func New(db *sql.DB, sites map[string]string, tz *time.Location) http.Handler {
-	s := &server{db: db, sites: sites, tz: tz, list: []site{}}
-	for id, d := range sites {
-		s.list = append(s.list, site{ID: id, Domain: d})
-	}
-	slices.SortFunc(s.list, func(a, b site) int { return strings.Compare(a.ID, b.ID) })
+// New returns the /api/* handler. reg holds the sites; tz sets day buckets.
+func New(db *sql.DB, reg *sites.Registry, tz *time.Location) http.Handler {
+	s := &server{db: db, sites: reg, tz: tz}
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /api/sites", func(w http.ResponseWriter, _ *http.Request) { writeJSON(w, s.list) })
+	mux.HandleFunc("GET /api/sites", s.listSites)
+	mux.HandleFunc("POST /api/sites", s.createSite)
+	mux.HandleFunc("PATCH /api/sites/{id}", s.updateSite)
+	mux.HandleFunc("DELETE /api/sites/{id}", s.deleteSite)
+	mux.HandleFunc("GET /api/sites/{id}/status", s.siteStatus)
 	mux.HandleFunc("GET /api/stats", s.handle(func(p query.Params, _ *http.Request) (any, error) {
 		return query.Stats(s.db, p)
 	}))
@@ -82,7 +76,7 @@ const maxGoalBody = 4 << 10
 
 func (s *server) listGoals(w http.ResponseWriter, r *http.Request) {
 	site := r.URL.Query().Get("site")
-	if _, ok := s.sites[site]; !ok {
+	if !s.known(site) {
 		http.Error(w, "unknown site", http.StatusBadRequest)
 		return
 	}
@@ -95,21 +89,13 @@ func (s *server) listGoals(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) createGoal(w http.ResponseWriter, r *http.Request) {
-	// A non-JSON type (e.g. text/plain) is what a cross-site form can send.
-	if mt, _, err := mime.ParseMediaType(r.Header.Get("Content-Type")); err != nil || mt != "application/json" {
-		http.Error(w, "Content-Type must be application/json", http.StatusUnsupportedMediaType)
-		return
-	}
 	var in struct {
 		Site, Name, Kind, Match string
 	}
-	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxGoalBody))
-	dec.DisallowUnknownFields()
-	if err := dec.Decode(&in); err != nil {
-		http.Error(w, "bad body", http.StatusBadRequest)
+	if !readJSON(w, r, &in) {
 		return
 	}
-	if _, ok := s.sites[in.Site]; !ok {
+	if !s.known(in.Site) {
 		http.Error(w, "unknown site", http.StatusBadRequest)
 		return
 	}
@@ -125,7 +111,7 @@ func (s *server) createGoal(w http.ResponseWriter, r *http.Request) {
 func (s *server) deleteGoal(w http.ResponseWriter, r *http.Request) {
 	site := r.URL.Query().Get("site")
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
-	if _, ok := s.sites[site]; !ok || err != nil {
+	if !s.known(site) || err != nil {
 		http.Error(w, "bad request", http.StatusBadRequest)
 		return
 	}
@@ -136,13 +122,37 @@ func (s *server) deleteGoal(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// readJSON decodes a small JSON body into v, or writes the error and returns false.
+func readJSON(w http.ResponseWriter, r *http.Request, v any) bool {
+	// A non-JSON type (e.g. text/plain) is what a cross-site form can send.
+	if mt, _, err := mime.ParseMediaType(r.Header.Get("Content-Type")); err != nil || mt != "application/json" {
+		http.Error(w, "Content-Type must be application/json", http.StatusUnsupportedMediaType)
+		return false
+	}
+	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxGoalBody))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(v); err != nil {
+		http.Error(w, "bad body", http.StatusBadRequest)
+		return false
+	}
+	return true
+}
+
+func (s *server) known(id string) bool {
+	_, ok := s.sites.Get(id)
+	return ok
+}
+
 // fail maps err to 400, 404 or 500.
 func (s *server) fail(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
-	case errors.Is(err, errBadRequest) || errors.Is(err, query.ErrBadDim) || errors.Is(err, query.ErrBadMetric) || errors.Is(err, query.ErrBadGoal):
+	case errors.Is(err, errBadRequest) || errors.Is(err, query.ErrBadDim) || errors.Is(err, query.ErrBadMetric) ||
+		errors.Is(err, query.ErrBadGoal) || errors.Is(err, sites.ErrInvalid):
 		http.Error(w, err.Error(), http.StatusBadRequest)
-	case errors.Is(err, query.ErrGoalNotFound):
+	case errors.Is(err, query.ErrGoalNotFound) || errors.Is(err, sites.ErrNotFound):
 		http.Error(w, err.Error(), http.StatusNotFound)
+	case errors.Is(err, sites.ErrExists):
+		http.Error(w, err.Error(), http.StatusConflict)
 	default:
 		log.Printf("api %s: %v", r.URL.Path, err)
 		http.Error(w, "internal error", http.StatusInternalServerError)
@@ -169,7 +179,7 @@ func (s *server) handle(fn func(query.Params, *http.Request) (any, error)) http.
 func (s *server) params(r *http.Request) (query.Params, error) {
 	q := r.URL.Query()
 	p := query.Params{Site: q.Get("site"), Env: q.Get("env"), TZ: s.tz, Filters: map[string]string{}}
-	if _, ok := s.sites[p.Site]; !ok {
+	if !s.known(p.Site) {
 		return p, errors.New("unknown site")
 	}
 	switch p.Env {

@@ -10,13 +10,13 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"slices"
 	"strings"
 	"time"
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"trail/internal/query"
+	"trail/internal/sites"
 )
 
 // maxBody caps a JSON-RPC request; tool arguments are tiny.
@@ -31,7 +31,7 @@ type site struct {
 
 type server struct {
 	db    *sql.DB
-	sites map[string]string
+	sites *sites.Registry
 	tz    *time.Location
 }
 
@@ -72,8 +72,8 @@ type (
 
 // New returns the /mcp handler. It is stateless: every POST carries one
 // JSON-RPC message and gets a JSON reply.
-func New(db *sql.DB, sites map[string]string, tz *time.Location) http.Handler {
-	s := &server{db: db, sites: sites, tz: tz}
+func New(db *sql.DB, reg *sites.Registry, tz *time.Location) http.Handler {
+	s := &server{db: db, sites: reg, tz: tz}
 	srv := sdk.NewServer(&sdk.Implementation{Name: "trail", Title: "Trail analytics", Version: "2"}, &sdk.ServerOptions{
 		Instructions: "Read-only web analytics. Call list_sites first; every other tool needs a site id.",
 	})
@@ -150,16 +150,16 @@ func New(db *sql.DB, sites map[string]string, tz *time.Location) http.Handler {
 }
 
 func (s *server) list() []site {
-	out := make([]site, 0, len(s.sites))
-	for id, d := range s.sites {
-		out = append(out, site{ID: id, Domain: d})
+	list := s.sites.List()
+	out := make([]site, 0, len(list))
+	for _, x := range list {
+		out = append(out, site{ID: x.ID, Domain: x.Domain})
 	}
-	slices.SortFunc(out, func(a, b site) int { return strings.Compare(a.ID, b.ID) })
 	return out
 }
 
 func (s *server) site(id string) error {
-	if _, ok := s.sites[id]; !ok {
+	if _, ok := s.sites.Get(id); !ok {
 		return fmt.Errorf("unknown site %q; call list_sites", id)
 	}
 	return nil

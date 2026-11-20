@@ -12,6 +12,7 @@ import (
 	"trail/internal/auth"
 	"trail/internal/demo"
 	"trail/internal/enrich"
+	"trail/internal/sites"
 	"trail/internal/store"
 )
 
@@ -78,7 +79,78 @@ func testRoutesDemo(t *testing.T, demoH http.Handler) http.Handler {
 	}
 	a := auth.New("pw", []byte("0123456789abcdef0123456789abcdef"))
 	a.SetTokens(toks)
-	return routes(st, geo, map[string]string{"s": "example.com"}, time.UTC, a, fstest.MapFS{"index.html": {Data: []byte("app")}}, demoH)
+	reg, err := sites.Open(st.DB())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := addEnvSites(reg, map[string]string{"s": "example.com"}); err != nil {
+		t.Fatal(err)
+	}
+	return routes(st, geo, reg, time.UTC, a, fstest.MapFS{"index.html": {Data: []byte("app")}}, demoH, 0)
+}
+
+func TestAddEnvSitesKeepsEdits(t *testing.T) {
+	st, err := store.Open(filepath.Join(t.TempDir(), "e.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = st.Close() })
+	reg, _ := sites.Open(st.DB())
+	if err := addEnvSites(reg, map[string]string{"a": "a.com"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := reg.Update(sites.Site{ID: "a", Domain: "edited.com"}); err != nil {
+		t.Fatal(err)
+	}
+	// A restart with the same TRAIL_SITES must not undo the dashboard edit.
+	if err := addEnvSites(reg, map[string]string{"a": "a.com", "b": "b.com"}); err != nil {
+		t.Fatal(err)
+	}
+	if s, _ := reg.Get("a"); s.Domain != "edited.com" {
+		t.Errorf("env overwrote edit: %+v", s)
+	}
+	if _, ok := reg.Get("b"); !ok {
+		t.Error("new env site not added")
+	}
+	if err := addEnvSites(reg, map[string]string{"c": "https://c.com"}); err == nil {
+		t.Error("invalid env domain: want error")
+	}
+}
+
+func TestV1SitesNeedWriteScope(t *testing.T) {
+	h := testRoutes(t)
+	body := `{"id":"blog","domain":"blog.dev"}`
+	if w := do(h, "POST", "/api/v1/sites", testRead, body); w.Code != http.StatusForbidden {
+		t.Fatalf("read POST: %d", w.Code)
+	}
+	if w := do(h, "POST", "/api/v1/sites", testWrite, body); w.Code != http.StatusCreated {
+		t.Fatalf("write POST: %d %s", w.Code, w.Body)
+	}
+	if w := do(h, "PATCH", "/api/v1/sites/blog", testRead, `{"origins":[]}`); w.Code != http.StatusForbidden {
+		t.Fatalf("read PATCH: %d", w.Code)
+	}
+	if w := do(h, "GET", "/api/v1/sites/blog/status", testRead, ""); w.Code != 200 {
+		t.Fatalf("read status: %d %s", w.Code, w.Body)
+	}
+	if w := do(h, "DELETE", "/api/v1/sites/blog", testWrite, ""); w.Code != http.StatusNoContent {
+		t.Fatalf("write DELETE: %d", w.Code)
+	}
+}
+
+func TestIngestRouteChecksOrigin(t *testing.T) {
+	h := testRoutes(t)
+	ev := `{"s":"s","t":"pageview","a":"a1","u":"https://example.com/"}`
+	for origin, want := range map[string]int{"https://example.com": 204, "https://evil.com": 403, "": 403} {
+		r := httptest.NewRequest("POST", "/_t/e", strings.NewReader(ev))
+		if origin != "" {
+			r.Header.Set("Origin", origin)
+		}
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, r)
+		if w.Code != want {
+			t.Errorf("origin %q: %d, want %d", origin, w.Code, want)
+		}
+	}
 }
 
 func do(h http.Handler, method, path, token, body string) *httptest.ResponseRecorder {
@@ -233,5 +305,18 @@ func TestDemoRoutes(t *testing.T) {
 func TestDemoOffByDefault(t *testing.T) {
 	if w := do(testRoutes(t), "GET", "/api/demo/stats?site=demo", "", ""); w.Code != http.StatusUnauthorized {
 		t.Fatalf("demo mounted when off: %d", w.Code)
+	}
+}
+
+func TestParseRPS(t *testing.T) {
+	for in, want := range map[string]float64{"": 50, "10": 10, "0": 0, "2.5": 2.5} {
+		if got, err := parseRPS(in); err != nil || got != want {
+			t.Errorf("%q: %v %v", in, got, err)
+		}
+	}
+	for _, bad := range []string{"-1", "fast", "NaN"} {
+		if _, err := parseRPS(bad); err == nil {
+			t.Errorf("%q: want error", bad)
+		}
 	}
 }
