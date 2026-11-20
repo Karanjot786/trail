@@ -12,7 +12,7 @@ if (server) await new Promise((r) => setTimeout(r, 4000))
 
 let failed = false
 try {
-  for (const path of ['/docs/quickstart', '/docs/tracking/privacy']) {
+  for (const path of ['/', '/docs/quickstart', '/docs/tracking/privacy']) {
     for (const preset of ['desktop', 'mobile']) {
       const args = ['-y', 'lighthouse@13.6.0', `http://127.0.0.1:${PORT}${path}`,
         '--only-categories=performance,accessibility,best-practices,seo', '--output=json', '--quiet',
@@ -21,9 +21,10 @@ try {
       const out = execFileSync('npx', args, { maxBuffer: 64 << 20 }).toString()
       const c = JSON.parse(out).categories
       const s = { perf: c.performance.score, a11y: c.accessibility.score, bp: c['best-practices'].score, seo: c.seo.score }
-      const perfMin = preset === 'desktop' ? 0.95 : 0.9
+      const home = path === '/'
+      const perfMin = home ? (preset === 'desktop' ? 1 : 0.95) : preset === 'desktop' ? 0.95 : 0.9
       const bad = []
-      if (s.a11y < 0.95) bad.push('a11y<0.95')
+      if (s.a11y < (home ? 1 : 0.95)) bad.push(`a11y<${home ? 1 : 0.95}`)
       if (s.seo < 1) bad.push('seo<1')
       if (s.bp < 1) bad.push('best-practices<1')
       if (!ci && s.perf < perfMin) bad.push(`perf<${perfMin}`)
