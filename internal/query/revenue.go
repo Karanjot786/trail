@@ -99,21 +99,12 @@ SELECT person, session_id, ts, src, chan, utm_campaign, path, country, device FR
 	return out, nil
 }
 
-// firstTouches maps each person to their first session ever. People with no pageview get a Direct touch.
-func firstTouches(db *sql.DB, p Params, persons []string) (map[string]touch, error) {
-	all, err := sessionTouches(db, p, persons)
-	if err != nil {
-		return nil, err
+// firstTouch is a person's first session ever, given their sessions oldest first; none reads Direct.
+func firstTouch(sessions []touch) touch {
+	if len(sessions) > 0 {
+		return sessions[0]
 	}
-	out := make(map[string]touch, len(persons))
-	for _, person := range persons {
-		if ts := all[person]; len(ts) > 0 {
-			out[person] = ts[0]
-		} else {
-			out[person] = touch{source: "Direct", channel: "Direct"}
-		}
-	}
-	return out, nil
+	return touch{source: "Direct", channel: "Direct"}
 }
 
 // purchase is one Purchase event in range.
@@ -294,7 +285,7 @@ func RevenueBreakdown(db *sql.DB, p Params, dim string) ([]RevenueRow, error) {
 	if err != nil {
 		return nil, err
 	}
-	credit, total, err := creditRevenue(db, p, list, currency, nil)
+	credit, total, err := creditRevenue(db, p, list, currency, nil, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -325,8 +316,9 @@ type credited struct {
 }
 
 // creditRevenue credits purchases in currency to their buyer's first touch, per dim and key.
-// only, when set, restricts the buyers. total is the credited net.
-func creditRevenue(db *sql.DB, p Params, list []purchase, currency string, only map[string]bool) (map[string]map[string]*credited, int64, error) {
+// only, when set, restricts the buyers; known, when set, already holds the buyers' sessions. total is the credited net.
+func creditRevenue(db *sql.DB, p Params, list []purchase, currency string, only map[string]bool,
+	known map[string][]touch) (map[string]map[string]*credited, int64, error) {
 	persons := []string{}
 	seen := map[string]bool{}
 	for _, b := range list {
@@ -335,9 +327,11 @@ func creditRevenue(db *sql.DB, p Params, list []purchase, currency string, only 
 			persons = append(persons, b.person)
 		}
 	}
-	ft, err := firstTouches(db, p, persons)
-	if err != nil {
-		return nil, 0, err
+	if known == nil {
+		var err error
+		if known, err = sessionTouches(db, p, persons); err != nil {
+			return nil, 0, err
+		}
 	}
 	out := map[string]map[string]*credited{}
 	var total int64
@@ -349,7 +343,7 @@ func creditRevenue(db *sql.DB, p Params, list []purchase, currency string, only 
 			continue
 		}
 		total += b.amount
-		t := ft[b.person]
+		t := firstTouch(known[b.person])
 		for dim := range revenueDims {
 			k := t.key(dim)
 			c := out[dim][k]

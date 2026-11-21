@@ -26,7 +26,7 @@ func PathsToGoal(db *sql.DB, p Params, goal int64) (PathsReport, error) {
 	}
 	res.Goal = g
 	p = withoutGoalFilter(p)
-	hits, err := firstHits(db, p, g)
+	hits, _, err := firstHits(db, p, g)
 	if err != nil {
 		return res, err
 	}

@@ -81,20 +81,22 @@ type goalHit struct {
 	ts              int64
 }
 
-// firstHits returns each converter's first hit in p's window, in hit order.
-func firstHits(db *sql.DB, p Params, g Goal) ([]goalHit, error) {
+// firstHits returns each converter's first hit in p's window, in hit order, and the number of hits.
+func firstHits(db *sql.DB, p Params, g Goal) ([]goalHit, int, error) {
 	cte, args, err := base(p)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	where, wargs := goalWhere(g)
 	out := []goalHit{}
 	seen := map[string]bool{}
+	n := 0
 	err = forRows(db, cte+`SELECT person, session_id, ts FROM ev WHERE `+where+` ORDER BY ts, id`, append(args, wargs...), func(r *sql.Rows) error {
 		var h goalHit
 		if err := r.Scan(&h.person, &h.session, &h.ts); err != nil {
 			return err
 		}
+		n++
 		if !seen[h.person] {
 			seen[h.person] = true
 			out = append(out, h)
@@ -102,9 +104,9 @@ func firstHits(db *sql.DB, p Params, g Goal) ([]goalHit, error) {
 		return nil
 	})
 	if err != nil {
-		return nil, fmt.Errorf("goal hits: %w", err)
+		return nil, 0, fmt.Errorf("goal hits: %w", err)
 	}
-	return out, nil
+	return out, n, nil
 }
 
 // GoalDetail returns one goal's numbers for the window and the comparison window, its converter
@@ -120,9 +122,6 @@ func GoalDetail(db *sql.DB, p Params, id int64) (GoalDetailResult, error) {
 	}
 	res.Goal = g
 	p = withoutGoalFilter(p)
-	if res.Cur, err = goalStats(db, p, g); err != nil {
-		return res, err
-	}
 	if pp, ok := p.Prev(); ok {
 		prev, err := goalStats(db, pp, g)
 		if err != nil {
@@ -142,7 +141,7 @@ func GoalDetail(db *sql.DB, p Params, id int64) (GoalDetailResult, error) {
 		return res, fmt.Errorf("goal series: %w", err)
 	}
 
-	hits, err := firstHits(db, p, g)
+	hits, nHits, err := firstHits(db, p, g)
 	if err != nil {
 		return res, err
 	}
@@ -170,6 +169,10 @@ func GoalDetail(db *sql.DB, p Params, id int64) (GoalDetailResult, error) {
 	for _, h := range hits {
 		converters[h.person] = true
 	}
+	res.Cur = GoalStats{Conversions: nHits, Visitors: len(hits)}
+	if len(persons) > 0 {
+		res.Cur.Rate = float64(len(hits)) / float64(len(persons))
+	}
 
 	// Revenue of the converters, credited to their first touch (the same rule as RevenueBreakdown).
 	list, err := loadPurchases(db, p)
@@ -180,17 +183,12 @@ func GoalDetail(db *sql.DB, p Params, id int64) (GoalDetailResult, error) {
 	if err != nil {
 		return res, err
 	}
-	credit, _, err := creditRevenue(db, p, list, currency, converters)
+	credit, _, err := creditRevenue(db, p, list, currency, converters, touches)
 	if err != nil {
 		return res, err
 	}
 
-	first := func(person string) touch {
-		if ts := touches[person]; len(ts) > 0 {
-			return ts[0]
-		}
-		return touch{source: "Direct", channel: "Direct"}
-	}
+	first := func(person string) touch { return firstTouch(touches[person]) }
 	res.Sources = firstTouchRows(persons, converters, first, "source", credit["source"], res.Cur.Visitors)
 	res.Landings = firstTouchRows(persons, converters, first, "entry", credit["entry"], res.Cur.Visitors)
 
