@@ -120,7 +120,7 @@ func TestDropoffAllPeopleNewestFirst(t *testing.T) {
 		if d.LastVisit < p.From || d.LastVisit > p.To || (i > 0 && d.LastVisit > people[i-1].LastVisit) {
 			t.Fatalf("order %+v", people)
 		}
-		if d.ExitPage != "/docs/start" || d.Source != "google.com" || d.Label == "" {
+		if d.ExitPage != "/docs/start" || d.Source != "Google" || d.Label == "" {
 			t.Fatalf("row %+v", d)
 		}
 	}

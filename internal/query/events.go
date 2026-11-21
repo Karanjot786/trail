@@ -39,34 +39,6 @@ func bucketKind(p Params) string {
 	return "day"
 }
 
-// bucketStarts lists the bucket starts covering [from, to] in loc, stepping by calendar hour or day (DST safe).
-func bucketStarts(from, to int64, kind string, loc *time.Location) []int64 {
-	if loc == nil {
-		loc = time.UTC
-	}
-	if to < from {
-		return []int64{}
-	}
-	t := time.UnixMilli(from).In(loc)
-	if kind == "hour" {
-		t = time.Date(t.Year(), t.Month(), t.Day(), t.Hour(), 0, 0, 0, loc)
-	} else {
-		t = time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, loc)
-	}
-	out := []int64{}
-	for ; t.UnixMilli() <= to; t = nextBucket(t, kind, loc) {
-		out = append(out, t.UnixMilli())
-	}
-	return out
-}
-
-func nextBucket(t time.Time, kind string, loc *time.Location) time.Time {
-	if kind == "hour" {
-		return t.Add(time.Hour)
-	}
-	return time.Date(t.Year(), t.Month(), t.Day()+1, 0, 0, 0, 0, loc)
-}
-
 // bucketAt is the index of the bucket holding ts, or -1.
 func bucketAt(starts []int64, ts int64) int {
 	return sort.Search(len(starts), func(i int) bool { return starts[i] > ts }) - 1

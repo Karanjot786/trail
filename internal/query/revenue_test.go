@@ -37,7 +37,7 @@ func TestRevenueFirstTouchBySource(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(rows) != 2 || rows[0].Key != "google.com" || rows[0].RevenueMinor != 4900 || rows[1].Key != "x.com" || rows[1].RevenueMinor != 1900 {
+	if len(rows) != 2 || rows[0].Key != "Google" || rows[0].RevenueMinor != 4900 || rows[1].Key != "X" || rows[1].RevenueMinor != 1900 {
 		t.Fatalf("rows %+v", rows)
 	}
 	r, err := Revenue(db, thirtyDays())

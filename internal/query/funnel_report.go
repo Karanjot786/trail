@@ -209,7 +209,7 @@ func FunnelDropoff(db *sql.DB, p Params, id int64, step int) ([]DropoffPerson, i
 		session string
 	}
 	byPerson := map[string]*last{}
-	err = forRows(db, cte+`SELECT person, ident, session_id, ts, type, path, `+touchSourceSQL("")+` FROM ev
+	err = forRows(db, cte+`SELECT person, ident, session_id, ts, type, path, `+sourceNameExpr+` FROM ev
 WHERE person IN (SELECT value FROM json_each(?)) AND type='pageview' ORDER BY person, ts, id`, append(args, string(who)),
 		func(r *sql.Rows) error {
 			var person, sid, typ, path, src string

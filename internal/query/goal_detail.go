@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"sort"
-	"strings"
+	"sync"
 )
 
 const (
@@ -24,35 +24,6 @@ func getGoal(db *sql.DB, site string, id int64) (Goal, error) {
 		return g, fmt.Errorf("goal %d: %w", id, err)
 	}
 	return g, nil
-}
-
-// goalWhere is the SQL condition (over ev) for a hit of g: an event name, an exact path or a path prefix (match ending in *).
-// substr = is case-sensitive like the exact match; LIKE is not.
-func goalWhere(g Goal) (string, []any) {
-	switch {
-	case g.Kind == "event":
-		return "type='event' AND name=?", []any{g.Match}
-	case strings.HasSuffix(g.Match, "*"):
-		prefix := strings.TrimSuffix(g.Match, "*")
-		return "type='pageview' AND substr(path, 1, length(?)) = ?", []any{prefix, prefix}
-	default:
-		return "type='pageview' AND path=?", []any{g.Match}
-	}
-}
-
-// withoutGoalFilter drops a goal filter: a goal report filtered on a goal would only see converters.
-func withoutGoalFilter(p Params) Params {
-	if _, ok := p.Filters["goal"]; !ok {
-		return p
-	}
-	f := make(map[string]string, len(p.Filters))
-	for k, v := range p.Filters {
-		if k != "goal" {
-			f[k] = v
-		}
-	}
-	p.Filters = f
-	return p
 }
 
 // goalStats counts hits, converters and the converter rate over every visitor in q's window.
@@ -121,47 +92,91 @@ func GoalDetail(db *sql.DB, p Params, id int64) (GoalDetailResult, error) {
 		return res, err
 	}
 	res.Goal = g
-	p = withoutGoalFilter(p)
-	if pp, ok := p.Prev(); ok {
-		prev, err := goalStats(db, pp, g)
-		if err != nil {
-			return res, err
-		}
-		res.Prev = &prev
-	}
+	p, _ = withoutGoalFilter(p)
+	// The comparison numbers, the series and the first-touch tables are independent: run them side by
+	// side on their own connections (SQLite WAL readers do not block each other).
+	var prev *GoalStats
+	var series, prevSeries []Point
+	credited := res
 	where, wargs := goalWhere(g)
-	res.Series, res.PrevSeries, err = seriesWithPrev(p, func(q Params) ([]Point, error) {
-		cte, args, err := base(q)
-		if err != nil {
-			return nil, err
-		}
-		return bucketValues(db, q, cte+`SELECT ts, person, 0 FROM ev WHERE `+where, append(args, wargs...), true)
-	})
-	if err != nil {
-		return res, fmt.Errorf("goal series: %w", err)
-	}
-
-	hits, nHits, err := firstHits(db, p, g)
-	if err != nil {
-		return res, err
-	}
-	cte, args, err := base(p)
-	if err != nil {
-		return res, err
-	}
-	persons := []string{}
-	err = forRows(db, cte+`SELECT DISTINCT person FROM ev`, args, func(r *sql.Rows) error {
-		var s string
-		if err := r.Scan(&s); err != nil {
+	err = parallel(
+		func() error {
+			pp, ok := p.Prev()
+			if !ok {
+				return nil
+			}
+			st, err := goalStats(db, pp, g)
+			prev = &st
 			return err
-		}
-		persons = append(persons, s)
-		return nil
-	})
+		},
+		func() (err error) {
+			series, prevSeries, err = seriesWithPrev(p, func(q Params) ([]Point, error) {
+				cte, args, err := base(q)
+				if err != nil {
+					return nil, err
+				}
+				return bucketValues(db, q, cte+`SELECT ts, person, 0 FROM ev WHERE `+where, append(args, wargs...), true)
+			})
+			if err != nil {
+				return fmt.Errorf("goal series: %w", err)
+			}
+			return nil
+		},
+		func() (err error) {
+			credited, err = goalCredit(db, p, g, res)
+			return err
+		},
+	)
 	if err != nil {
-		return res, fmt.Errorf("goal visitors: %w", err)
+		return res, err
 	}
-	touches, err := sessionTouches(db, p, persons)
+	credited.Prev, credited.Series, credited.PrevSeries = prev, series, prevSeries
+	return credited, nil
+}
+
+// goalCredit fills the current numbers, first-touch sources and landings, and the visit split.
+// It leaves Prev, Series and PrevSeries alone (GoalDetail fills them concurrently).
+func goalCredit(db *sql.DB, p Params, g Goal, res GoalDetailResult) (GoalDetailResult, error) {
+	var (
+		hits     []goalHit
+		nHits    int
+		persons  = []string{}
+		touches  map[string][]touch
+		list     []sale
+		currency string
+	)
+	err := parallel(
+		func() (err error) {
+			hits, nHits, err = firstHits(db, p, g)
+			return err
+		},
+		func() error {
+			cte, args, err := base(p)
+			if err != nil {
+				return err
+			}
+			err = forRows(db, cte+`SELECT DISTINCT person FROM ev`, args, func(r *sql.Rows) error {
+				var s string
+				if err := r.Scan(&s); err != nil {
+					return err
+				}
+				persons = append(persons, s)
+				return nil
+			})
+			if err != nil {
+				return fmt.Errorf("goal visitors: %w", err)
+			}
+			touches, err = sessionTouches(db, p, persons)
+			return err
+		},
+		func() (err error) {
+			if list, err = loadPurchases(db, p); err != nil {
+				return err
+			}
+			currency, err = siteCurrency(db, p, list)
+			return err
+		},
+	)
 	if err != nil {
 		return res, err
 	}
@@ -173,16 +188,7 @@ func GoalDetail(db *sql.DB, p Params, id int64) (GoalDetailResult, error) {
 	if len(persons) > 0 {
 		res.Cur.Rate = float64(len(hits)) / float64(len(persons))
 	}
-
 	// Revenue of the converters, credited to their first touch (the same rule as RevenueBreakdown).
-	list, err := loadPurchases(db, p)
-	if err != nil {
-		return res, err
-	}
-	currency, err := siteCurrency(db, p, list)
-	if err != nil {
-		return res, err
-	}
 	credit, _, err := creditRevenue(db, p, list, currency, converters, touches)
 	if err != nil {
 		return res, err
@@ -252,4 +258,24 @@ func firstTouchRows(persons []string, converters map[string]bool, first func(str
 		out = out[:maxFirstTouch]
 	}
 	return out
+}
+
+// parallel runs fns concurrently (each on its own pooled connection) and returns the first error.
+func parallel(fns ...func() error) error {
+	errs := make([]error, len(fns))
+	var wg sync.WaitGroup
+	for i, fn := range fns {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			errs[i] = fn()
+		}()
+	}
+	wg.Wait()
+	for _, err := range errs {
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }

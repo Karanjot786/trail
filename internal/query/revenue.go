@@ -12,22 +12,6 @@ const maxPurchases = 100 // latest purchases listed on the Revenue screen
 // revenueDims are the first-touch dimensions revenue can be credited to.
 var revenueDims = map[string]bool{"source": true, "channel": true, "campaign": true, "entry": true, "country": true, "device": true}
 
-// touchSourceSQL is a landing pageview's source name: the referrer host without www., else utm_source, else Direct.
-// prefix is the events table alias ("e." or ""). Built only from constants.
-func touchSourceSQL(prefix string) string {
-	return `CASE WHEN ` + prefix + `referrer_host!='' THEN (CASE WHEN substr(` + prefix + `referrer_host,1,4)='www.' THEN substr(` +
-		prefix + `referrer_host,5) ELSE ` + prefix + `referrer_host END) WHEN ` + prefix + `utm_source!='' THEN ` +
-		prefix + `utm_source ELSE 'Direct' END`
-}
-
-// touchChannelSQL is a landing pageview's channel (Email, Paid, Campaign, Referral, Direct).
-func touchChannelSQL(prefix string) string {
-	m := `lower(` + prefix + `utm_medium)`
-	return `CASE WHEN ` + m + ` IN ('email','newsletter') THEN 'Email' WHEN ` + m + ` IN ('cpc','ppc') OR ` + m +
-		` LIKE 'paid%' THEN 'Paid' WHEN ` + prefix + `utm_source!='' OR ` + prefix + `utm_campaign!='' THEN 'Campaign' WHEN ` +
-		prefix + `referrer_host!='' THEN 'Referral' ELSE 'Direct' END`
-}
-
 // touch is one session's landing pageview: when the visit started and where it came from.
 type touch struct {
 	session, source, channel, campaign, entry, country, device string
@@ -58,7 +42,8 @@ func (t touch) key(dim string) string {
 }
 
 // sessionTouches returns every session ever (same env, no bots) of the listed persons, oldest first.
-// Only the persons' own anon ids are scanned, through events_site_anon_ts.
+// Source and channel are named only on each person's first session (the first touch; the rule CASE is
+// costly), later sessions carry them empty. Only the persons' own anon ids are scanned (events_site_anon_ts).
 func sessionTouches(db *sql.DB, p Params, persons []string) (map[string][]touch, error) {
 	out := map[string][]touch{}
 	if len(persons) == 0 {
@@ -72,9 +57,11 @@ func sessionTouches(db *sql.DB, p Params, persons []string) (map[string][]touch,
   (SELECT min(rowid) FROM identity_map WHERE site_id=? GROUP BY anon_id)),
 who(person) AS (SELECT value FROM json_each(?)),
 anons(anon_id) AS (SELECT person FROM who UNION SELECT anon_id FROM idm WHERE user_id IN (SELECT person FROM who))
-SELECT person, session_id, ts, src, chan, utm_campaign, path, country, device FROM (
-  SELECT COALESCE(idm.user_id, e.anon_id) AS person, e.session_id, e.ts, ` + touchSourceSQL("e.") + ` AS src, ` +
-		touchChannelSQL("e.") + ` AS chan, e.utm_campaign, e.path, e.country, e.device,
+SELECT person, session_id, ts, CASE WHEN pn=1 THEN ` + sourceNameExpr + ` ELSE '' END,
+  CASE WHEN pn=1 THEN ` + channelExpr + ` ELSE '' END, utm_campaign, path, country, device FROM (
+SELECT *, row_number() OVER (PARTITION BY person ORDER BY ts, session_id) AS pn FROM (
+  SELECT COALESCE(idm.user_id, e.anon_id) AS person, e.session_id, e.ts, e.referrer_host, e.utm_source, e.utm_medium,
+    e.utm_campaign, e.path, e.country, e.device,
     row_number() OVER (PARTITION BY e.session_id ORDER BY e.ts, e.id) AS rn
   FROM events e LEFT JOIN idm USING(anon_id)
   WHERE e.site_id=? AND e.is_bot=0 AND e.type='pageview' AND e.anon_id IN (SELECT anon_id FROM anons)`
@@ -83,7 +70,7 @@ SELECT person, session_id, ts, src, chan, utm_campaign, path, country, device FR
 		q += " AND e.env=?"
 		args = append(args, p.Env)
 	}
-	q += `) WHERE rn=1 AND person IN (SELECT person FROM who) ORDER BY person, ts, session_id`
+	q += `) WHERE rn=1 AND person IN (SELECT person FROM who)) ORDER BY person, ts, session_id`
 	err = forRows(db, q, args, func(r *sql.Rows) error {
 		var person string
 		var t touch
@@ -107,8 +94,8 @@ func firstTouch(sessions []touch) touch {
 	return touch{source: "Direct", channel: "Direct"}
 }
 
-// purchase is one Purchase event in range.
-type purchase struct {
+// sale is one Purchase event in range.
+type sale struct {
 	ts, amount            int64
 	person, session, plan string
 	currency              string
@@ -116,16 +103,16 @@ type purchase struct {
 }
 
 // loadPurchases returns the purchases in p's window (every currency), newest first.
-func loadPurchases(db *sql.DB, p Params) ([]purchase, error) {
+func loadPurchases(db *sql.DB, p Params) ([]sale, error) {
 	cte, args, err := base(p)
 	if err != nil {
 		return nil, err
 	}
-	out := []purchase{}
+	out := []sale{}
 	err = forRows(db, cte+`SELECT ts, person, ident, session_id, `+amountMinorExpr+`, `+currencyExpr+`,
   coalesce(CAST(json_extract(props,'$.plan') AS TEXT),'')
 FROM ev WHERE `+purchaseWhere+` AND json_valid(props) ORDER BY ts DESC, id DESC`, args, func(r *sql.Rows) error {
-		var b purchase
+		var b sale
 		if err := r.Scan(&b.ts, &b.person, &b.identified, &b.session, &b.amount, &b.currency, &b.plan); err != nil {
 			return err
 		}
@@ -139,7 +126,7 @@ FROM ev WHERE `+purchaseWhere+` AND json_valid(props) ORDER BY ts DESC, id DESC`
 }
 
 // siteCurrency is the most common purchase currency in the window, else ever, else USD.
-func siteCurrency(db *sql.DB, p Params, inRange []purchase) (string, error) {
+func siteCurrency(db *sql.DB, p Params, inRange []sale) (string, error) {
 	n := map[string]int{}
 	for _, b := range inRange {
 		n[b.currency]++
@@ -166,7 +153,7 @@ func siteCurrency(db *sql.DB, p Params, inRange []purchase) (string, error) {
 }
 
 // money sums purchases in currency; other counts the purchases in any other currency.
-func money(list []purchase, currency string) (m Money, other int) {
+func money(list []sale, currency string) (m Money, other int) {
 	buyers := map[string]bool{}
 	for _, b := range list {
 		if b.currency != currency {
@@ -222,7 +209,7 @@ func Revenue(db *sql.DB, p Params) (RevenueResult, error) {
 		return res, fmt.Errorf("revenue series: %w", err)
 	}
 
-	latest := make([]purchase, 0, maxPurchases)
+	latest := make([]sale, 0, maxPurchases)
 	persons := []string{}
 	seen := map[string]bool{}
 	for _, b := range list {
@@ -317,7 +304,7 @@ type credited struct {
 
 // creditRevenue credits purchases in currency to their buyer's first touch, per dim and key.
 // only, when set, restricts the buyers; known, when set, already holds the buyers' sessions. total is the credited net.
-func creditRevenue(db *sql.DB, p Params, list []purchase, currency string, only map[string]bool,
+func creditRevenue(db *sql.DB, p Params, list []sale, currency string, only map[string]bool,
 	known map[string][]touch) (map[string]map[string]*credited, int64, error) {
 	persons := []string{}
 	seen := map[string]bool{}

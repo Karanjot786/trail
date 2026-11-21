@@ -33,7 +33,7 @@ func TestGoalSourcesSumToConverters(t *testing.T) {
 	if sum != d.Cur.Visitors {
 		t.Fatalf("sources %+v", d.Sources)
 	}
-	if d.Sources[0].Key != "google.com" || d.Sources[0].Converted != 2 || d.Sources[0].Visitors != 3 || !d.Sources[0].LowBase {
+	if d.Sources[0].Key != "Google" || d.Sources[0].Converted != 2 || d.Sources[0].Visitors != 3 || !d.Sources[0].LowBase {
 		t.Fatalf("google %+v", d.Sources)
 	}
 	if len(d.Landings) != 2 || d.Landings[0].Key != "/" || d.Landings[0].Converted != 3 {
@@ -78,7 +78,7 @@ func TestGoalRevenueMatchesRevenueBreakdown(t *testing.T) {
 			t.Fatalf("%s: goal %d, revenue %d", s.Key, s.RevenueMinor, want[s.Key])
 		}
 	}
-	if d.Sources[0].Key != "google.com" || d.Sources[0].RevenueMinor != 6800 {
+	if d.Sources[0].Key != "Google" || d.Sources[0].RevenueMinor != 6800 {
 		t.Fatalf("sources %+v", d.Sources)
 	}
 }
@@ -104,7 +104,7 @@ func TestPathsCollapseAndEllipsis(t *testing.T) {
 	if r.Converters != 3 || len(r.Rows) != 2 || r.Goal.ID != g.ID {
 		t.Fatalf("got %+v", r)
 	}
-	if !reflect.DeepEqual(r.Rows[0].Steps, []string{"google.com", "/", "/docs", "/pricing", "Signed up"}) || r.Rows[0].People != 2 {
+	if !reflect.DeepEqual(r.Rows[0].Steps, []string{"Google", "/", "/docs", "/pricing", "Signed up"}) || r.Rows[0].People != 2 {
 		t.Fatalf("row 0 %+v", r.Rows[0])
 	}
 	if !reflect.DeepEqual(r.Rows[1].Steps, []string{"Direct", "/a", "/b", "…", "/e", "Signed up"}) || r.Rows[1].Share != 1.0/3 {

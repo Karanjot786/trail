@@ -25,7 +25,7 @@ func PathsToGoal(db *sql.DB, p Params, goal int64) (PathsReport, error) {
 		return res, err
 	}
 	res.Goal = g
-	p = withoutGoalFilter(p)
+	p, _ = withoutGoalFilter(p)
 	hits, _, err := firstHits(db, p, g)
 	if err != nil {
 		return res, err
@@ -51,7 +51,7 @@ func PathsToGoal(db *sql.DB, p Params, goal int64) (PathsReport, error) {
 	if err != nil {
 		return res, err
 	}
-	err = forRows(db, cte+`SELECT session_id, ts, path, `+touchSourceSQL("")+` FROM ev
+	err = forRows(db, cte+`SELECT session_id, ts, path, `+sourceNameExpr+` FROM ev
 WHERE type='pageview' AND session_id IN (SELECT value FROM json_each(?)) ORDER BY session_id, ts, id`,
 		append(args, string(ids)), func(r *sql.Rows) error {
 			var sid, path, src string
