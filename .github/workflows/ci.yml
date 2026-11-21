@@ -82,10 +82,11 @@ jobs:
         with: { node-version: 22, cache: pnpm, cache-dependency-path: web/pnpm-lock.yaml }
       - run: pnpm install --frozen-lockfile
         working-directory: web
-      - run: node scripts/fixtures-check.mjs # records twice: determinism, contract keys, size caps
+      - run: pnpm fixtures:check # records twice: determinism, contract keys, size caps
         working-directory: web
-      - run: go run ./cmd/trail demo record --out web/public/demo-data --plan testdata/fixtures/plan.json
-      - run: VITE_DATA=fixtures pnpm exec vite build && mkdir -p dist/demo-data && cp -R public/demo-data/. dist/demo-data/
+      - run: pnpm fixtures # records the seeded demo into web/demo-data
+        working-directory: web
+      - run: pnpm build:demo # VITE_DATA=fixtures vite build, then the recording into dist/demo-data
         working-directory: web
       - run: pnpm exec playwright install --with-deps chromium
         working-directory: web

@@ -5,6 +5,9 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build && node scripts/keep.mjs",
+    "build:demo": "tsc --noEmit && VITE_DATA=fixtures vite build && mkdir -p dist/demo-data && cp -R demo-data/. dist/demo-data/",
+    "fixtures": "go run ../cmd/trail demo record --out demo-data --plan ../testdata/fixtures/plan.json",
+    "fixtures:check": "node scripts/fixtures-check.mjs",
     "preview": "vite preview",
     "test": "vitest run"
   },

@@ -92,9 +92,23 @@ type recorder struct {
 // listLimit asks list routes for every row; the fixtures transport pages itself.
 const listLimit = "1000"
 
+// comboRows and defaultRows cap the people and session lists: the default combo (30d, previous period, no
+// filters) keeps its first 500 rows, ten pages of the table; every other combo keeps two pages. x-total-count
+// keeps the real total, so the screens still say how many there are.
+const (
+	comboRows   = 100
+	defaultRows = 500
+)
+
 // get requests path with params from the demo handler, stores the response
 // under its fixture key, and returns the body.
 func (r *recorder) get(path string, params url.Values) (json.RawMessage, error) {
+	return r.getN(path, params, 0)
+}
+
+// getN is get keeping at most maxRows rows of a list body (0 keeps all). Files are named by their content,
+// so identical answers (empty lists, unchanged reports) are stored once.
+func (r *recorder) getN(path string, params url.Values, maxRows int) (json.RawMessage, error) {
 	if err := r.ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -114,6 +128,17 @@ func (r *recorder) get(path string, params url.Values) (json.RawMessage, error) 
 	if err := json.Compact(&body, w.Body.Bytes()); err != nil {
 		return nil, fmt.Errorf("record %s: %w", key, err)
 	}
+	if maxRows > 0 {
+		var rows []json.RawMessage
+		if json.Unmarshal(body.Bytes(), &rows) == nil && len(rows) > maxRows {
+			b, err := json.Marshal(rows[:maxRows])
+			if err != nil {
+				return nil, fmt.Errorf("record %s: %w", key, err)
+			}
+			body.Reset()
+			body.Write(b)
+		}
+	}
 	env := envelope{Status: 200, Headers: map[string]string{}, Body: body.Bytes()}
 	if n := w.Header().Get("X-Total-Count"); n != "" {
 		env.Headers["x-total-count"] = n
@@ -122,7 +147,7 @@ func (r *recorder) get(path string, params url.Values) (json.RawMessage, error) 
 	if err != nil {
 		return nil, err
 	}
-	sum := sha256.Sum256([]byte(key))
+	sum := sha256.Sum256(b)
 	name := hex.EncodeToString(sum[:])[:16]
 	r.files[name+".json"] = b
 	r.man.Keys[key] = name
@@ -279,6 +304,14 @@ func (r *recorder) perCombo(plan Plan, path string, b url.Values) error {
 				return err
 			}
 		}
+	case "/visitors", "/sessions":
+		limit := comboRows
+		if b.Get("range") == "30d" && b.Get("cmp") == "prev" && len(b["f"]) == 0 {
+			limit = defaultRows
+		}
+		if _, err := r.getN(path, b, limit); err != nil {
+			return err
+		}
 	default:
 		if _, err := r.get(path, b); err != nil {
 			return err
@@ -325,7 +358,7 @@ func (r *recorder) details(plan Plan, b url.Values) error {
 		}
 	}
 	var people []query.Person
-	if raw, err = r.get("/visitors", b); err == nil {
+	if raw, err = r.getN("/visitors", b, defaultRows); err == nil {
 		err = json.Unmarshal(raw, &people)
 	}
 	if err != nil {

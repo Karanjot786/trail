@@ -14,3 +14,5 @@ demo-password.txt
 .pids
 dev.db*
 web/test-results/
+web/demo-data/
+web/test-results-fixtures/

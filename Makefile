@@ -32,10 +32,10 @@ e2e: tracker
 
 # Check fixture drift, record, build the static demo and run the server-less smoke.
 demo-fixtures:
-	cd web && node scripts/fixtures-check.mjs
-	go run ./cmd/trail demo record --out web/public/demo-data --plan testdata/fixtures/plan.json
-	cd web && VITE_DATA=fixtures pnpm exec vite build && mkdir -p dist/demo-data && cp -R public/demo-data/. dist/demo-data/
-	cd web && pnpm exec playwright test -c playwright.fixtures.config.ts
+	cd web && pnpm fixtures:check
+	cd web && pnpm fixtures
+	cd web && pnpm build:demo
+	cd web && E2E_ALL=1 pnpm exec playwright test -c playwright.fixtures.config.ts
 
 clean:
 	rm -f trail dev.db dev.db-* internal/ingest/t.js

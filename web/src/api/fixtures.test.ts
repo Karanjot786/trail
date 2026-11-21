@@ -81,7 +81,7 @@ describe('fixtures transport', () => {
       fixtureKey('/sites', q('')),
       fixtureKey('/journey', q('site=demo&range=30d&cmp=prev&person=p~1')),
     ]
-    const idx = new URL('../../public/demo-data/index.json', import.meta.url).pathname
+    const idx = new URL('../../demo-data/index.json', import.meta.url).pathname
     const keys = existsSync(idx) ? Object.keys((JSON.parse(readFileSync(idx, 'utf8')) as { keys: Record<string, string> }).keys) : []
     for (const k of [...sample, ...keys]) {
       const i = k.indexOf('?')
