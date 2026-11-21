@@ -24,14 +24,6 @@ func FunnelDropoff(db *sql.DB, p Params, id int64, step int) ([]DropoffPerson, i
 	return nil, 0, ErrNotImplemented
 }
 
-// Revenue returns the window's revenue reported by the site.
-func Revenue(db *sql.DB, p Params) (RevenueResult, error) { return RevenueResult{}, ErrNotImplemented }
-
-// RevenueBreakdown credits revenue to the first-touch dim.
-func RevenueBreakdown(db *sql.DB, p Params, dim string) ([]RevenueRow, error) {
-	return nil, ErrNotImplemented
-}
-
 // Crawlers returns the AI crawler report.
 func Crawlers(db *sql.DB, p Params) (CrawlersResult, error) {
 	return CrawlersResult{}, ErrNotImplemented
