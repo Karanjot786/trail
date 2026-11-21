@@ -5,7 +5,8 @@ import { useRef, type KeyboardEvent } from 'react'
 import type { Basis, Metric, Stats } from '../../api/types'
 import { Sparkline } from '../../charts/Sparkline'
 import { compare, deltaLabel } from '../../lib/compare'
-import { navigate } from '../../state/useUrlState'
+import { navigate, useUrlState } from '../../state/useUrlState'
+import { setActor } from '../../shell/FilterBar'
 import { ArrowDown, ArrowUp } from 'lucide-react'
 import type { DeltaKind } from '../../lib/compare'
 import { fmtMetric, metricDefs, type MetricDef } from './metrics'
@@ -51,11 +52,30 @@ export function KpiStrip({ stats, metrics, active, currency, compareOn }: KpiStr
     ref.current?.querySelectorAll<HTMLButtonElement>('[role="tab"]')[n]?.focus()
   }
   return (
-    <div ref={ref} className="kpis" role="tablist" aria-label="Metrics" data-n={metrics.length} onKeyDown={onKey}>
-      {metrics.map((m) => (
-        <KpiTile key={m} def={defs[m]} stats={stats} basis={basis} on={m === active} currency={currency} compareOn={compareOn} />
-      ))}
-    </div>
+    <>
+      <AgentNote n={stats.agentSessions ?? 0} />
+      <div ref={ref} className="kpis" role="tablist" aria-label="Metrics" data-n={metrics.length} onKeyDown={onKey}>
+        {metrics.map((m) => (
+          <KpiTile key={m} def={defs[m]} stats={stats} basis={basis} on={m === active} currency={currency} compareOn={compareOn} />
+        ))}
+      </div>
+    </>
+  )
+}
+
+/** Plan F-5: AI agents are left out of people metrics by default; say how many, and offer the other scope. */
+export function AgentNote({ n }: { n: number }) {
+  const { actor, prefix } = useUrlState()
+  if (!(n > 0) || prefix.startsWith('/share/')) return null
+  const all = actor === 'all'
+  const sessions = `${n.toLocaleString('en-US')} AI agent ${n === 1 ? 'session' : 'sessions'}`
+  return (
+    <p className="kpi-note m-0 mb-2 flex flex-wrap items-center justify-end gap-x-2 text-caption text-muted" data-testid="agent-note">
+      <span>{all ? `Includes ${sessions}` : `${sessions} left out`}</span>
+      <button type="button" className="cursor-pointer underline decoration-dotted underline-offset-[3px] hover:text-fg pointer-coarse:min-h-11" onClick={() => setActor(!all)}>
+        {all ? 'Leave them out' : 'Count them as visitors'}
+      </button>
+    </p>
   )
 }
 
