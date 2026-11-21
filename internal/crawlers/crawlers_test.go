@@ -182,3 +182,33 @@ func TestImportSinceAutoNoDoubleCount(t *testing.T) {
 		t.Error("bad format accepted")
 	}
 }
+
+func TestCrawlerAdditions(t *testing.T) {
+	for _, c := range []struct{ ua, bot, provider, category string }{
+		{"Mozilla/5.0 (compatible; OAI-AdsBot/1.0; +https://openai.com/adsbot)", "OAI-AdsBot", "OpenAI", General},
+		{"anthropic-ai", "anthropic-ai", "Anthropic", Training},
+		{"Gemini-Deep-Research", "Gemini-Deep-Research", "Google", Fetch},
+		{"Amzn-SearchBot/1.0", "Amzn-SearchBot", "Amazon", Indexing},
+		{"Amzn-User/1.0", "Amzn-User", "Amazon", Fetch},
+		{"meta-webindexer/1.1", "meta-webindexer", "Meta", Indexing},
+		{"MistralAI-Index/1.0", "MistralAI-Index", "Mistral", Indexing},
+		{"DeepSeekBot/1.0", "DeepSeekBot", "DeepSeek", Training},
+		{"Kimi-User/1.0", "Kimi-User", "Moonshot", Fetch},
+		{"Bravebot/1.0", "Bravebot", "Brave", Indexing},
+	} {
+		bot, provider, category, ok := Lookup(c.ua)
+		if !ok || bot != c.bot || provider != c.provider || category != c.category {
+			t.Errorf("%q → %s %s %s %v", c.ua, bot, provider, category, ok)
+		}
+	}
+	names := Names()
+	if len(names) != 29 || names[0] != "GPTBot" || names[19] != "OAI-AdsBot" || names[28] != "Bravebot" {
+		t.Errorf("Names() = %v", names)
+	}
+	// Agent tokens are not crawlers.
+	for _, ua := range []string{"Claude-Agent/1.0", "compatible; Google-Agent", "GoogleAgent-Mariner/1.0", "Googlebot/2.1", "bingbot/2.0"} {
+		if bot, _, _, ok := Lookup(ua); ok {
+			t.Errorf("%q matched %s", ua, bot)
+		}
+	}
+}

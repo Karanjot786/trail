@@ -40,6 +40,16 @@ var catalogue = func() []bot {
 		{name: "cohere-ai", provider: "Cohere", category: Training},
 		{name: "GoogleOther", provider: "Google", category: General},
 		{name: "YouBot", provider: "You.com", category: Indexing},
+		{name: "OAI-AdsBot", provider: "OpenAI", category: General},
+		{name: "anthropic-ai", provider: "Anthropic", category: Training},
+		{name: "Gemini-Deep-Research", provider: "Google", category: Fetch},
+		{name: "Amzn-SearchBot", provider: "Amazon", category: Indexing},
+		{name: "Amzn-User", provider: "Amazon", category: Fetch},
+		{name: "meta-webindexer", provider: "Meta", category: Indexing},
+		{name: "MistralAI-Index", provider: "Mistral", category: Indexing},
+		{name: "DeepSeekBot", provider: "DeepSeek", category: Training},
+		{name: "Kimi-User", provider: "Moonshot", category: Fetch},
+		{name: "Bravebot", provider: "Brave", category: Indexing},
 	}
 	for i := range list {
 		list[i].lower = strings.ToLower(list[i].name)
@@ -56,6 +66,15 @@ func Lookup(ua string) (name, provider, category string, ok bool) {
 		}
 	}
 	return "", "", "", false
+}
+
+// Names lists every crawler name in catalogue order (the npm UA golden).
+func Names() []string {
+	out := make([]string, 0, len(catalogue))
+	for _, b := range catalogue {
+		out = append(out, b.name)
+	}
+	return out
 }
 
 // Info returns a stored bot name's provider and category ("", "" when unknown).
