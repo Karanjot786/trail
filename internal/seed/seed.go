@@ -4,6 +4,7 @@ package seed
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math/rand/v2"
 	"slices"
@@ -14,7 +15,8 @@ import (
 	"trail/internal/store"
 )
 
-// SiteSpec is one site to seed. Revenue adds Purchase events; Crawlers adds AI crawler hits.
+// SiteSpec is one site to seed. Revenue adds Purchase events; Crawlers adds AI data: crawler
+// hits (some verified against published IP lists) and AI browsing agent sessions.
 type SiteSpec struct {
 	ID       string
 	Revenue  bool
@@ -265,7 +267,172 @@ func Seed(s *store.Store, sites []SiteSpec, days, persons int, now time.Time, rn
 			}
 		}
 	}
+	return aiData(s, sites, days, now, rng.Uint64())
+}
+
+// aiData adds the AI agent sessions and the crawl verified flags of the Crawlers sites. Both draw
+// from their own streams, seeded by one draw taken after everything else, so the human data and
+// the crawl counts are exactly what they would be without them.
+func aiData(s *store.Store, sites []SiteSpec, days int, now time.Time, key uint64) error {
+	arng := rand.New(rand.NewPCG(key, 0xA6E17))
+	vrng := rand.New(rand.NewPCG(key, 0xC4A71))
+	w := &writer{st: s}
+	for _, sp := range sites {
+		if !sp.Crawlers {
+			continue
+		}
+		if err := verifyCrawls(s.DB(), sp.ID, vrng); err != nil {
+			return err
+		}
+		var humans int
+		if err := s.DB().QueryRow(`SELECT count(DISTINCT session_id) FROM events WHERE site_id=? AND is_bot=0`, sp.ID).
+			Scan(&humans); err != nil {
+			return fmt.Errorf("seed agents: %w", err)
+		}
+		agentSessions(w, sp.ID, humans*3/100, days, now.UnixMilli(), arng)
+	}
+	if w.err != nil {
+		return w.err
+	}
+	if err := s.Flush(); err != nil {
+		return err
+	}
+	if n := s.Dropped(); n > 0 {
+		return fmt.Errorf("seed: store dropped %d events", n)
+	}
 	return nil
+}
+
+// seedAgent is one AI browsing agent of the seed: how often it appears, how it is recognised
+// (weights per via) and where it browses from.
+type seedAgent struct {
+	id                    string
+	w                     int
+	vias                  []weighted
+	country, region, city string
+	os                    string
+}
+
+var seedAgents = []seedAgent{
+	{"claude-agent", 45, []weighted{{"ip", 70}, {"ua", 30}}, "US", "Virginia", "Ashburn", "GNU/Linux"},
+	{"chatgpt-agent", 35, []weighted{{"sig", 75}, {"relay", 25}}, "US", "Texas", "Abilene", "GNU/Linux"},
+	{"google-agent", 20, []weighted{{"ip", 50}, {"sig", 30}, {"ua", 20}}, "US", "Iowa", "Council Bluffs", "GNU/Linux"},
+}
+
+// agentLandings: agents are sent to compare plans or follow setup steps.
+var agentLandings = []weighted{{"/pricing", 45}, {"/docs/installation", 35}, {"", 20}}
+
+// agentSessions writes n agent sessions over the days before end, the first within the last day
+// (so the setup card has a recent one), none in the live window. Every 16th session signs up.
+func agentSessions(w *writer, site string, n, days int, end int64, rng *rand.Rand) {
+	span := int64(days) * dayMs
+	agentW := make([]weighted, len(seedAgents))
+	for i, a := range seedAgents {
+		agentW[i] = weighted{a.id, a.w}
+	}
+	for i := range n {
+		var a seedAgent
+		chosen := pick(rng, agentW)
+		for _, x := range seedAgents {
+			if x.id == chosen {
+				a = x
+			}
+		}
+		ts := end - quietMs - rng.Int64N(span-quietMs)
+		if i == 0 {
+			ts = end - quietMs - rng.Int64N(dayMs/2)
+		}
+		ev := store.Event{SiteID: site, AnonID: id(rng), SessionID: id(rng), Host: site + ".com", Env: "production",
+			IsBot: true, Agent: a.id, AgentVia: pick(rng, a.vias), Country: a.country, Region: a.region, City: a.city,
+			Device: "desktop", Browser: "Chrome", OS: a.os}
+		pages := 1 + rng.IntN(4)
+		for v := range pages {
+			pv := ev
+			pv.Type, pv.TS = "pageview", ts
+			pv.Path = paths[rng.IntN(len(paths))]
+			if v == 0 {
+				if p := pick(rng, agentLandings); p != "" {
+					pv.Path = p
+				}
+			}
+			pv.Route = enrich.DeriveRoute(pv.Path)
+			w.add(pv)
+			engaged := 2000 + rng.IntN(20000)
+			eg := pv
+			eg.Type, eg.TS, eg.EngagedMs, eg.ScrollPct = "engage", ts+int64(engaged), engaged, 30+rng.IntN(71)
+			w.add(eg)
+			ts += int64(engaged) + int64(rng.IntN(3000))
+		}
+		if i%16 == 1 {
+			su := ev
+			su.Type, su.TS, su.Path, su.Route = "pageview", ts, "/signup", "/signup"
+			w.add(su)
+			sg := su
+			sg.Type, sg.Name, sg.TS = "event", "Signup", ts+1500
+			sg.Props = mustJSON(map[string]any{"plan": "free"})
+			w.add(sg)
+		}
+	}
+}
+
+// listedBots are the seeded crawlers whose operators publish IP lists; 85% of their requests verify.
+var listedBots = []string{"GPTBot", "OAI-SearchBot", "ChatGPT-User", "PerplexityBot", "Perplexity-User"}
+
+// verifyCrawls splits each listed bot's crawl rows into verified and unverified requests.
+func verifyCrawls(db *sql.DB, site string, rng *rand.Rand) error {
+	type row struct {
+		hour, last int64
+		bot, path  string
+		status, n  int
+	}
+	var list []row
+	rows, err := db.Query(`SELECT hour, bot, path, status, n, last_ts FROM crawl_hits WHERE site_id=? AND verified=0
+  AND bot IN (?,?,?,?,?) ORDER BY hour, bot, path, status`, site, listedBots[0], listedBots[1], listedBots[2], listedBots[3], listedBots[4])
+	if err != nil {
+		return fmt.Errorf("seed verify: %w", err)
+	}
+	for rows.Next() {
+		var r row
+		if err := rows.Scan(&r.hour, &r.bot, &r.path, &r.status, &r.n, &r.last); err != nil {
+			_ = rows.Close()
+			return fmt.Errorf("seed verify: %w", err)
+		}
+		list = append(list, r)
+	}
+	if err := errors.Join(rows.Err(), rows.Close()); err != nil {
+		return fmt.Errorf("seed verify: %w", err)
+	}
+	tx, err := db.Begin()
+	if err != nil {
+		return fmt.Errorf("seed verify: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }() // no-op after Commit
+	for _, r := range list {
+		k := 0
+		for range r.n {
+			if rng.IntN(100) < 85 {
+				k++
+			}
+		}
+		if k == 0 {
+			continue
+		}
+		key := []any{site, r.hour, r.bot, r.path, r.status}
+		if k == r.n {
+			_, err = tx.Exec(`UPDATE crawl_hits SET verified=1 WHERE site_id=? AND hour=? AND bot=? AND path=? AND status=? AND verified=0`, key...)
+		} else {
+			_, err = tx.Exec(`UPDATE crawl_hits SET n=n-? WHERE site_id=? AND hour=? AND bot=? AND path=? AND status=? AND verified=0`,
+				append([]any{k}, key...)...)
+			if err == nil {
+				_, err = tx.Exec(`INSERT INTO crawl_hits(site_id, hour, bot, path, status, verified, n, last_ts) VALUES(?,?,?,?,?,1,?,?)`,
+					append(key, k, r.last)...)
+			}
+		}
+		if err != nil {
+			return fmt.Errorf("seed verify: %w", err)
+		}
+	}
+	return tx.Commit()
 }
 
 // person writes one person's sessions starting at starts. forceRef, when set, is the
