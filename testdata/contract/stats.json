@@ -10,6 +10,7 @@
   "baseVisitors": 229,
   "revenueMinor": 3800,
   "purchases": 2,
+  "eventPeople": 115,
   "window": {
     "key": "30d",
     "label": "Last 30 days",
@@ -43,7 +44,8 @@
     "convRate": 0.23113207547169812,
     "baseVisitors": 212,
     "revenueMinor": 5700,
-    "purchases": 3
+    "purchases": 3,
+    "eventPeople": 107
   },
   "online": 6,
   "botRequests": 6662,

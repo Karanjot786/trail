@@ -214,8 +214,9 @@ func totals(db *sql.DB, p Params, goal *Goal) (Totals, error) {
 	if err != nil {
 		return t, err
 	}
-	if err := db.QueryRow(cte+`SELECT count(DISTINCT person), coalesce(sum(type='pageview'),0) FROM ev`, args...).
-		Scan(&t.Visitors, &t.Pageviews); err != nil {
+	if err := db.QueryRow(cte+`SELECT count(DISTINCT person), coalesce(sum(type='pageview'),0),
+  count(DISTINCT CASE WHEN type IN ('event','outbound') THEN person END) FROM ev`, args...).
+		Scan(&t.Visitors, &t.Pageviews, &t.EventPeople); err != nil {
 		return t, fmt.Errorf("totals: %w", err)
 	}
 	var engaged int

@@ -7,7 +7,7 @@ export const IST = (d: number, h: number, m = 0) => Date.UTC(2026, 10, d, h, m) 
 
 export function person(i: number, extra: Partial<Person> = {}): Person {
   return {
-    person: `p${i}`, label: `Visitor ${i}`, identified: false, firstSeen: IST(1, 9), lastSeen: IST(20, 9), visits: 1 + (i % 4), pages: 3, durationMs: 65_000,
+    person: `p${i}`, label: `Visitor ${i}`, identified: false, firstSeen: IST(1, 9), lastSeen: IST(20, 9), visits: 1 + (i % 4), visitsTotal: 1 + (i % 4), pages: 3, durationMs: 65_000,
     country: 'IN', region: 'MH', city: 'Pune', device: 'Desktop', browser: 'Chrome', os: 'macOS', source: i % 2 ? 'Google' : '', ...extra,
   }
 }

@@ -6,7 +6,7 @@ const DAY = 86_400_000
 const T0 = Date.UTC(2026, 10, 14)
 const basis: Basis = { text: 'vs Nov 7 – Nov 13 (the previous 7 days)', short: 'prev. 7 days', why: '', dates: 'Nov 7 – Nov 13', custom: false, none: false }
 const win: Window = { key: '7d', label: 'Last 7 days', from: T0, to: T0 + 7 * DAY - 1, prevFrom: T0 - 7 * DAY, prevTo: T0 - 1, bucket: 'day', tz: 'UTC', elapsed: false, lastBucket: 6, clamped: false, invalid: '', basis }
-const totals = { visitors: 525, pageviews: 1450, sessions: 657, durationMs: 151000, bounce: 0.43, conversions: 50, convVisitors: 50, convRate: 0.1, baseVisitors: 525, revenueMinor: 120000, purchases: 12 }
+const totals = { visitors: 525, pageviews: 1450, sessions: 657, durationMs: 151000, bounce: 0.43, conversions: 50, convVisitors: 50, convRate: 0.1, baseVisitors: 525, revenueMinor: 120000, purchases: 12, eventPeople: 129 }
 const prevTotals = { ...totals, visitors: 400, sessions: 3, bounce: 0.4 }
 const site = (id: string, revenue: boolean): Site => ({ id, domain: `${id}.trail.dev`, origins: [], created: 0, lastEventAt: 1, events24h: 1, features: { revenue, crawlers: false, currency: 'USD' } })
 

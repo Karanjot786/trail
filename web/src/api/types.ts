@@ -29,6 +29,7 @@ export interface Totals {
   visitors: number; pageviews: number; sessions: number; durationMs: number; bounce: number
   conversions: number; convVisitors: number; convRate: number; baseVisitors: number
   revenueMinor: number; purchases: number
+  eventPeople: number                   // people who sent at least one custom or outbound event
 }
 export interface Stats extends Totals {
   window: Window; prev: Totals | null; online: number
@@ -64,7 +65,7 @@ export interface Live {
 }
 
 export interface Person {
-  person: string; label: string; identified: boolean; firstSeen: number; lastSeen: number; visits: number
+  person: string; label: string; identified: boolean; firstSeen: number; lastSeen: number; visits: number; visitsTotal: number
   pages: number; durationMs: number; country: string; region: string; city: string; device: string; browser: string; os: string; source: string
 }
 export interface SessionRow {

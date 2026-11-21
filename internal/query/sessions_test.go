@@ -153,3 +153,28 @@ func TestVisitorsTotalAndFields(t *testing.T) {
 		t.Fatal("unknown sort accepted")
 	}
 }
+
+// A row counts visits in the range and, separately, every visit its journey lists.
+func TestVisitorsTotalMatchesJourney(t *testing.T) {
+	db := fixture(t,
+		pv("A", "old1", "/", t0-40*day), pv("A", "old2", "/", t0-35*day), // before the range
+		pv("A", "s1", "/", t0), identify("A", "s1", "ada", t0+1),
+		pv("B", "s2", "/", t0+minute),
+	)
+	vs, _, err := Visitors(db, around(), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, v := range vs {
+		j, err := Journey(db, "s", v.Person, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if v.VisitsAll != len(j) || v.Visits > v.VisitsAll {
+			t.Errorf("%s: %d in range, %d total, journey lists %d", v.Person, v.Visits, v.VisitsAll, len(j))
+		}
+	}
+	if vs[1].Person != "ada" || vs[1].Visits != 1 || vs[1].VisitsAll != 3 {
+		t.Fatalf("%+v", vs[1])
+	}
+}

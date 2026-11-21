@@ -48,7 +48,7 @@ func sorted(s ...string) []string {
 
 // TestContractJSONNames pins zero values' JSON key sets to the §0.5 TypeScript fields.
 func TestContractJSONNames(t *testing.T) {
-	totals := []string{"visitors", "pageviews", "sessions", "durationMs", "bounce", "conversions", "convVisitors", "convRate", "baseVisitors", "revenueMinor", "purchases"}
+	totals := []string{"visitors", "pageviews", "sessions", "durationMs", "bounce", "conversions", "convVisitors", "convRate", "baseVisitors", "revenueMinor", "purchases", "eventPeople"}
 	cases := []struct {
 		v    any
 		want []string

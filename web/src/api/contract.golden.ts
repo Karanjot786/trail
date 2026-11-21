@@ -129,7 +129,8 @@ export const totals = {
   "convRate": 0.5,
   "baseVisitors": 1,
   "revenueMinor": 1,
-  "purchases": 1
+  "purchases": 1,
+  "eventPeople": 1
 } satisfies Totals
 
 export const stats = {
@@ -144,6 +145,7 @@ export const stats = {
   "baseVisitors": 1,
   "revenueMinor": 1,
   "purchases": 1,
+  "eventPeople": 1,
   "window": {
     "key": "x",
     "label": "x",
@@ -177,7 +179,8 @@ export const stats = {
     "convRate": 0.5,
     "baseVisitors": 1,
     "revenueMinor": 1,
-    "purchases": 1
+    "purchases": 1,
+    "eventPeople": 1
   },
   "online": 1,
   "botRequests": 1,
@@ -403,6 +406,7 @@ export const person = {
   "firstSeen": 1,
   "lastSeen": 1,
   "visits": 1,
+  "visitsTotal": 1,
   "pages": 1,
   "durationMs": 1,
   "country": "x",

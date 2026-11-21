@@ -117,7 +117,51 @@ ORDER BY ` + order + `, px.person LIMIT ? OFFSET ?`
 	if err != nil {
 		return nil, 0, fmt.Errorf("visitors: %w", err)
 	}
+	if err := addVisitsTotal(db, p.Site, out); err != nil {
+		return nil, 0, err
+	}
 	return out, total, nil
+}
+
+// addVisitsTotal sets VisitsAll on each person: every non-bot session ever, counted the way Journey
+// lists them (same identity resolution, no range, env or filters), so a row and its journey agree.
+func addVisitsTotal(db *sql.DB, site string, people []Person) error {
+	if len(people) == 0 {
+		return nil
+	}
+	ids := make([]string, len(people))
+	for i, v := range people {
+		ids[i] = v.Person
+	}
+	idsJSON, err := json.Marshal(ids)
+	if err != nil {
+		return fmt.Errorf("visits total: %w", err)
+	}
+	q := `WITH idm AS (SELECT anon_id, user_id FROM identity_map WHERE site_id=? AND rowid IN
+  (SELECT min(rowid) FROM identity_map WHERE site_id=? GROUP BY anon_id)),
+ids AS (SELECT value AS id FROM json_each(?)),
+anons AS (SELECT id AS anon_id FROM ids UNION SELECT anon_id FROM identity_map WHERE site_id=? AND user_id IN (SELECT id FROM ids))
+SELECT COALESCE(idm.user_id, e.anon_id) AS person, count(DISTINCT e.session_id)
+FROM events e LEFT JOIN idm USING(anon_id)
+WHERE e.site_id=? AND e.is_bot=0 AND e.anon_id IN (SELECT anon_id FROM anons)
+GROUP BY 1`
+	n := map[string]int{}
+	err = forRows(db, q, []any{site, site, string(idsJSON), site, site}, func(r *sql.Rows) error {
+		var person string
+		var c int
+		if err := r.Scan(&person, &c); err != nil {
+			return err
+		}
+		n[person] = c
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("visits total: %w", err)
+	}
+	for i := range people {
+		people[i].VisitsAll = max(n[people[i].Person], people[i].Visits)
+	}
+	return nil
 }
 
 var sessionSorts = map[string]string{"start": "sx.start", "duration": "sx.dur", "pages": "sx.pv"}
