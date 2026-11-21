@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"math"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -18,12 +19,49 @@ var ErrBadDim = errors.New("unknown dimension")
 // ErrBadMetric is returned for a series metric outside the allowlist.
 var ErrBadMetric = errors.New("unknown metric")
 
-// dims maps public dimension names to columns. User input never becomes a column name.
-var dims = map[string]string{
-	"path": "path", "route": "route", "host": "host", "referrer": "referrer_host",
-	"utm_source": "utm_source", "utm_medium": "utm_medium", "utm_campaign": "utm_campaign",
-	"country": "country", "device": "device", "browser": "browser", "os": "os",
-	"event": "name", "goal": "",
+// Dimension kinds. Row dims filter and group event rows; session dims are read from a
+// session's landing pageview (or last pageview, for exit) and filter whole sessions.
+const (
+	dimRow = iota
+	dimSession
+	dimExit
+	dimEvent
+	dimGoal
+	dimClock // dow, hour: local weekday (Mon=0) or hour of the event
+)
+
+type dimDef struct {
+	kind int
+	expr string // SQL over one events row; compile-time constants only
+}
+
+// dims maps public dimension names to their definitions. User input never becomes SQL text.
+var dims = map[string]dimDef{
+	"path": {dimRow, "path"}, "route": {dimRow, "route"}, "host": {dimRow, "host"},
+	"country": {dimRow, "country"}, "region": {dimRow, "region"}, "city": {dimRow, "city"},
+	"device": {dimRow, "device"}, "browser": {dimRow, "browser"}, "os": {dimRow, "os"},
+	"referrer": {dimSession, "referrer_host"}, "source": {dimSession, sourceNameExpr},
+	"channel": {dimSession, channelExpr}, "ai_source": {dimSession, aiSourceExpr}, "entry": {dimSession, "path"},
+	"utm_source": {dimSession, "utm_source"}, "utm_medium": {dimSession, "utm_medium"},
+	"utm_campaign": {dimSession, "utm_campaign"}, "utm_term": {dimSession, "utm_term"},
+	"utm_content": {dimSession, "utm_content"},
+	"exit":        {dimExit, "path"}, "event": {dimEvent, "name"}, "goal": {dimGoal, ""},
+	"dow":  {dimClock, "(CAST(strftime('%w', ts/1000 + ?, 'unixepoch') AS INTEGER)+6)%7"},
+	"hour": {dimClock, "CAST(strftime('%H', ts/1000 + ?, 'unixepoch') AS INTEGER)"},
+}
+
+// outboundKey is the event-dim key that stands for every outbound link click.
+const outboundKey = "Outbound link"
+
+// tzOffset is p.TZ's UTC offset in seconds at the window end. dow and hour use this one
+// offset for the whole range, so on a window that crosses a DST change the hours on the
+// other side are off by one hour (an accepted approximation; buckets in Series are exact).
+func (p Params) tzOffset() int {
+	if p.TZ == nil {
+		return 0
+	}
+	_, off := time.UnixMilli(p.To).In(p.TZ).Zone()
+	return off
 }
 
 const (
@@ -78,31 +116,47 @@ ev AS (SELECT e.*, COALESCE(idm.user_id, e.anon_id) AS person, idm.user_id IS NO
 	}
 	sort.Strings(keys)
 	for _, k := range keys {
-		col, ok := dims[k]
+		d, ok := dims[k]
 		if !ok {
 			return "", nil, fmt.Errorf("filter %q: %w", k, ErrBadDim)
 		}
-		switch k {
-		case "goal":
+		v := p.Filters[k]
+		switch d.kind {
+		case dimRow:
+			sb.WriteString(" AND e." + d.expr + "=?") // expr comes from the dims allowlist
+			args = append(args, v)
+		case dimClock:
+			n, err := strconv.Atoi(v)
+			if err != nil {
+				n = -1
+			}
+			sb.WriteString(" AND " + strings.ReplaceAll(d.expr, "ts/1000", "e.ts/1000") + "=?")
+			args = append(args, p.tzOffset(), n)
+		case dimSession:
+			// Sources are sent only on the landing pageview, so keep whole sessions whose
+			// landing pageview matches; a row filter would make every session a bounce.
+			sb.WriteString(" AND e.session_id IN (SELECT session_id FROM (SELECT session_id, min(ts), " + d.expr +
+				" AS v FROM events WHERE site_id=? AND type='pageview' AND ts BETWEEN ? AND ? GROUP BY session_id) WHERE v=?)")
+			args = append(args, p.Site, p.From, p.To, v)
+		case dimExit:
+			sb.WriteString(" AND e.session_id IN (SELECT session_id FROM (SELECT session_id, max(ts), path" +
+				" AS v FROM events WHERE site_id=? AND type='pageview' AND ts BETWEEN ? AND ? GROUP BY session_id) WHERE v=?)")
+			args = append(args, p.Site, p.From, p.To, v)
+		case dimEvent:
+			// An event filter keeps whole sessions that fired the event.
+			if v == outboundKey {
+				sb.WriteString(" AND e.session_id IN (SELECT session_id FROM events WHERE site_id=? AND type='outbound' AND ts BETWEEN ? AND ?)")
+				args = append(args, p.Site, p.From, p.To)
+				continue
+			}
+			sb.WriteString(" AND e.session_id IN (SELECT session_id FROM events WHERE site_id=? AND type='event' AND name=?)")
+			args = append(args, p.Site, v)
+		case dimGoal:
 			// A goal filter keeps whole sessions that hit the goal (any kind of goal).
 			sb.WriteString(" AND e.session_id IN (SELECT x.session_id FROM events x JOIN goals g ON g.id=? AND g.site_id=x.site_id" +
 				" WHERE x.site_id=? AND x.ts BETWEEN ? AND ? AND " + goalHitCond + ")")
-			args = append(args, p.Filters[k], p.Site, p.From, p.To)
-			continue
-		case "event":
-			// An event filter keeps whole sessions that fired the event.
-			sb.WriteString(" AND e.session_id IN (SELECT session_id FROM events WHERE site_id=? AND type='event' AND name=?)")
-			args = append(args, p.Site, p.Filters[k])
-			continue
-		case "referrer", "utm_source", "utm_medium", "utm_campaign":
-			// Sources are sent only on the landing pageview, so keep whole sessions
-			// that arrived from them; a row filter would make every session a bounce.
-			sb.WriteString(" AND e.session_id IN (SELECT session_id FROM events WHERE site_id=? AND " + col + "=?)")
-			args = append(args, p.Site, p.Filters[k])
-			continue
+			args = append(args, v, p.Site, p.From, p.To)
 		}
-		sb.WriteString(" AND e." + col + "=?") // col comes from the dims allowlist
-		args = append(args, p.Filters[k])
 	}
 	sb.WriteString(")\n")
 	return sb.String(), args, nil
@@ -205,7 +259,7 @@ WHERE cur=(SELECT cur FROM pc GROUP BY cur ORDER BY count(*) DESC, cur LIMIT 1)`
 // start, source name, channel, AI source, entry path and UTM tags. SQLite takes the bare
 // columns of a min() aggregate from the row holding the minimum, i.e. the landing pageview.
 var sessSrc = `SELECT session_id, person, min(ts) AS start, ` + sourceNameExpr + ` AS source, ` + channelExpr + ` AS channel,
-  ` + aiSourceExpr + ` AS ai, path AS entry, country, device, utm_source, utm_medium, utm_campaign, utm_term, utm_content
+  ` + aiSourceExpr + ` AS ai, path AS entry, country, device, referrer_host, utm_source, utm_medium, utm_campaign, utm_term, utm_content
 FROM ev WHERE type='pageview' GROUP BY session_id`
 
 var seriesMetrics = map[string]bool{
@@ -459,47 +513,6 @@ func seriesExtras(db *sql.DB, p Params, b buckets, goal *Goal) ([]BucketExtra, e
 		return nil, fmt.Errorf("series revenue: %w", err)
 	}
 	return out, nil
-}
-
-// Breakdown returns the top values of dim by visitors. q filters keys by
-// case-insensitive substring.
-func Breakdown(db *sql.DB, p Params, dim, q string, limit int) ([]Row, error) {
-	col, ok := dims[dim]
-	if !ok || col == "" {
-		return nil, fmt.Errorf("dim %q: %w", dim, ErrBadDim)
-	}
-	cte, args, err := base(p)
-	if err != nil {
-		return nil, err
-	}
-	where := col + "!=''" // col comes from the dims allowlist
-	if dim == "event" {
-		where += " AND type='event'"
-	}
-	if q != "" {
-		where += " AND instr(lower(" + col + "), lower(?))>0"
-		args = append(args, q)
-	}
-	args = append(args, clampLimit(limit))
-	sqlText := cte + `SELECT ` + col + `, count(DISTINCT person), coalesce(sum(type='pageview'),0), count(*)
-FROM ev WHERE ` + where + ` GROUP BY ` + col + ` ORDER BY 2 DESC, 3 DESC, 4 DESC, 1 LIMIT ?`
-
-	rows := []Row{}
-	err = forRows(db, sqlText, args, func(r *sql.Rows) error {
-		var row Row
-		if err := r.Scan(&row.Key, &row.Visitors, &row.Pageviews, &row.Total); err != nil {
-			return err
-		}
-		if dim != "event" {
-			row.Total = 0
-		}
-		rows = append(rows, row)
-		return nil
-	})
-	if err != nil {
-		return nil, fmt.Errorf("breakdown %s: %w", dim, err)
-	}
-	return rows, nil
 }
 
 // Visitors lists people seen in range, most recent first. q matches the
