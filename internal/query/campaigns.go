@@ -91,9 +91,18 @@ SELECT ` + utmCols + `, count(*), sum(pp.conv), sum(pp.rev) FROM fc JOIN pp USIN
 // AIReferrals lists the AI assistants that sent visitors in range, with their most common
 // landing page and the first-touch conversion rate and revenue (as the ai_source breakdown).
 func AIReferrals(db *sql.DB, p Params) ([]AIReferral, error) {
-	rows, err := Breakdown(db, p, "ai_source", "", clampLimit(p.Limit))
+	out, _, err := aiFirstTouch(db, p, true)
+	return out, err
+}
+
+// aiFirstTouch is the one definition of AI referrals: the AIReferrals rows, plus each AI source's
+// converting people (the numerator of its ConvRate; empty when the site has no goal). The AI
+// visibility funnel's visited and converted steps read the same numbers. entries fills TopEntry.
+func aiFirstTouch(db *sql.DB, p Params, entries bool) ([]AIReferral, map[string]int, error) {
+	conv := map[string]int{}
+	rows, err := breakdown(db, p, "ai_source", "", clampLimit(p.Limit), conv)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	out := make([]AIReferral, 0, len(rows))
 	idx := map[string]int{}
@@ -108,12 +117,12 @@ func AIReferrals(db *sql.DB, p Params) ([]AIReferral, error) {
 		idx[r.Key] = len(out)
 		out = append(out, a)
 	}
-	if len(out) == 0 {
-		return out, nil
+	if len(out) == 0 || !entries {
+		return out, conv, nil
 	}
 	cte, args, err := base(p)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	best := map[string]int{}
 	err = forRows(db, cte+sessRows()+`SELECT ai, entry, count(*) FROM ss WHERE ai!='' GROUP BY 1, 2 ORDER BY 1, 3 DESC, 2`, args,
@@ -129,8 +138,8 @@ func AIReferrals(db *sql.DB, p Params) ([]AIReferral, error) {
 			return nil
 		})
 	if err != nil {
-		return nil, fmt.Errorf("ai entries: %w", err)
+		return nil, nil, fmt.Errorf("ai entries: %w", err)
 	}
 	sort.SliceStable(out, func(i, j int) bool { return out[i].Visitors > out[j].Visitors })
-	return out, nil
+	return out, conv, nil
 }

@@ -143,7 +143,7 @@ ids AS (SELECT value AS id FROM json_each(?)),
 anons AS (SELECT id AS anon_id FROM ids UNION SELECT anon_id FROM identity_map WHERE site_id=? AND user_id IN (SELECT id FROM ids))
 SELECT COALESCE(idm.user_id, e.anon_id) AS person, count(DISTINCT e.session_id)
 FROM events e LEFT JOIN idm USING(anon_id)
-WHERE e.site_id=? AND e.is_bot=0 AND e.anon_id IN (SELECT anon_id FROM anons)
+WHERE e.site_id=? AND ` + journeyCond + ` AND e.anon_id IN (SELECT anon_id FROM anons)
 GROUP BY 1`
 	n := map[string]int{}
 	err = forRows(db, q, []any{site, site, string(idsJSON), site, site}, func(r *sql.Rows) error {
@@ -184,7 +184,7 @@ func Sessions(db *sql.DB, p Params, person string) ([]SessionRow, int, error) {
 		where, wargs = " WHERE sx.person=?", []any{person}
 	}
 	sx := cte + `, sx AS (SELECT session_id, person, max(ident) AS ident, min(ts) AS start, max(ts)-min(ts) AS dur,
-  sum(type='pageview') AS pv FROM ev GROUP BY session_id)
+  sum(type='pageview') AS pv, max(agent) AS agent FROM ev GROUP BY session_id)
 `
 	var total int
 	if err := db.QueryRow(sx+`SELECT count(*) FROM sx`+where, append(append([]any{}, args...), wargs...)...).Scan(&total); err != nil {
@@ -194,7 +194,7 @@ func Sessions(db *sql.DB, p Params, person string) ([]SessionRow, int, error) {
   se AS (SELECT session_id, max(ts), path AS exitp FROM ev WHERE type='pageview' GROUP BY session_id)
 SELECT sx.session_id, sx.person, sx.ident, sx.start, sx.dur, sx.pv, coalesce(sl.entry,''), coalesce(se.exitp,''),
   coalesce(sl.source,'Direct'), coalesce(sl.country,''), coalesce(sl.city,''), coalesce(sl.device,''),
-  coalesce(sl.browser,''), coalesce(sl.os,'')
+  coalesce(sl.browser,''), coalesce(sl.os,''), sx.agent
 FROM sx LEFT JOIN sl USING(session_id) LEFT JOIN se USING(session_id)` + where + `
 ORDER BY ` + order + `, sx.session_id DESC LIMIT ? OFFSET ?`
 	qa := append(append(append([]any{}, args...), wargs...), clampLimit(p.Limit), offsetOf(p))
@@ -204,7 +204,7 @@ ORDER BY ` + order + `, sx.session_id DESC LIMIT ? OFFSET ?`
 		var s SessionRow
 		var ident bool
 		if err := r.Scan(&s.SessionID, &s.Person, &ident, &s.Start, &s.DurationMs, &s.Pages, &s.Entry, &s.Exit,
-			&s.Source, &s.Country, &s.City, &s.Device, &s.Browser, &s.OS); err != nil {
+			&s.Source, &s.Country, &s.City, &s.Device, &s.Browser, &s.OS, &s.Agent); err != nil {
 			return err
 		}
 		s.Label, s.Goals = personLabel(s.Person, ident), []int64{}
@@ -271,16 +271,16 @@ func goalHit(g Goal, s Step) bool {
 	return s.Path == g.Match
 }
 
-// Journey returns every non-bot session of person on site, oldest first, numbered from the
+// Journey returns every session of person on site (a person's or an AI agent's, never other bots), oldest first, numbered from the
 // person's first visit ever. person is a user id or an anon id, resolved through identity_map
 // as in base. Each session lists the goals among goals it hit (first hit of each).
 func Journey(db *sql.DB, site, person string, goals []Goal) ([]JourneySession, error) {
 	q := `WITH idm AS (SELECT anon_id, user_id FROM identity_map WHERE site_id=? AND rowid IN
   (SELECT min(rowid) FROM identity_map WHERE site_id=? GROUP BY anon_id))
 SELECT e.session_id, e.ts, e.type, e.path, e.name, e.engaged_ms, e.scroll_pct, e.props, ` + sourceNameExpr + `,
-  e.country, e.city, e.device
+  e.country, e.city, e.device, e.agent
 FROM events e LEFT JOIN idm USING(anon_id)
-WHERE e.site_id=? AND e.is_bot=0 AND COALESCE(idm.user_id, e.anon_id)=?
+WHERE e.site_id=? AND ` + journeyCond + ` AND COALESCE(idm.user_id, e.anon_id)=?
 ORDER BY e.ts, e.id`
 
 	out := []JourneySession{}
@@ -288,10 +288,10 @@ ORDER BY e.ts, e.id`
 	lastPV := map[string]int{} // session → index of its latest pageview step
 	hit := map[string]map[int64]bool{}
 	err := forRows(db, q, []any{site, site, site, person}, func(r *sql.Rows) error {
-		var sid, props, src, country, city, device string
+		var sid, props, src, country, city, device, agent string
 		var s Step
 		if err := r.Scan(&sid, &s.TS, &s.Type, &s.Path, &s.Name, &s.EngagedMs, &s.ScrollPct, &props, &src,
-			&country, &city, &device); err != nil {
+			&country, &city, &device, &agent); err != nil {
 			return err
 		}
 		i, ok := bySession[sid]
@@ -304,6 +304,7 @@ ORDER BY e.ts, e.id`
 		}
 		sess := &out[i]
 		sess.DurationMs = s.TS - sess.Start
+		sess.Agent = max(sess.Agent, agent)
 		for _, g := range goals {
 			if !hit[sid][g.ID] && goalHit(g, s) {
 				hit[sid][g.ID] = true

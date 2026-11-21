@@ -165,9 +165,10 @@ func (s *server) siteStatus(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
-	writeJSON(w, struct {
-		activity
-		Rejected24h int              `json:"rejected24h"`
-		Geo         *query.GeoStatus `json:"geo"` // null until B-api's Task A-4 fills it
-	}{a, s.sites.Rejected24h(id), nil})
+	geo, err := query.GeoStatusFor(s.db, id, time.Now()) // the same 24 h as activity's events24h
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	writeJSON(w, query.SiteStatus{LastEventAt: a.LastEventAt, Events24h: a.Events24h, Rejected24h: s.sites.Rejected24h(id), Geo: geo})
 }

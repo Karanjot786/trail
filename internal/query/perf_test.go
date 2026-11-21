@@ -139,6 +139,8 @@ func TestPerfDemo(t *testing.T) {
 	for _, d := range dimNames {
 		cases = append(cases, perfCase{"Breakdown " + d, func() error { return ignore(Breakdown(perfDB, p, d, "", 100)) }})
 	}
+	all := p
+	all.Actor = ActorAll
 	filtered := p
 	filtered.Filters = map[string]string{"source": "Google", "country": "IN"}
 	cases = append(cases,
@@ -154,6 +156,13 @@ func TestPerfDemo(t *testing.T) {
 		perfCase{"Changes", func() error { return ignore(Changes(perfDB, p)) }},
 		perfCase{"SitesSummary", func() error { return ignore(SitesSummary(perfDB, p, []string{"demo", "docs"})) }},
 		perfCase{"SiteFeatures", func() error { return ignore(SiteFeatures(perfDB, "demo")) }},
+		perfCase{"Agents", func() error { return ignore(Agents(perfDB, p)) }},
+		perfCase{"AIVisibility", func() error { return ignore(AIVisibility(perfDB, p)) }},
+		perfCase{"AIVisibility today", func() error { return ignore(AIVisibility(perfDB, perfParams(t, "today"))) }},
+		perfCase{"AISetupFor", func() error { return ignore(AISetupFor(perfDB, "demo", perfNow)) }},
+		perfCase{"GeoStatusFor", func() error { return ignore(GeoStatusFor(perfDB, "demo", perfNow)) }},
+		perfCase{"Stats actor=all", func() error { return ignore(Stats(perfDB, all)) }},
+		perfCase{"Breakdown path actor=all", func() error { return ignore(Breakdown(perfDB, all, "path", "", 100)) }},
 	)
 	perfRun(t, cases)
 }

@@ -181,3 +181,32 @@ func TestStatsBotRequestsNullWhenUnconfigured(t *testing.T) {
 		t.Fatalf("%d %s", w.Code, w.Body)
 	}
 }
+
+func TestAgentsRoute(t *testing.T) {
+	h, _, _ := reportFixture(t)
+	w := get(h, "/api/agents?site=s&range=7d&actor=all")
+	if w.Code != http.StatusOK || w.Header().Get("Content-Type") != "application/json" {
+		t.Fatalf("%d %s", w.Code, w.Body.String())
+	}
+	var r query.AgentsResult
+	decodeStrict(t, w.Body.Bytes(), &r)
+	if r.Sessions != 0 || r.Agents == nil || r.Latest == nil || r.Conv == nil {
+		t.Fatalf("%+v", r)
+	}
+	if w := get(h, "/api/agents?site=all&range=7d"); w.Code != http.StatusBadRequest {
+		t.Fatalf("site=all: %d", w.Code)
+	}
+}
+
+func TestAIVisibilityRoute(t *testing.T) {
+	h, _, _ := reportFixture(t)
+	w := get(h, "/api/ai-visibility?site=s&range=today")
+	if w.Code != http.StatusOK {
+		t.Fatalf("%d %s", w.Code, w.Body.String())
+	}
+	var r query.AIVisibilityResult
+	decodeStrict(t, w.Body.Bytes(), &r)
+	if len(r.Steps) != 5 || r.Steps[0].Status != "not_set_up" || r.Window.Key != "7d" {
+		t.Fatalf("%+v", r)
+	}
+}

@@ -104,15 +104,6 @@ func TestStubsReportNotImplemented(t *testing.T) {
 	if _, err := query.Revenue(nil, query.Params{}); !errors.Is(err, query.ErrNotImplemented) && err != nil {
 		t.Fatalf("Revenue: %v", err)
 	}
-	if _, err := query.AIVisibility(nil, query.Params{}); !errors.Is(err, query.ErrNotImplemented) && err != nil {
-		t.Fatalf("AIVisibility: %v", err)
-	}
-	if _, err := query.Agents(nil, query.Params{}); !errors.Is(err, query.ErrNotImplemented) && err != nil {
-		t.Fatalf("Agents: %v", err)
-	}
-	if _, err := query.AISetupFor(nil, "s", time.Now()); !errors.Is(err, query.ErrNotImplemented) && err != nil {
-		t.Fatalf("AISetupFor: %v", err)
-	}
 }
 
 // ---- Golden TS: every Go contract type, fully populated, checked by tsc with `satisfies`. ----
