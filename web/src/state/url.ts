@@ -20,7 +20,7 @@ export interface UrlState {
   env: Env // env= (default production)
   metric: Metric // metric= (default visitors)
   filters: Filter[] // f=dim:value, repeated, URL order kept
-  panels: Record<string, string> // p.<panel>=<tab>, e.g. p.pages=exit
+  panels: Record<string, string> // p.<panel>=<tab>, e.g. p.pages=exit; also the SUBTABS keys (p.goal=sources)
   sheet: Sheet | null
   hideRevenue: boolean // hr=1, honoured only under /share/
 }
@@ -55,6 +55,13 @@ export const PANELS: Record<string, readonly string[]> = {
   devices: ['devices', 'browsers', 'os'],
   events: ['events'],
   goals: ['goals'],
+}
+/** Screen sub-views kept in the URL like panel tabs (p.<key>=<value>, default first): goal detail tabs,
+ * the Acquisition group-by and the revenue breakdown dimension. Links and Back keep them; reports never open them. */
+export const SUBTABS: Record<string, readonly string[]> = {
+  goal: ['overview', 'sources', 'pages'],
+  acq: ['source', 'referrer', 'channel'],
+  rev: ['source', 'channel', 'campaign', 'entry', 'country', 'device'],
 }
 export const DIMS: readonly Dim[] = [
   'path', 'route', 'host', 'entry', 'exit',
@@ -190,7 +197,7 @@ export function parseUrl(pathname: string, search: string): { state: UrlState; r
   for (const [k, v] of q) {
     if (!k.startsWith('p.')) continue
     const panel = k.slice(2)
-    if (PANELS[panel]?.includes(v)) s.panels[panel] = v
+    if ((PANELS[panel] ?? SUBTABS[panel])?.includes(v)) s.panels[panel] = v
   }
 
   const person = q.get('person')
@@ -223,7 +230,7 @@ function viewParams(s: UrlState): URLSearchParams {
   if (s.metric !== DEFAULTS.metric) q.set('metric', s.metric)
   for (const f of s.filters) q.append('f', `${f.dim}:${f.value}`)
   for (const panel of Object.keys(s.panels).sort()) {
-    if (s.panels[panel] !== PANELS[panel]?.[0]) q.set(`p.${panel}`, s.panels[panel])
+    if (s.panels[panel] !== (PANELS[panel] ?? SUBTABS[panel])?.[0]) q.set(`p.${panel}`, s.panels[panel])
   }
   return q
 }

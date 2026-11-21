@@ -1,5 +1,5 @@
 // Acquisition → Sources: grouped by Source, Referrer URL or Channel. Bars follow value / max of this table.
-import { useState } from 'react'
+import { useSubTab } from '../../state/useUrlState'
 import { api } from '../../api/client'
 import type { Dim, Row } from '../../api/types'
 import { rowLabel } from '../../data/columns'
@@ -23,7 +23,7 @@ const LEDE: Record<Group, string> = {
 }
 
 export function Sources({ ctx, share }: { ctx: Omit<MetricCtx, 'max'>; share: boolean }) {
-  const [group, setGroup] = useState<Group>('source')
+  const [group, setGroup] = useSubTab<Group>('acq')
   const r = useReport(`breakdown:${group}`, (q, sig) => api.breakdown(q, group as Dim, { limit: 1000 }, sig))
   const rows = (r.data?.rows ?? []).filter((x) => x.visitors > 0)
   const cols = metricColumns<Row & { views?: number }>({ ...ctx, max: maxOf(rows, (x) => x.visitors) })
