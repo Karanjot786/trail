@@ -75,25 +75,31 @@ func withoutGoalFilter(p Params) (Params, bool) {
 // Only the persons in the subquery are scanned, through events_site_anon_ts.
 func FirstTouch(db *sql.DB, p Params, persons string, args []any) (cte string, outArgs []any) {
 	_ = db // the fragment is pure SQL; db is kept for the contract signature
+	return firstTouchCTE(p, "ft", `source, channel, campaign, entry, country, device`,
+		sourceNameExpr+` AS source, `+channelExpr+` AS channel, f.utm_campaign AS campaign, f.path AS entry,
+    f.country AS country, f.device AS device`, persons, args)
+}
+
+// firstTouchCTE builds name(person, cols…) from each listed person's first pageview ever;
+// sel computes cols over events row f (unqualified columns resolve to f).
+func firstTouchCTE(p Params, name, cols, sel, persons string, args []any) (string, []any) {
 	env := ""
-	outArgs = []any{p.Site}
+	out := []any{p.Site}
 	if p.Env != "" && p.Env != "all" {
 		env = " AND f.env=?"
-		outArgs = append(outArgs, p.Env)
+		out = append(out, p.Env)
 	}
-	outArgs = append(outArgs, args...)
-	outArgs = append(outArgs, args...)
-	cte = `ft AS (SELECT person, source, channel, campaign, entry, country, device FROM (
-  SELECT COALESCE(m.user_id, f.anon_id) AS person, ` + sourceNameExpr + ` AS source, ` + channelExpr + ` AS channel,
-    f.utm_campaign AS campaign, f.path AS entry, f.country AS country, f.device AS device,
+	out = append(out, args...)
+	out = append(out, args...)
+	return name + ` AS (SELECT person, ` + cols + ` FROM (
+  SELECT COALESCE(m.user_id, f.anon_id) AS person, ` + sel + `,
     row_number() OVER (PARTITION BY COALESCE(m.user_id, f.anon_id) ORDER BY f.ts, f.id) AS rn
   FROM events f LEFT JOIN idm m ON m.anon_id=f.anon_id
   WHERE f.site_id=? AND f.is_bot=0 AND f.type='pageview'` + env + `
     AND f.anon_id IN (SELECT anon_id FROM idm WHERE user_id IN (` + persons + `)
       UNION ALL SELECT person FROM (` + persons + `))
 ) WHERE rn=1)
-`
-	return cte, outArgs
+`, out
 }
 
 // SiteFeatures reports which optional screens a site has data for: revenue when it ever sent a
