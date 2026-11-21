@@ -110,8 +110,8 @@ func TestResolveForgedProxyFallsBack(t *testing.T) {
 func TestResolvePlain(t *testing.T) {
 	r := httptest.NewRequest(http.MethodPost, "/_t/e", nil)
 	r.RemoteAddr = "203.0.113.9:5000"
-	r.Header.Set("X-Forwarded-For", "8.8.8.8") // from an untrusted peer: ignored
-	r.Header.Set("X-Trail-IP", "8.8.4.4")      // unsigned: ignored
+	r.Header.Set("X-Forwarded-For", "8.8.8.8")  // from an untrusted peer: ignored
+	r.Header.Set("X-Trail-IP", "8.8.4.4")       // unsigned: ignored
 	got := Resolver{}.Resolve(r, testSite, nil) // zero value: netx.Default, no keys
 	if got != (Result{IP: "203.0.113.9"}) {
 		t.Fatalf("got %+v", got)
