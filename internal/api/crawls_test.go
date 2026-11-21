@@ -58,16 +58,16 @@ func TestCrawlsEndpointLimits(t *testing.T) {
 	}
 }
 
-// fakeAgents records RelaySigned calls and verifies GPTBot from 192.0.2.1.
-type fakeAgents struct {
+// relayRecorder records RelaySigned calls and verifies GPTBot from 192.0.2.1.
+type relayRecorder struct {
 	relays []string
 }
 
-func (f *fakeAgents) Status() []agents.ListStatus { return []agents.ListStatus{} }
+func (f *relayRecorder) Status() []agents.ListStatus { return []agents.ListStatus{} }
 
-func (f *fakeAgents) VerifyCrawler(bot, ip string) bool { return bot == "GPTBot" && ip == "192.0.2.1" }
+func (f *relayRecorder) VerifyCrawler(bot, ip string) bool { return bot == "GPTBot" && ip == "192.0.2.1" }
 
-func (f *fakeAgents) RelaySigned(site, ip, ua string, s agents.Signed, hostOK func(string) bool) agents.Result {
+func (f *relayRecorder) RelaySigned(site, ip, ua string, s agents.Signed, hostOK func(string) bool) agents.Result {
 	f.relays = append(f.relays, fmt.Sprintf("%s|%s|%s|%s|%v|%v", site, ip, s.Authority, s.SignatureAgent, hostOK(s.Authority), hostOK("evil.example")))
 	if s.SignatureAgent == `"https://chatgpt.com"` && hostOK(s.Authority) {
 		return agents.Result{ID: "chatgpt-agent", Via: agents.ViaSig}
@@ -75,7 +75,7 @@ func (f *fakeAgents) RelaySigned(site, ip, ua string, s agents.Signed, hostOK fu
 	return agents.Result{}
 }
 
-func setupAgents(t *testing.T) (http.Handler, *fakeAgents, *sql.DB) {
+func setupAgents(t *testing.T) (http.Handler, *relayRecorder, *sql.DB) {
 	t.Helper()
 	st, err := store.Open(filepath.Join(t.TempDir(), "a.db"))
 	if err != nil {
@@ -89,7 +89,7 @@ func setupAgents(t *testing.T) (http.Handler, *fakeAgents, *sql.DB) {
 	if _, err := reg.Add(sites.Site{ID: "s", Domain: "example.com"}); err != nil {
 		t.Fatal(err)
 	}
-	fa := &fakeAgents{}
+	fa := &relayRecorder{}
 	return New(st.DB(), reg, time.UTC, WithAgents(fa)), fa, st.DB()
 }
 
