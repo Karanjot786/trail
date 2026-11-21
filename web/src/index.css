@@ -311,13 +311,13 @@ b, strong { font-weight: 600; }
 @media (hover: hover) and (pointer: fine) { .fbar .clear:hover { color: var(--fg); background: var(--hover); } }
 
 .page { max-width: 1280px; margin: 0 auto; padding: 12px 24px 64px; }
+.banners { padding: 0 24px; }
 .banners > * { max-width: 1232px; margin-left: auto; margin-right: auto; }
-.notice { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 10px; margin: 0 24px 8px; padding: 10px 14px; border-radius: 10px; background: var(--accent-soft); border: 1px solid var(--accent-line); font-size: 13px; }
+.notice { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 10px; margin-bottom: 8px; padding: 10px 14px; border-radius: 10px; background: var(--accent-soft); border: 1px solid var(--accent-line); font-size: 13px; }
 .notice[data-tone="warn"] { background: var(--warn-bg); border-color: transparent; }
 .notice[data-tone="warn"] > svg { color: var(--warn); }
 .notice[data-tone="bad"] { background: var(--danger-bg); border-color: transparent; }
 .notice[data-tone="bad"] > svg { color: var(--danger); }
-@media (min-width: 1281px) { .notice { margin-left: auto; margin-right: auto; } }
 .range-note { display: flex; gap: 8px; align-items: center; margin: 0 0 10px; padding: 8px 12px; border-radius: 10px; background: var(--warn-bg); color: var(--fg); font-size: 13px; }
 .range-note svg { color: var(--warn); }
 .stale-wrap { filter: grayscale(1); }
@@ -398,7 +398,7 @@ b, strong { font-weight: 600; }
   .top .ctrls .btn { padding: 0 9px; }
   .top .ctrls .btn > svg:last-child:not(:first-child) { display: none; }
   .fbar { padding: 0 16px 8px; }
-  .notice { margin: 0 16px 8px; }
+  .banners { padding: 0 16px; }
   .page { padding: 12px 16px 48px; }
   .fresh .sep { display: none; }
   .fresh { gap: 2px 10px; }
