@@ -152,7 +152,7 @@ func TestMCPInitializedNotification202(t *testing.T) {
 	}
 }
 
-func TestMCPToolsList(t *testing.T) {
+func TestToolsListed(t *testing.T) {
 	h, _ := setup(t)
 	code, out := rpc(t, h, "tools/list", map[string]any{})
 	if code != 200 || out.Error != nil {
@@ -167,7 +167,12 @@ func TestMCPToolsList(t *testing.T) {
 	if err := json.Unmarshal(out.Result, &res); err != nil {
 		t.Fatal(err)
 	}
-	want := map[string]bool{"list_sites": true, "get_stats": true, "get_series": true, "get_breakdown": true, "list_visitors": true, "get_journey": true, "goal_report": true}
+	want := map[string]bool{}
+	for _, n := range strings.Fields(`list_sites get_stats get_series get_breakdown list_visitors get_sessions get_journey
+		goal_report get_goal get_campaigns get_ai_referrals list_events get_event list_funnels get_funnel get_funnel_dropoff
+		get_revenue get_heatmap get_live what_changed get_crawlers list_notes add_note`) {
+		want[n] = true
+	}
 	if len(res.Tools) != len(want) {
 		t.Fatalf("%d tools, want %d", len(res.Tools), len(want))
 	}
@@ -315,5 +320,77 @@ func TestMCPBadMetricText(t *testing.T) {
 	res := callTool(t, h, "get_series", map[string]any{"site": "s", "metric": "zzz"})
 	if !res.IsError || len(res.Content) == 0 || !strings.Contains(res.Content[0].Text, "unknown metric") {
 		t.Fatalf("got %+v", res)
+	}
+}
+
+// tokenCtx wraps h so every request carries tok, as auth.API does.
+func tokenCtx(h http.Handler, tok auth.Token) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h.ServeHTTP(w, r.WithContext(auth.WithToken(r.Context(), tok)))
+	})
+}
+
+func TestReadTokenCannotAddNote(t *testing.T) {
+	h, db := setup(t)
+	args := map[string]any{"site": "s", "label": "Deploy 42", "kind": "deploy"}
+	if res := callTool(t, tokenCtx(h, auth.Token{ID: "r", Name: "r", Scope: "read"}), "add_note", args); !res.IsError {
+		t.Fatalf("read token added a note: %+v", res)
+	}
+	res := callTool(t, tokenCtx(h, auth.Token{ID: "n", Name: "n", Scope: "notes"}), "add_note", args)
+	if res.IsError || !strings.Contains(string(res.StructuredContent), `"label":"Deploy 42"`) {
+		t.Fatalf("notes token: %+v", res)
+	}
+	var n int
+	_ = db.QueryRow(`SELECT count(*) FROM notes`).Scan(&n)
+	if n != 1 {
+		t.Fatalf("%d notes", n)
+	}
+	res = callTool(t, h, "list_notes", map[string]any{"site": "s", "range": "7d"})
+	if !strings.Contains(string(res.StructuredContent), "Deploy 42") {
+		t.Fatalf("list_notes %s", res.StructuredContent)
+	}
+}
+
+func TestSiteScopedTokenListSites(t *testing.T) {
+	h, _, reg := setupReg(t)
+	if _, err := reg.Add(sites.Site{ID: "docs", Domain: "docs.dev"}); err != nil {
+		t.Fatal(err)
+	}
+	scoped := tokenCtx(h, auth.Token{ID: "d", Name: "d", Scope: "read", Site: "docs"})
+	res := callTool(t, scoped, "list_sites", map[string]any{})
+	if string(res.StructuredContent) != `[{"id":"docs","domain":"docs.dev"}]` {
+		t.Fatalf("list_sites %s", res.StructuredContent)
+	}
+	if res := callTool(t, scoped, "get_stats", map[string]any{"site": "s"}); !res.IsError {
+		t.Fatal("scoped token read another site")
+	}
+	if res := callTool(t, scoped, "get_journey", map[string]any{"site": "s", "person": "A"}); !res.IsError {
+		t.Fatal("scoped token read another site's journey")
+	}
+}
+
+func TestWhatChangedTool(t *testing.T) {
+	h, _ := setup(t)
+	res := callTool(t, h, "what_changed", map[string]any{"site": "s", "range": "7d", "tz": "Asia/Kolkata"})
+	if res.IsError {
+		t.Fatalf("%+v", res.Content)
+	}
+	var got query.ChangesResult
+	d := json.NewDecoder(strings.NewReader(string(res.StructuredContent)))
+	d.DisallowUnknownFields()
+	if err := d.Decode(&got); err != nil || got.Items == nil {
+		t.Fatalf("shape %s: %v", res.StructuredContent, err)
+	}
+}
+
+func TestNewRangeKeys(t *testing.T) {
+	h, _ := setup(t)
+	for _, r := range []string{"today", "mtd", "lastmonth", "d:2026-11-19", "c:2026-11-01~2026-11-20"} {
+		if res := callTool(t, h, "get_stats", map[string]any{"site": "s", "range": r, "cmp": "none"}); res.IsError {
+			t.Errorf("%s: %+v", r, res.Content)
+		}
+	}
+	if res := callTool(t, h, "get_breakdown", map[string]any{"site": "s", "dim": "channel", "range": "7d"}); res.IsError {
+		t.Errorf("channel dim: %+v", res.Content)
 	}
 }
