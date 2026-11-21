@@ -76,3 +76,19 @@ describe('url state', () => {
     expect(parseUrl('/', '?range=d:2026-11-12').state.range).toBe('d:2026-11-12')
   })
 })
+
+describe('screen sub-views (SUBTABS)', () => {
+  it('round-trips goal tabs, the Acquisition group-by and the revenue dimension, default omitted', () => {
+    const { state } = parseUrl('/conversions/goals/3', '?site=demo&p.goal=sources&p.acq=channel&p.rev=country')
+    expect(state.panels).toEqual({ goal: 'sources', acq: 'channel', rev: 'country' })
+    expect(serializeUrl(state)).toBe('/conversions/goals/3?site=demo&p.acq=channel&p.goal=sources&p.rev=country')
+    expect(viewState(state)).toContain('p.goal=sources')
+    state.panels = { goal: 'overview', rev: 'source' }
+    expect(serializeUrl(state)).toBe('/conversions/goals/3?site=demo')
+  })
+  it('drops unknown values and never opens a report sheet for them', () => {
+    const { state } = parseUrl('/', '?p.goal=nope&rep=goal:sources')
+    expect(state.panels).toEqual({})
+    expect(state.sheet).toBeNull()
+  })
+})
