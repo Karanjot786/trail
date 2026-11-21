@@ -25,13 +25,16 @@ vi.mock('../ui/menu', () => ({
       {children}
     </div>
   ),
+  MenuItem: ({ children, onSelect }: { children: React.ReactNode; onSelect: () => void }) => (
+    <div role="menuitem" onClick={onSelect}>
+      {children}
+    </div>
+  ),
+  MenuLabel: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  MenuSeparator: () => <hr />,
 }))
-vi.mock('radix-ui', () => {
-  const Pass = ({ children }: { children?: React.ReactNode }) => <div>{children}</div>
-  return { DropdownMenu: { Label: Pass, Separator: () => <hr />, Item: Pass } }
-})
 
-import { Panel } from './Panel'
+import { curlFor, Panel } from './Panel'
 
 
 afterEach(cleanup)
@@ -176,5 +179,15 @@ describe('Panel', () => {
     expect(boxes[0].getAttribute('aria-disabled')).toBe('true')
     fireEvent.click(boxes[0])
     expect(getAllByRole('menuitemcheckbox')[0].getAttribute('aria-checked')).toBe('true')
+  })
+
+  it('opens the full report from the menu and prints the same query as an API call', async () => {
+    const { findByRole, getByRole } = render(<Panel id="sources" title="Sources" tabs={panelTabs('sources')} />)
+    await findByRole('button', { name: 'src0' })
+    fireEvent.click(getByRole('menuitem', { name: 'Open full report' }))
+    expect(new URLSearchParams(location.search).get('rep')).toBe('sources:sources')
+    const curl = curlFor(new URLSearchParams('site=demo&range=7d'), 'source', 'https://trail.example')
+    expect(curl).toContain('Bearer $TRAIL_TOKEN')
+    expect(curl).toContain('https://trail.example/api/v1/breakdown?site=demo&range=7d&dim=source')
   })
 })

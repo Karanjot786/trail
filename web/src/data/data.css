@@ -62,9 +62,3 @@
   .panel-f button:hover, .panel-more:hover { background: var(--hover); color: var(--fg); }
 }
 @media (pointer: coarse) { .panel-more, .panel-f button { min-height: 44px; min-width: 44px; } }
-.panel-menu { min-width: 220px; padding: 4px; border-radius: var(--radius-popover); background: var(--raised); box-shadow: var(--elevation-pop); z-index: var(--z-popover); font-size: var(--text-small); }
-.panel-menu [role^="menuitem"] { display: flex; align-items: center; gap: 8px; min-height: 32px; padding: 0 8px; border-radius: var(--radius-row); color: var(--fg); outline: none; cursor: default; text-decoration: none; }
-.panel-menu [role^="menuitem"][data-highlighted] { background: var(--hover); }
-.panel-menu [role^="menuitem"][data-disabled] { color: var(--subtle); }
-.panel-menu .lab { padding: 6px 8px 2px; color: var(--subtle); font-size: var(--text-caption); }
-.panel-menu .sep { height: 1px; margin: 4px 0; background: var(--border); }

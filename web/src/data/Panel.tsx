@@ -1,7 +1,6 @@
 // An Overview panel (Task F2-2): tabs from p.<panel> in the URL, 7 rows of BarList plus "Show all N",
 // a ⋯ menu with Columns, Export CSV/JSON, Copy as API call and Open full report. The exit tab adds the
 // "Loses people most" sort. Rows open their report (dr=); the Filter button adds f= (not in share mode).
-import { DropdownMenu } from 'radix-ui'
 import { useMemo, useState } from 'react'
 import { api } from '../api/client'
 import type { Dim, Filter } from '../api/types'
@@ -9,7 +8,7 @@ import { useQuery } from '../api/useQuery'
 import { useSite } from '../shell/useSite'
 import { apiQuery } from '../state/url'
 import { navigate, useUrlState } from '../state/useUrlState'
-import { Menu, MenuCheckbox } from '../ui/menu'
+import { Menu, MenuCheckbox, MenuItem, MenuLabel, MenuSeparator } from '../ui/menu'
 import { EmptyState, ErrorState, Skeleton } from '../ui/states'
 import { Segmented, Tabs } from '../ui/tabs'
 import { toast } from '../ui/toast'
@@ -54,6 +53,16 @@ export function curlFor(q: URLSearchParams, dim: Dim, origin: string): string {
   const p = new URLSearchParams(q)
   p.set('dim', dim)
   return `curl -H "Authorization: Bearer $TRAIL_TOKEN" \\\n  "${origin}/api/v1/breakdown?${p}"`
+}
+
+/** Start a download of a server attachment without leaving the page. */
+function download(href: string): void {
+  const a = document.createElement('a')
+  a.href = href
+  a.download = ''
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
 }
 
 export function Panel({ id, title, tabs, definition }: PanelProps) {
@@ -126,30 +135,20 @@ export function Panel({ id, title, tabs, definition }: PanelProps) {
             </button>
           }
         >
-          <div className="panel-menu">
-            <DropdownMenu.Label className="lab">Columns</DropdownMenu.Label>
-            {allCols.map((c) => {
-              const checked = visibleIds.includes(c.id)
-              return (
-                <MenuCheckbox key={c.id} checked={checked} disabled={checked && visibleIds.length === 1} onCheckedChange={(on) => setCol(c.id, on)}>
-                  {c.header}
-                </MenuCheckbox>
-              )
-            })}
-            <DropdownMenu.Separator className="sep" />
-            <DropdownMenu.Item asChild>
-              <a href={api.exportUrl('/breakdown', exportQ(), 'csv')} download>
-                Export CSV
-              </a>
-            </DropdownMenu.Item>
-            <DropdownMenu.Item asChild>
-              <a href={api.exportUrl('/breakdown', exportQ(), 'json')} download>
-                Export JSON
-              </a>
-            </DropdownMenu.Item>
-            <DropdownMenu.Item onSelect={() => void copyCurl()}>Copy as API call</DropdownMenu.Item>
-            <DropdownMenu.Item onSelect={openReport}>Open full report</DropdownMenu.Item>
-          </div>
+          <MenuLabel>Columns</MenuLabel>
+          {allCols.map((c) => {
+            const checked = visibleIds.includes(c.id)
+            return (
+              <MenuCheckbox key={c.id} checked={checked} disabled={checked && visibleIds.length === 1} onCheckedChange={(on) => setCol(c.id, on)}>
+                {c.header}
+              </MenuCheckbox>
+            )
+          })}
+          <MenuSeparator />
+          <MenuItem onSelect={() => download(api.exportUrl('/breakdown', exportQ(), 'csv'))}>Export CSV</MenuItem>
+          <MenuItem onSelect={() => download(api.exportUrl('/breakdown', exportQ(), 'json'))}>Export JSON</MenuItem>
+          <MenuItem onSelect={() => void copyCurl()}>Copy as API call</MenuItem>
+          <MenuItem onSelect={openReport}>Open full report</MenuItem>
         </Menu>
       </div>
       {(tab.definition ?? definition) && <p className="panel-def">{tab.definition ?? definition}</p>}
