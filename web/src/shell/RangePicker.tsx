@@ -1,6 +1,6 @@
 // RangePicker (plan F1-5): presets in §0.3 order plus a custom range from two native date inputs.
 // The custom form lives in its own popover (inputs inside a Radix menu would fight its typeahead).
-import { useId, useState, type FormEvent } from 'react'
+import { useRef, useState, type FormEvent } from 'react'
 import { Calendar, ChevronDown } from 'lucide-react'
 import { Popover as PP } from 'radix-ui'
 import type { RangeKey } from '../api/types'
@@ -17,8 +17,15 @@ export function RangePicker() {
   const s = useUrlState()
   const stats = useStats()
   const [custom, setCustom] = useState(false)
+  // Opened once the menu has closed (see CompareMenu).
+  const wantCustom = useRef(false)
+  const afterMenu = (e: Event) => {
+    if (!wantCustom.current) return
+    wantCustom.current = false
+    e.preventDefault()
+    setCustom(true)
+  }
   useLayer(custom, () => setCustom(false))
-  const labelId = useId()
   const isCustom = s.range.startsWith('c:')
   const w = stats.data?.window
   const [long, short] = w && w.key === s.range && w.label ? [w.label, rangeLabel(s.range)[1]] : rangeLabel(s.range)
@@ -36,14 +43,11 @@ export function RangePicker() {
   }
 
   const button = (
-    <button type="button" className="btn range-btn" aria-label="Date range" aria-describedby={labelId}>
+    <button type="button" className="btn range-btn">
       <Calendar size={14} aria-hidden="true" />
-      <span className="rl" id={labelId}>
-        {long}
-      </span>
-      <span className="rs" aria-hidden="true">
-        {short}
-      </span>
+      <span className="rl">{long}</span>
+      <span className="rs">{short}</span>
+      <span className="sr-only">, date range</span>
       <ChevronDown size={14} aria-hidden="true" />
     </button>
   )
@@ -52,7 +56,7 @@ export function RangePicker() {
     <PP.Root open={custom} onOpenChange={setCustom}>
       <PP.Anchor asChild>
         <span style={{ display: 'inline-flex' }}>
-          <Menu trigger={button} label="Date range" align="end" minWidth={260}>
+          <Menu trigger={button} label="Date range" align="end" minWidth={260} onCloseAutoFocus={afterMenu}>
             <MenuRadioGroup value={s.range} onValueChange={(v) => navigate({ range: v as RangeKey })}>
               {RANGE_GROUPS.map((g) => (
                 <div key={g.label} role="group" aria-label={g.label}>
@@ -66,7 +70,7 @@ export function RangePicker() {
               ))}
             </MenuRadioGroup>
             <MenuSeparator />
-            <MenuItem onSelect={() => setTimeout(() => setCustom(true), 0)} end={isCustom ? long : undefined}>
+            <MenuItem onSelect={() => (wantCustom.current = true)} end={isCustom ? long : undefined}>
               <span className="chk" aria-hidden="true" />
               Custom range…
             </MenuItem>

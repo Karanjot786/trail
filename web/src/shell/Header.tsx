@@ -62,11 +62,11 @@ export function Header() {
               className="live-pill"
               data-frozen={frozen ? '' : undefined}
               patch={{ screen: 'live', tab: '', id: null, sheet: null }}
-              aria-label={frozen ? `${lc} visitors online, not updating. Open Live` : `${lc} visitors online now. Open Live`}
             >
               <StatusDot tone={frozen ? 'off' : 'live'} />
-              <b>{lc}</b>
+              <b>{lc}</b>{' '}
               <span>online</span>
+              <span className="sr-only">{frozen ? ', not updating' : ' now'}. Open Live</span>
             </RouteLink>
           </span>
         )}

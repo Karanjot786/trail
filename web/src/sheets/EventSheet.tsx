@@ -155,13 +155,12 @@ export function EventBody({ name }: { name: string }) {
             key={`${o.ts}-${i}`}
             type="button"
             className="occ"
-            aria-label={`Open the journey of ${o.label}, ${dayTime(o.ts, tz)}`}
             onClick={() => navigate({ sheet: { kind: 'journey', person: o.person, session: o.sessionId } })}
           >
             <Avatar seed={o.person} size={20} />
             <span className="who">
-              <b data-testid="journey-label">{o.label}</b>
-              <span>{dayTime(o.ts, tz)}</span>
+              <b data-testid="journey-label">{o.label}</b>{' '}
+              <span>{dayTime(o.ts, tz)}</span>{' '}
             </span>
             <span className="prop-chips">
               {Object.entries(o.props ?? {})
@@ -171,8 +170,10 @@ export function EventBody({ name }: { name: string }) {
                 ))}
             </span>
             <span className="when">
+              {' '}
               {rel(o.ts)} <ChevronRight aria-hidden="true" size={14} style={{ verticalAlign: 'middle' }} />
             </span>
+            <span className="sr-only">. Open the journey</span>
           </button>
         ))}
       </div>

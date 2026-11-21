@@ -27,8 +27,8 @@ export const RANGE_GROUPS: { label: string; keys: RangeKey[] }[] = [
 const RANGE_LABEL: Record<string, [string, string]> = {
   today: ['Today', 'Today'],
   yesterday: ['Yesterday', 'Yest.'],
-  wtd: ['Week to date', 'WTD'],
-  mtd: ['Month to date', 'MTD'],
+  wtd: ['This week', 'Week'],
+  mtd: ['This month', 'Month'],
   lastmonth: ['Last month', 'Last mo.'],
   '7d': ['Last 7 days', '7d'],
   '30d': ['Last 30 days', '30d'],

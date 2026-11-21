@@ -27,15 +27,17 @@ export interface MenuProps {
   minWidth?: number
   open?: boolean
   onOpenChange?: (open: boolean) => void
+  /** Runs when the menu has closed and is about to refocus its trigger; preventDefault() keeps focus where it goes next. */
+  onCloseAutoFocus?: (e: Event) => void
 }
 
-export function Menu({ trigger, label, children, align = 'start', side = 'bottom', minWidth, open, onOpenChange }: MenuProps) {
+export function Menu({ trigger, label, children, align = 'start', side = 'bottom', minWidth, open, onOpenChange, onCloseAutoFocus }: MenuProps) {
   const [o, setO] = useOpen(open, onOpenChange)
   return (
     <DM.Root open={o} onOpenChange={setO} modal={false}>
       <DM.Trigger asChild>{trigger}</DM.Trigger>
       <DM.Portal>
-        <DM.Content className="pop" aria-label={label} align={align} side={side} sideOffset={6} collisionPadding={8} style={minWidth ? { minWidth } : undefined}>
+        <DM.Content className="pop" aria-label={label} align={align} side={side} sideOffset={6} collisionPadding={8} style={minWidth ? { minWidth } : undefined} onCloseAutoFocus={onCloseAutoFocus}>
           {children}
         </DM.Content>
       </DM.Portal>
