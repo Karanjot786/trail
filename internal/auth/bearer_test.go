@@ -41,7 +41,8 @@ func TestParseTokens(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if toks[readTok] != (Token{Name: "ci", Scope: "read"}) || toks[writeTok] != (Token{Name: "admin", Scope: "write"}) || len(toks) != 2 {
+	if toks[readTok] != (Token{ID: "env:ci", Name: "ci", Scope: "read", FromEnv: true}) ||
+		toks[writeTok] != (Token{ID: "env:admin", Name: "admin", Scope: "write", FromEnv: true}) || len(toks) != 2 {
 		t.Fatalf("got %+v", toks)
 	}
 	if toks, err := ParseTokens(""); err != nil || len(toks) != 0 {

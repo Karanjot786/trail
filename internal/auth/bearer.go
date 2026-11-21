@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"context"
 	"crypto/sha256"
 	"crypto/subtle"
 	"fmt"
@@ -10,9 +11,25 @@ import (
 	"time"
 )
 
-// Token is one API token from TRAIL_API_TOKENS. Scope is "read" or "write".
+// Token is an API token's identity: one from TRAIL_API_TOKENS (FromEnv, every
+// site) or one created in the dashboard. Scope is read, notes, write or crawl;
+// Site "" means every site.
 type Token struct {
-	Name, Scope string
+	ID, Name, Scope, Site string
+	FromEnv               bool
+}
+
+type ctxKey struct{}
+
+// WithToken returns ctx carrying t (TokenFrom reads it back).
+func WithToken(ctx context.Context, t Token) context.Context {
+	return context.WithValue(ctx, ctxKey{}, t)
+}
+
+// TokenFrom returns the bearer token that authenticated the request, if any.
+func TokenFrom(ctx context.Context) (Token, bool) {
+	t, ok := ctx.Value(ctxKey{}).(Token)
+	return t, ok
 }
 
 const (
@@ -49,7 +66,7 @@ func ParseTokens(s string) (map[string]Token, error) {
 			return nil, fmt.Errorf("TRAIL_API_TOKENS: token %q reuses another entry's token", name)
 		}
 		names[name] = true
-		toks[tok] = Token{Name: name, Scope: scope}
+		toks[tok] = Token{ID: "env:" + name, Name: name, Scope: scope, FromEnv: true}
 	}
 	return toks, nil
 }
@@ -68,7 +85,71 @@ type bucket struct {
 type bearer struct {
 	mu      sync.Mutex
 	tokens  []apiToken
-	buckets map[string]*bucket // by token name
+	buckets map[string]*bucket // by token id
+	extra   func(string) (Token, bool)
+}
+
+// SetLookup installs a second token source (the api_tokens table), consulted
+// with the plaintext token when no env token matches.
+func (a *Auth) SetLookup(fn func(plain string) (Token, bool)) {
+	a.bearer.mu.Lock()
+	defer a.bearer.mu.Unlock()
+	a.bearer.extra = fn
+}
+
+// API guards the bearer surfaces (/api/v1/* and /mcp) with the scope matrix of
+// plan §0.12: read → GET /api/v1/* and /mcp; notes → read plus POST/DELETE
+// /api/v1/notes; write → everything; crawl → POST /api/v1/crawls only. The
+// token is put in the request context (TokenFrom); site scope is checked by
+// the handlers, which know the site.
+func (a *Auth) API(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t, ok := a.authenticate(w, r)
+		if !ok {
+			return
+		}
+		if !Allowed(t.Scope, r.Method, r.URL.Path) {
+			http.Error(w, "forbidden: token scope "+t.Scope+" does not allow this request", http.StatusForbidden)
+			return
+		}
+		h.ServeHTTP(w, r.WithContext(WithToken(r.Context(), t)))
+	})
+}
+
+// Allowed applies the scope matrix to one request.
+func Allowed(scope, method, path string) bool {
+	read := method == http.MethodGet || method == http.MethodHead
+	mcp := path == "/mcp" || strings.HasPrefix(path, "/mcp/")
+	crawls := path == "/api/v1/crawls"
+	notes := path == "/api/v1/notes" || strings.HasPrefix(path, "/api/v1/notes/")
+	switch scope {
+	case "write":
+		return true
+	case "read":
+		return mcp || (read && !crawls)
+	case "notes":
+		return mcp || (read && !crawls) || (notes && (method == http.MethodPost || method == http.MethodDelete))
+	case "crawl":
+		return crawls && method == http.MethodPost
+	}
+	return false
+}
+
+// authenticate finds the request's token and takes one request from its rate
+// bucket, or writes 401/429 and returns false.
+func (a *Auth) authenticate(w http.ResponseWriter, r *http.Request) (Token, bool) {
+	t, ok := a.lookup(r.Header.Get("Authorization"))
+	if !ok {
+		w.Header().Set("WWW-Authenticate", `Bearer realm="trail"`)
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return t, false
+	}
+	if !a.allow(t.ID) {
+		w.Header().Set("Retry-After", "1")
+		http.Error(w, "rate limited", http.StatusTooManyRequests)
+		return t, false
+	}
+	return t, true
 }
 
 // SetTokens installs the API tokens accepted by Bearer.
@@ -87,22 +168,15 @@ func (a *Auth) SetTokens(toks map[string]Token) {
 // read-only, and 429 past 300 requests per minute per token.
 func (a *Auth) Bearer(scope string, h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		t, ok := a.lookup(r.Header.Get("Authorization"))
+		t, ok := a.authenticate(w, r)
 		if !ok {
-			w.Header().Set("WWW-Authenticate", `Bearer realm="trail"`)
-			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
 		if scope == "write" && t.Scope != "write" {
 			http.Error(w, "forbidden: token is read-only", http.StatusForbidden)
 			return
 		}
-		if !a.allow(t.Name) {
-			w.Header().Set("Retry-After", "1")
-			http.Error(w, "rate limited", http.StatusTooManyRequests)
-			return
-		}
-		h.ServeHTTP(w, r)
+		h.ServeHTTP(w, r.WithContext(WithToken(r.Context(), t)))
 	})
 }
 
@@ -115,7 +189,6 @@ func (a *Auth) lookup(header string) (Token, bool) {
 	}
 	h := sha256.Sum256([]byte(tok))
 	a.bearer.mu.Lock()
-	defer a.bearer.mu.Unlock()
 	var found Token
 	match := 0
 	for _, t := range a.bearer.tokens {
@@ -123,10 +196,18 @@ func (a *Auth) lookup(header string) (Token, bool) {
 			found, match = t.Token, 1
 		}
 	}
-	return found, match == 1
+	extra := a.bearer.extra
+	a.bearer.mu.Unlock()
+	if match == 1 {
+		return found, true
+	}
+	if extra != nil {
+		return extra(tok)
+	}
+	return Token{}, false
 }
 
-// allow takes one request from name's token bucket (300 capacity, refilled at
+// allow takes one request from the token's bucket (300 capacity, refilled at
 // 5 per second).
 func (a *Auth) allow(name string) bool {
 	now := a.now()
