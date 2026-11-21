@@ -3,8 +3,23 @@ on:
   push:
     branches: [main]
   pull_request:
+  schedule:
+    - cron: '17 3 * * *' # nightly: also runs the framework smoke
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      packages: ${{ steps.f.outputs.packages }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: f
+        with:
+          filters: |
+            packages:
+              - 'packages/**'
+
   go:
     runs-on: ubuntu-latest
     steps:
@@ -13,6 +28,9 @@ jobs:
         with: { go-version-file: go.mod }
       - run: go vet ./...
       - run: go test -race ./...
+      # Signature header parsers are fuzzed briefly on every run (plan T-3).
+      - run: go test ./internal/agents -run '^$' -fuzz FuzzParseSignatureInput -fuzztime 10s
+      - run: go test ./internal/agents -run '^$' -fuzz FuzzParseDictionary -fuzztime 10s
 
   go-perf:
     runs-on: ubuntu-latest
@@ -64,7 +82,7 @@ jobs:
       - run: pnpm build
       - run: pnpm exec playwright install --with-deps chromium firefox
       - run: E2E_ALL=1 pnpm exec playwright test
-        env: { E2E_SKIP_BUILD: '1' }
+        env: { E2E_SKIP_BUILD: '1', TRAIL_AGENT_LISTS: 'off' }
       - if: failure()
         uses: actions/upload-artifact@v4
         with: { name: playwright-report, path: web/playwright-report, retention-days: 7 }
@@ -95,7 +113,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with: { name: demo-dist, path: web/dist, retention-days: 14 }
 
-  trail-analytics:
+  npm-package:
     runs-on: ubuntu-latest
     defaults: { run: { working-directory: packages/trail-analytics } }
     steps:
@@ -103,8 +121,28 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm, cache-dependency-path: packages/trail-analytics/package-lock.json }
       - run: npm ci
+      - run: npm run typecheck
       - run: npm test
       - run: npm run build
+      # Size budgets: crawl <= 3 KB gzip, next/proxy <= 4 KB gzip (the core entry is guarded by its own test).
+      - run: |
+          crawl=$(gzip -9 -c dist/crawl/index.js | wc -c); proxy=$(gzip -9 -c dist/next/proxy/index.js | wc -c)
+          echo "crawl=$crawl B, next/proxy=$proxy B"
+          [ "$crawl" -le 3072 ] && [ "$proxy" -le 4096 ]
+
+  npm-smoke:
+    # Real Next and Astro apps against a mock Trail: on package changes and nightly.
+    needs: changes
+    if: github.event_name == 'schedule' || needs.changes.outputs.packages == 'true'
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: packages/trail-analytics } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm, cache-dependency-path: packages/trail-analytics/package-lock.json }
+      - run: npm ci
+      - run: npm run build
+      - run: npm run smoke -- all
 
   site:
     runs-on: ubuntu-latest

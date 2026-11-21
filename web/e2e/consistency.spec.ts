@@ -1,6 +1,6 @@
 /* Proto checks: 33 one bar rule, 63 small totals agree, 75 the same metrics read the same on every screen, and P0-1
  * (one delta everywhere). Every number is read from the screens and compared with the API truth (plan T-2). */
-import { expect, num, panel, test, titled, gate, type App } from './fixtures'
+import { aiGate, expect, num, panel, test, titled, gate, type App } from './fixtures'
 
 // Playwright records a test's file from the call site, so the wrappers live in each spec rather than in fixtures.ts.
 const chk = (nums: number | number[], title: string, body: (app: App) => Promise<void>, opts: { phone?: boolean } = {}) =>
@@ -70,4 +70,74 @@ chk(75, 'the same metric reads the same on every screen: Overview KPI, chart tot
   expect(v).toBe(st.visitors)
   const series = await api('series', { metric: 'visitors' })
   expect(series.points.filter((p: any) => p.v !== null).length).toBeGreaterThan(0)
+})
+
+// AI agents (plan T-2): agent and crawler numbers agree across the Funnel, the tabs and the API; people exclude agents by default.
+const aiCheck = (title: string, body: (app: App) => Promise<void>) =>
+  test(titled(null, title), async ({ app }) => {
+    aiGate()
+    await body(app)
+  })
+
+aiCheck('AI funnel: crawled + fetched equals the Crawlers tab request total', async ({ api }) => {
+  const v = await api('ai-visibility')
+  const step = (k: string) => v.steps.find((s: any) => s.key === k)
+  const cr = await api('crawlers')
+  expect(v.steps.map((s: any) => s.key)).toEqual(['crawled', 'fetched', 'cited', 'visited', 'converted'])
+  expect((step('crawled').value ?? 0) + (step('fetched').value ?? 0)).toBe(cr.total)
+})
+
+aiCheck('AI funnel: visited equals the AI referral sessions on /acquisition/ai', async ({ api }) => {
+  const v = await api('ai-visibility')
+  const refs = await api('ai-referrals')
+  const rows: any[] = Array.isArray(refs) ? refs : (refs.rows ?? refs.sources ?? [])
+  const sum = rows.reduce((a, r) => a + (r.sessions ?? 0), 0)
+  expect(v.steps.find((s: any) => s.key === 'visited').value).toBe(sum)
+})
+
+aiCheck('AI funnel and tabs read the same numbers on screen', async ({ page, goto, api }) => {
+  const v = await api('ai-visibility')
+  const crawled = v.steps.find((s: any) => s.key === 'crawled').value
+  await goto('/ai/funnel')
+  await expect(page.getByRole('region', { name: 'AI visibility funnel' })).toContainText(crawled.toLocaleString('en-US'))
+  const ag = await api('agents')
+  await goto('/ai/agents')
+  await expect(page.getByRole('main')).toContainText(ag.sessions.toLocaleString('en-US'))
+})
+
+aiCheck('agents are left out of human KPIs: stats(actor=all).sessions - stats.sessions = agentSessions', async ({ api }) => {
+  const human = await api('stats')
+  const all = await api('stats', { actor: 'all' })
+  expect(all.sessions - human.sessions).toBe(human.agentSessions)
+  expect(all.agentSessions).toBe(human.agentSessions)
+  expect(human.agentSessions).toBeGreaterThan(0)
+  expect(all.visitors).toBeGreaterThanOrEqual(human.visitors)
+})
+
+aiCheck('agent sessions on /agents equal agentSessions on /stats', async ({ api }) => {
+  const st = await api('stats')
+  const ag = await api('agents')
+  expect(ag.sessions).toBe(st.agentSessions)
+  expect(ag.agents.reduce((a: number, r: any) => a + r.sessions, 0)).toBe(ag.sessions)
+  expect(ag.verifiedSessions).toBeLessThanOrEqual(ag.sessions)
+})
+
+aiCheck('the actor toggle: Overview KPIs follow the API and the URL holds actor=all', async ({ page, goto, api }) => {
+  const human = await api('stats')
+  await goto('/')
+  await expect(page.getByRole('tablist', { name: 'Metrics' }).getByRole('tab', { name: /^Sessions/ })).toContainText(human.sessions.toLocaleString('en-US'))
+  await page.getByRole('button', { name: 'Count AI agents as visitors' }).click()
+  await expect(page).toHaveURL(/actor=all/)
+  const all = await api('stats', { actor: 'all' })
+  await expect(page.getByRole('tablist', { name: 'Metrics' }).getByRole('tab', { name: /^Sessions/ })).toContainText(all.sessions.toLocaleString('en-US'))
+})
+
+aiCheck('the MCP tools agree with the API on agent and crawler totals', async ({ page, api }) => {
+  const ag = await api('agents')
+  const res = await page.request.post('/mcp', {
+    headers: { Accept: 'application/json, text/event-stream' },
+    data: { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'agents', arguments: { site: 'demo', range: '30d' } } },
+  })
+  test.skip(!res.ok(), `MCP not reachable with the cookie (${res.status()}); covered by Go MCP tests`)
+  expect(await res.text()).toContain(String(ag.sessions))
 })

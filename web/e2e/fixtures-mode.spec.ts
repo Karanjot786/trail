@@ -25,6 +25,19 @@ test('every screen renders without console errors and without a server', async (
   expect(errors).toEqual([])
 })
 
+test('AI visibility tabs and actor=all load from fixtures with no preset banner (AI agents)', async ({ page }) => {
+  test.fixme(!process.env.E2E_AI && !process.env.E2E_ALL, 'waits for the AI-agents builders to merge (set E2E_AI=1)')
+  const errors: string[] = []
+  page.on('pageerror', (e) => errors.push(e.message))
+  for (const s of ['/demo/ai/funnel', '/demo/ai/agents', '/demo/?actor=all']) {
+    await page.goto(s)
+    await expect(page.getByRole('main'), s).toBeVisible()
+    await expect(page.locator('[aria-busy="true"]')).toHaveCount(0, { timeout: 15_000 })
+    await expect(page.getByRole('status').filter({ hasText: 'The demo shows preset views' }), s).toHaveCount(0)
+  }
+  expect(errors).toEqual([])
+})
+
 test('the freshness line reads "Sample data as of"', async ({ page }) => {
   await page.goto('/')
   await expect(page.getByTestId('freshness')).toContainText(/Sample data as of/)

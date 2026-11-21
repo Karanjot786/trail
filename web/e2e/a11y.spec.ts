@@ -2,7 +2,7 @@
  * heatmap cell filter and the drop-off sheet; dark and light; chromium and firefox (projects). Zero violations of any
  * impact. Plus a contrast sample (port of proto-d/test/contrast.cjs): sampled text nodes per route at 4.5:1. */
 import AxeBuilder from '@axe-core/playwright'
-import { expect, test } from './fixtures'
+import { aiGate, expect, test } from './fixtures'
 
 const ROUTES: [string, string][] = [
   ['overview', '/'], ['overview today', '/?range=today'], ['overview filtered', '/?f=source:Google'],
@@ -36,6 +36,35 @@ for (const theme of ['dark', 'light'] as const) {
         expect(r.violations.map((v) => `${v.impact} ${v.id} (${v.nodes.length}) ${v.nodes[0]?.target.join(' ')}`)).toEqual([])
       })
     }
+
+    for (const tab of ['funnel', 'crawlers', 'agents']) {
+      test(`axe: /ai/${tab} (${theme})`, async ({ app }) => {
+        aiGate()
+        await app.goto(`/ai/${tab}`)
+        const r = await new AxeBuilder({ page: app.page }).analyze()
+        expect(r.violations.map((v) => `${v.impact} ${v.id} (${v.nodes.length}) ${v.nodes[0]?.target.join(' ')}`)).toEqual([])
+      })
+    }
+
+    test(`axe: agent journey and the unlock card with its command (${theme})`, async ({ app }) => {
+      aiGate()
+      const { page } = app
+      await app.goto('/ai/agents')
+      await page.getByRole('table', { name: 'Latest agent sessions' }).getByRole('row').nth(1).click()
+      await expect(page.getByRole('dialog').getByRole('heading', { name: /AI agent/ })).toBeVisible()
+      expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([])
+      await page.keyboard.press('Escape')
+      const made = page.waitForResponse((r) => r.url().includes('/api/tokens') && r.request().method() === 'POST')
+      await app.goto('/ai/funnel?site=docs')
+      await page.getByRole('button', { name: 'Create token and copy command' }).click()
+      const id = (await (await made).json()).id
+      try {
+        await expect(page.getByText(/^npx trail-analytics@latest init /)).toBeVisible()
+        expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([])
+      } finally {
+        await page.request.delete(`/api/tokens/${id}`)
+      }
+    })
 
     test(`axe: command palette and ? sheet (${theme})`, async ({ app }) => {
       test.fixme(!process.env.E2E_ALL, 'waits for the owning builders to merge')

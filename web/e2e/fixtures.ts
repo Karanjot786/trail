@@ -65,3 +65,6 @@ export async function pointAt(page: Page, i: number, n: number) {
   if (!box) throw new Error('no chart figure')
   return { x: box.x + box.width * (0.06 + 0.9 * (i / (n - 1))), y: box.y + box.height / 2 }
 }
+
+/** AI-visibility specs stay `fixme` until the owning builders merge (plan T-1); T-4 removes every call. Set E2E_AI=1 or E2E_ALL=1 to run them. */
+export const aiGate = () => test.fixme(!process.env.E2E_AI && !process.env.E2E_ALL, 'waits for the AI-agents builders to merge (set E2E_AI=1)')
