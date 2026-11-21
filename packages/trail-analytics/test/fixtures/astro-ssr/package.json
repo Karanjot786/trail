@@ -1,0 +1,7 @@
+{
+  "name": "astro-ssr",
+  "private": true,
+  "type": "module",
+  "scripts": { "build": "astro build" },
+  "dependencies": { "astro": "^5.0.0", "@astrojs/node": "^9.0.0" }
+}

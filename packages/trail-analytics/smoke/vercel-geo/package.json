@@ -1,0 +1,7 @@
+{
+  "name": "trail-vercel-geo-spike",
+  "private": true,
+  "scripts": { "build": "next build", "start": "next start" },
+  "dependencies": { "next": "^16.0.0", "react": "^19.0.0", "react-dom": "^19.0.0", "trail-analytics": "file:./trail-analytics.tgz" },
+  "devDependencies": { "@types/node": "^22.0.0", "@types/react": "^19.0.0", "typescript": "^5.6.0" }
+}

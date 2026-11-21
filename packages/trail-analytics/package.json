@@ -104,7 +104,8 @@
   "scripts": {
     "test": "vitest run",
     "build": "tsup",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "smoke": "node smoke/run.mjs"
   },
   "peerDependencies": {
     "next": ">=13",

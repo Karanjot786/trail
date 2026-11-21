@@ -109,4 +109,42 @@ reset();           // on logout
 
 Props are flat: `string | number | boolean | null`. Calls made before the tracker loads are queued and flushed by it.
 
+## Track AI crawlers
+
+One command for Next.js 15/16 and Astro. Get the token from Trail → AI visibility → Unlock AI crawlers:
+
+```sh
+npx trail-analytics@latest init --url https://trail.example.com --site SITE_ID --token CRAWL_TOKEN
+```
+
+It shows a diff and asks before writing (`--yes` skips the question, `--dry-run` writes nothing). It adds:
+
+- `proxy.ts` (Next 16) or `middleware.ts` (Next 15), or the `trail()` Astro integration. This one file reports AI crawler requests to Trail and serves the script and beacons first-party at `/t/t.js` and `/t/e`. Beacons are forwarded with your host's edge location (Vercel, Cloudflare, Netlify) and signed with the token, which never leaves your server.
+- `<Analytics site="SITE_ID" src="/t/t.js" api="/t/e" />` in your root layout.
+- `TRAIL_URL`, `TRAIL_SITE` and `TRAIL_CRAWL_TOKEN` in `.env.local` (Next) or `.env` (Astro). Add the same three to your host's environment variables.
+
+Running it again changes nothing. If you already have a `proxy.ts` or `middleware.ts`, init leaves it alone and prints how to wrap it:
+
+```ts
+import { withTrail } from 'trail-analytics/next/proxy';
+
+export default withTrail(function proxy(req, event) {
+  // your code
+});
+```
+
+Next's proxy runs before the route, so crawler hits show status "n/a" there. Static Astro sites never run code at request time: crawlers are not captured (use server output), and the script loads straight from `TRAIL_URL`.
+
+Other servers use `trail-analytics/crawl` (set the same three env vars):
+
+```ts
+import { express, hono, withTrail } from 'trail-analytics/crawl';
+
+app.use(hono());                              // Hono
+app.use(express());                           // Express, before any body parser
+export default { fetch: withTrail(handler) }; // Cloudflare Workers
+```
+
+Then load the script first-party: `<script defer src="/t/t.js" data-site="SITE_ID" data-api="/t/e"></script>`.
+
 MIT
