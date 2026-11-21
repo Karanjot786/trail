@@ -4,16 +4,6 @@ package query
 
 import "database/sql"
 
-// FunnelReport runs a stored funnel over the window.
-func FunnelReport(db *sql.DB, p Params, id int64) (FunnelReportResult, error) {
-	return FunnelReportResult{}, ErrNotImplemented
-}
-
-// FunnelDropoff lists people who left after step, and the total count.
-func FunnelDropoff(db *sql.DB, p Params, id int64, step int) ([]DropoffPerson, int, error) {
-	return nil, 0, ErrNotImplemented
-}
-
 // Crawlers returns the AI crawler report.
 func Crawlers(db *sql.DB, p Params) (CrawlersResult, error) {
 	return CrawlersResult{}, ErrNotImplemented
