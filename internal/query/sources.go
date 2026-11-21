@@ -11,25 +11,36 @@ import (
 // sourceRule names a referrer. Host matches the bare referrer host or any subdomain of it;
 // a Host ending in "." matches any host that starts with it (google.co.in, google.de, …).
 // UTM, when set, also matches a direct visit with that utm_source.
+// Provider names the company behind an AI source (the same names as the crawler catalogue).
 type sourceRule struct {
-	Host, UTM, Name, Channel string
+	Host, UTM, Name, Channel, Provider string
+}
+
+// aiProvider is the company behind AI source name; an unknown source names itself.
+func aiProvider(name string) string {
+	for _, r := range sourceRules {
+		if r.Channel == "AI" && r.Name == name && r.Provider != "" {
+			return r.Provider
+		}
+	}
+	return name
 }
 
 // sourceRules is the compile-time list behind sourceNameExpr, channelExpr and aiSourceExpr.
 // AI rules come first so gemini.google.com is not read as Google search.
 var sourceRules = []sourceRule{
-	{Host: "chatgpt.com", UTM: "chatgpt.com", Name: "ChatGPT", Channel: "AI"},
-	{Host: "chat.openai.com", Name: "ChatGPT", Channel: "AI"},
-	{Host: "perplexity.ai", Name: "Perplexity", Channel: "AI"},
-	{Host: "claude.ai", Name: "Claude", Channel: "AI"},
-	{Host: "gemini.google.com", Name: "Gemini", Channel: "AI"},
-	{Host: "copilot.microsoft.com", Name: "Copilot", Channel: "AI"},
-	{Host: "chat.deepseek.com", Name: "DeepSeek", Channel: "AI"},
-	{Host: "grok.com", Name: "Grok", Channel: "AI"},
-	{Host: "meta.ai", Name: "Meta AI", Channel: "AI"},
-	{Host: "chat.mistral.ai", Name: "Le Chat", Channel: "AI"},
-	{Host: "you.com", Name: "You.com", Channel: "AI"},
-	{Host: "phind.com", Name: "Phind", Channel: "AI"},
+	{Host: "chatgpt.com", UTM: "chatgpt.com", Name: "ChatGPT", Channel: "AI", Provider: "OpenAI"},
+	{Host: "chat.openai.com", Name: "ChatGPT", Channel: "AI", Provider: "OpenAI"},
+	{Host: "perplexity.ai", Name: "Perplexity", Channel: "AI", Provider: "Perplexity"},
+	{Host: "claude.ai", Name: "Claude", Channel: "AI", Provider: "Anthropic"},
+	{Host: "gemini.google.com", Name: "Gemini", Channel: "AI", Provider: "Google"},
+	{Host: "copilot.microsoft.com", Name: "Copilot", Channel: "AI", Provider: "Microsoft"},
+	{Host: "chat.deepseek.com", Name: "DeepSeek", Channel: "AI", Provider: "DeepSeek"},
+	{Host: "grok.com", Name: "Grok", Channel: "AI", Provider: "xAI"},
+	{Host: "meta.ai", Name: "Meta AI", Channel: "AI", Provider: "Meta"},
+	{Host: "chat.mistral.ai", Name: "Le Chat", Channel: "AI", Provider: "Mistral"},
+	{Host: "you.com", Name: "You.com", Channel: "AI", Provider: "You.com"},
+	{Host: "phind.com", Name: "Phind", Channel: "AI", Provider: "Phind"},
 
 	{Host: "google.", Name: "Google", Channel: "Organic search"},
 	{Host: "bing.com", Name: "Bing", Channel: "Organic search"},
@@ -152,6 +163,12 @@ func sessRows() string {
 // the conversion rate and revenue credited by first touch; entry adds entries and the top
 // source, exit adds exits, views and exit rate, city adds country and region.
 func Breakdown(db *sql.DB, p Params, dim, q string, limit int) ([]Row, error) {
+	return breakdown(db, p, dim, q, limit, nil)
+}
+
+// breakdown is Breakdown; conv, when not nil, receives each first-touch key's converting people
+// (the numerator of its ConvRate).
+func breakdown(db *sql.DB, p Params, dim, q string, limit int, conv map[string]int) ([]Row, error) {
 	d, ok := dims[dim]
 	if !ok {
 		return nil, fmt.Errorf("dim %q: %w", dim, ErrBadDim)
@@ -229,7 +246,7 @@ WHERE k!=''` + search + order
 		}
 	}
 	if col, ok := ftCols[dim]; ok && len(rows) > 0 {
-		if err := firstTouchColumns(db, p, cte, args, col, rows); err != nil {
+		if err := firstTouchColumns(db, p, cte, args, col, rows, conv); err != nil {
 			return nil, err
 		}
 	}
@@ -304,7 +321,8 @@ func mainCurrency(db *sql.DB, cte string, args []any) (string, error) {
 // firstTouchColumns credits conversions and revenue of the people in range to their first
 // touch: convRate = converters / people whose first touch is the row's key (nil without a goal
 // or without such people), revenueMinor = their purchases in range in the main currency.
-func firstTouchColumns(db *sql.DB, p Params, cte string, args []any, col string, rows []Row) error {
+// conv, when not nil and the site has a goal, receives every key's converting people (rows or not).
+func firstTouchColumns(db *sql.DB, p Params, cte string, args []any, col string, rows []Row, conv map[string]int) error {
 	goal, err := convGoal(db, p.Site, p.Conv)
 	if err != nil {
 		return err
@@ -336,10 +354,13 @@ SELECT ` + col + `, count(*), sum(pp.conv), sum(pp.rev) FROM ft JOIN pp USING(pe
 	}
 	err = forRows(db, q, qargs, func(r *sql.Rows) error {
 		var key string
-		var people, conv int
+		var people, nconv int
 		var rev int64
-		if err := r.Scan(&key, &people, &conv, &rev); err != nil {
+		if err := r.Scan(&key, &people, &nconv, &rev); err != nil {
 			return err
+		}
+		if goal != nil && conv != nil {
+			conv[key] = nconv
 		}
 		i, ok := idx[key]
 		if !ok {
@@ -347,7 +368,7 @@ SELECT ` + col + `, count(*), sum(pp.conv), sum(pp.rev) FROM ft JOIN pp USING(pe
 		}
 		rows[i].RevenueMinor = &rev
 		if goal != nil && people > 0 {
-			rate := float64(conv) / float64(people)
+			rate := float64(nconv) / float64(people)
 			rows[i].ConvRate = &rate
 		}
 		return nil

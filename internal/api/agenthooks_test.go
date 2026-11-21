@@ -32,12 +32,12 @@ func TestAgentHooksDefaultAndOption(t *testing.T) {
 	}
 }
 
-// TestAIRoutesRegistered: the §0.5 routes exist from P0 on and answer 501 until B-api lands them.
+// TestAIRoutesRegistered: the §0.5 routes answer 200.
 func TestAIRoutesRegistered(t *testing.T) {
 	h := setup(t)
 	for _, url := range []string{"/api/ai-visibility?" + rng(), "/api/agents?" + rng(), "/api/ai-setup?site=s"} {
-		if w := get(h, url); w.Code != http.StatusNotImplemented {
-			t.Errorf("%s = %d %s, want 501", url, w.Code, w.Body)
+		if w := get(h, url); w.Code != http.StatusOK {
+			t.Errorf("%s = %d %s, want 200", url, w.Code, w.Body)
 		}
 	}
 	if w := get(h, "/api/ai-setup?site=nope"); w.Code != http.StatusBadRequest {

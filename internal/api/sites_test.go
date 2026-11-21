@@ -146,10 +146,13 @@ func TestAPISiteStatus(t *testing.T) {
 	if st.LastEventAt == nil || st.Events24h != 1 || st.Rejected24h != 2 {
 		t.Fatalf("status %s", w.Body)
 	}
+	if st.Geo == nil || st.Geo.Source != "db" || st.Geo.Share != 1 {
+		t.Fatalf("geo %s", w.Body)
+	}
 	w = get(h, "/api/sites/b/status")
 	var raw map[string]any
 	_ = json.Unmarshal(w.Body.Bytes(), &raw)
-	if raw["lastEventAt"] != nil || raw["events24h"] != float64(0) || raw["rejected24h"] != float64(0) {
+	if v, ok := raw["geo"]; raw["lastEventAt"] != nil || raw["events24h"] != float64(0) || raw["rejected24h"] != float64(0) || !ok || v != nil {
 		t.Errorf("empty status %s", w.Body)
 	}
 	if w := get(h, "/api/sites/nope/status"); w.Code != http.StatusNotFound {

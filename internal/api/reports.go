@@ -136,7 +136,7 @@ func (s *server) reportRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/delivery", s.handle(func(p query.Params, _ *http.Request) (any, error) {
 		return query.Delivery(s.db, p)
 	}))
-	// AI agents plan §0.5. P0 wires the stubs (501); B-api fills them and may move ai-setup to ai_setup.go.
+	// AI agents plan §0.5.
 	mux.HandleFunc("GET /api/ai-visibility", s.handle(func(p query.Params, _ *http.Request) (any, error) {
 		return query.AIVisibility(s.db, p)
 	}))
@@ -144,21 +144,6 @@ func (s *server) reportRoutes(mux *http.ServeMux) {
 		return query.Agents(s.db, p)
 	}))
 	mux.HandleFunc("GET /api/ai-setup", s.aiSetup)
-}
-
-// aiSetup is GET /api/ai-setup?site=: the Unlock AI crawlers card's status (no range).
-func (s *server) aiSetup(w http.ResponseWriter, r *http.Request) {
-	site := r.URL.Query().Get("site")
-	if !s.siteOK(w, r, site) {
-		return
-	}
-	res, err := query.AISetupFor(s.db, site, s.now())
-	if err != nil {
-		s.fail(w, r, err)
-		return
-	}
-	w.Header().Set("Cache-Control", "no-store")
-	writeJSON(w, res)
 }
 
 // funnelID parses {id} and checks the funnel exists for the site (404 otherwise).
