@@ -26,7 +26,6 @@ test('every screen renders without console errors and without a server', async (
 })
 
 test('AI visibility tabs and actor=all load from fixtures with no preset banner (AI agents)', async ({ page }) => {
-  test.fixme(!process.env.E2E_AI && !process.env.E2E_ALL, 'waits for the AI-agents builders to merge (set E2E_AI=1)')
   const errors: string[] = []
   page.on('pageerror', (e) => errors.push(e.message))
   for (const s of ['/demo/ai/funnel', '/demo/ai/agents', '/demo/?actor=all']) {

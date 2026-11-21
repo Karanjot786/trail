@@ -2,7 +2,7 @@
  * heatmap cell filter and the drop-off sheet; dark and light; chromium and firefox (projects). Zero violations of any
  * impact. Plus a contrast sample (port of proto-d/test/contrast.cjs): sampled text nodes per route at 4.5:1. */
 import AxeBuilder from '@axe-core/playwright'
-import { aiGate, expect, test } from './fixtures'
+import { expect, test } from './fixtures'
 
 const ROUTES: [string, string][] = [
   ['overview', '/'], ['overview today', '/?range=today'], ['overview filtered', '/?f=source:Google'],
@@ -39,7 +39,6 @@ for (const theme of ['dark', 'light'] as const) {
 
     for (const tab of ['funnel', 'crawlers', 'agents']) {
       test(`axe: /ai/${tab} (${theme})`, async ({ app }) => {
-        aiGate()
         await app.goto(`/ai/${tab}`)
         const r = await new AxeBuilder({ page: app.page }).analyze()
         expect(r.violations.map((v) => `${v.impact} ${v.id} (${v.nodes.length}) ${v.nodes[0]?.target.join(' ')}`)).toEqual([])
@@ -47,7 +46,6 @@ for (const theme of ['dark', 'light'] as const) {
     }
 
     test(`axe: agent journey and the unlock card with its command (${theme})`, async ({ app }) => {
-      aiGate()
       const { page } = app
       await app.goto('/ai/agents')
       await page.getByRole('table', { name: 'Latest agent sessions' }).getByRole('row').nth(1).click()

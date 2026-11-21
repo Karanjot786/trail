@@ -176,14 +176,14 @@ chk(17, 'what changed: a rate item switches the chart metric', async ({ page, go
   expect(await loc(page)).toMatch(/metric=(bounce|conversion)/)
 })
 
-chk(18, 'freshness line names the zone, "Every visit counted" and links to AI crawlers', async ({ page, goto }) => {
+chk(18, 'freshness line names the zone, "Every visit counted" and links to AI visibility', async ({ page, goto }) => {
   await goto('/')
   const f = page.getByTestId('freshness')
   await expect(f).toContainText(/Updated \d+s ago/)
   await expect(f).toContainText('Every visit counted')
   await expect(f).toContainText(/Bot requests left out/i)
   await f.getByRole('link').click()
-  expect(await loc(page)).toContain('/crawlers')
+  expect(await loc(page)).toMatch(/\/ai\/(funnel|crawlers)/)
 })
 
 chk(20, 'compare with a custom period names it in the readout and legend', async ({ page, goto, api }) => {

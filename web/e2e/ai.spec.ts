@@ -1,8 +1,7 @@
 /* AI visibility (plan T-1): the Funnel, Crawlers and Agents tabs, the legacy redirect, the Unlock card and the empty site. */
-import { aiGate, expect, test } from './fixtures'
+import { expect, test } from './fixtures'
 
 test('/crawlers redirects to /ai/crawlers and Back works', async ({ app }) => {
-  aiGate()
   const { page } = app
   await app.goto('/?site=demo')
   await page.goto('/crawlers?site=demo')
@@ -13,7 +12,6 @@ test('/crawlers redirects to /ai/crawlers and Back works', async ({ app }) => {
 })
 
 test('Funnel shows 5 steps and the cited step reads "No public source"', async ({ app }) => {
-  aiGate()
   const { page } = app
   await app.goto('/ai/funnel?site=demo')
   const funnel = page.getByRole('region', { name: 'AI visibility funnel' })
@@ -25,7 +23,6 @@ test('Funnel shows 5 steps and the cited step reads "No public source"', async (
 })
 
 test('Agents shows Verified and Claimed badges; a latest-session row opens an AI agent journey', async ({ app }) => {
-  aiGate()
   const { page } = app
   await app.goto('/ai/agents?site=demo')
   await expect(page.getByText('Verified', { exact: true }).first()).toBeVisible()
@@ -36,7 +33,6 @@ test('Agents shows Verified and Claimed badges; a latest-session row opens an AI
 })
 
 test('the docs site shows the Unlock AI crawlers card as not receiving', async ({ app }) => {
-  aiGate()
   const { page } = app
   await app.goto('/ai/funnel?site=docs')
   const card = page.getByRole('region', { name: 'Unlock AI crawlers' })
@@ -53,12 +49,19 @@ test.describe('create token', () => {
     tokenId = ''
   })
 
-  test('Create token and copy command shows one init command, and the token is revocable', async ({ app, context }) => {
-    aiGate()
+  test('Create token and copy command shows one init command, and the token is revocable', async ({ app, context }, info) => {
     const { page } = app
     await context.grantPermissions(['clipboard-read', 'clipboard-write']).catch(() => undefined) // chromium only
+    // The projects share one server and the card names tokens per minute: tag the name with the project so they never collide.
+    await page.route('**/api/tokens', (route) => {
+      const req = route.request()
+      if (req.method() !== 'POST') return route.continue()
+      const body = req.postDataJSON()
+      return route.continue({ postData: JSON.stringify({ ...body, name: `${body.name} ${info.project.name}` }) })
+    })
     await app.goto('/ai/funnel?site=docs')
-    const created = page.waitForResponse((r) => r.url().includes('/api/tokens') && r.request().method() === 'POST')
+    // A repeat in the same minute still collides: the card retries once with " (2)" on 409.
+    const created = page.waitForResponse((r) => r.url().includes('/api/tokens') && r.request().method() === 'POST' && r.status() === 201)
     await page.getByRole('button', { name: 'Create token and copy command' }).click()
     const res = await created
     tokenId = (await res.json()).id
@@ -66,23 +69,24 @@ test.describe('create token', () => {
     const cmd = page.getByRole('region', { name: 'Unlock AI crawlers' }).getByText(/^npx trail-analytics@latest init /)
     await expect(cmd).toBeVisible()
     expect((await cmd.innerText()).trim()).toMatch(/^npx trail-analytics@latest init --url http:\/\/127\.0\.0\.1:\d+ --site docs --token \S+$/)
+    app.errors.splice(0, app.errors.length, ...app.errors.filter((e) => !e.includes('409')))
   })
 })
 
-test('an empty site: every AI tab renders without NaN or Infinity', async ({ app }) => {
-  aiGate()
+test('an empty site: every AI tab renders without NaN or Infinity', async ({ app }, info) => {
   const { page } = app
-  const res = await page.request.post('/api/sites', { data: { id: 'aiempty', domain: 'aiempty.example.com' } })
+  const id = `aiempty${info.project.name}`.replace(/[^a-z0-9]/g, '') // projects share one server
+  const res = await page.request.post('/api/sites', { data: { id, domain: `${id}.example.com` } })
   expect(res.status()).toBe(201)
   try {
     for (const tab of ['funnel', 'crawlers', 'agents']) {
-      await app.goto(`/ai/${tab}?site=aiempty`)
+      await app.goto(`/ai/${tab}?site=${id}`)
       await expect(page.getByRole('main')).toBeVisible()
       const text = await page.getByRole('main').innerText()
       expect(text, tab).not.toMatch(/NaN|Infinity|undefined|\[object/)
       expect(text.trim().length, tab).toBeGreaterThan(10)
     }
   } finally {
-    await page.request.delete('/api/sites/aiempty?purge=1')
+    await page.request.delete(`/api/sites/${id}?purge=1`)
   }
 })

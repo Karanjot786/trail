@@ -1,5 +1,5 @@
 /* T-3 (Review Focus 5): stale references in the URL or a saved view give a calm state with a way back, never a crash. */
-import { aiGate, expect, test, titled, gate, type App } from './fixtures'
+import { expect, test, titled, gate, type App } from './fixtures'
 const check = (title: string, body: (app: App) => Promise<void>, opts: { phone?: boolean } = {}) =>
   test(titled(null, title, opts), async ({ app }) => {
     gate()
@@ -40,7 +40,6 @@ check('a saved view that points at a deleted goal opens calmly', async (app) => 
 })
 
 test('/ai/bogus redirects to /ai/funnel (AI agents)', async ({ app }) => {
-  aiGate()
   await app.goto('/ai/bogus')
   await expect(app.page).toHaveURL(/\/ai\/funnel/)
   await expect(app.page.getByRole('tab', { name: 'Funnel', selected: true })).toBeVisible()
