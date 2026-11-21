@@ -1,0 +1,5 @@
+{
+  "name": "next15-pages",
+  "private": true,
+  "dependencies": { "next": "~15.5.0", "react": "^19.0.0", "react-dom": "^19.0.0" }
+}
