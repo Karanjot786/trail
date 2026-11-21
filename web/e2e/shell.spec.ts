@@ -24,6 +24,7 @@ chk(1, 'dark is the default: canvas #0b0b0c and panels #121214', async ({ page, 
 chk(2, 'sidebar: the IA in order, Views region, Settings at the bottom', async ({ page, goto }) => {
   await goto('/')
   const nav = page.getByRole('navigation', { name: 'Main' })
+  await expect(nav.getByRole('link', { name: /^AI visibility/ })).toBeVisible() // the sidebar can paint after aria-busy clears
   const labels = await nav.getByRole('link').allInnerTexts()
   // The first line is the item's name; Live also carries its online count.
   expect(labels.map((l) => l.trim().split('\n')[0].trim()).slice(0, 7)).toEqual(['Overview', 'Live', 'Acquisition', 'Activity', 'Conversions', 'Revenue', 'AI visibility'])

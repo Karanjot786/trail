@@ -273,7 +273,7 @@ chk(43, '"% of total" replaces Share; the share dialog says who can open it', as
 chk(44, 'heatmap: one tab stop, arrow keys move, Enter filters weekday and hour', async ({ page, goto }) => {
   await goto('/')
   const grid = page.getByRole('grid', { name: 'Visitors by weekday and hour' })
-  expect(await grid.locator('[tabindex="0"]').count()).toBe(1)
+  await expect(grid.locator('[tabindex="0"]')).toHaveCount(1) // retried: the grid fills in after its data arrives
   await grid.locator('[tabindex="0"]').focus()
   await page.keyboard.press('ArrowLeft')
   await page.keyboard.press('Enter')
