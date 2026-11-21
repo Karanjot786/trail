@@ -28,6 +28,8 @@ type server struct {
 	tz    *time.Location
 	now   func() time.Time
 
+	envTokens []auth.Token
+
 	startMu sync.Mutex
 	starts  map[string]startCache
 }
@@ -78,12 +80,13 @@ func (s *server) routes() http.Handler {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/sites", s.listSites)
-	mux.HandleFunc("POST /api/sites", s.createSite)
-	mux.HandleFunc("PATCH /api/sites/{id}", s.updateSite)
-	mux.HandleFunc("DELETE /api/sites/{id}", s.deleteSite)
+	mux.HandleFunc("POST /api/sites", s.allSitesToken(s.createSite))
+	mux.HandleFunc("PATCH /api/sites/{id}", s.allSitesToken(s.updateSite))
+	mux.HandleFunc("DELETE /api/sites/{id}", s.allSitesToken(s.deleteSite))
 	mux.HandleFunc("GET /api/sites/{id}/status", s.siteStatus)
 	s.reportRoutes(mux)
 	s.metaRoutes(mux)
+	s.tokenRoutes(mux)
 	mux.HandleFunc("GET /api/goals", s.listGoals)
 	mux.HandleFunc("POST /api/goals", s.createGoal)
 	mux.HandleFunc("DELETE /api/goals/{id}", s.deleteGoal)

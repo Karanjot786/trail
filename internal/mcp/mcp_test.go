@@ -276,7 +276,7 @@ func TestMCPNeedsToken(t *testing.T) {
 		t.Fatal(err)
 	}
 	a.SetTokens(toks)
-	guarded := a.Bearer("read", h)
+	guarded := a.API(h)
 	if code, _ := rpc(t, guarded, "tools/list", map[string]any{}); code != http.StatusUnauthorized {
 		t.Fatalf("no token: %d, want 401", code)
 	}

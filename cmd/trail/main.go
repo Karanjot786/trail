@@ -28,6 +28,7 @@ import (
 	"trail/internal/enrich"
 	"trail/internal/ingest"
 	"trail/internal/mcp"
+	"trail/internal/meta"
 	"trail/internal/seed"
 	"trail/internal/sites"
 	"trail/internal/store"
@@ -230,27 +231,21 @@ func parseRPS(s string) (float64, error) {
 // is the public demo API; it owns its own DB and refuses anything but GET.
 // rps limits ingest per client IP (0: no limit).
 func routes(st *store.Store, geo *enrich.Geo, reg *sites.Registry, tz *time.Location, a *auth.Auth, dist fs.FS, demoH http.Handler, rps float64) *http.ServeMux {
-	apiH := api.New(st.DB(), reg, tz)
+	a.SetLookup(func(plain string) (auth.Token, bool) { return meta.LookupToken(st.DB(), plain) })
+	apiH := api.New(st.DB(), reg, tz, api.WithEnvTokens(a.EnvTokens()))
 	ingestOpts := []ingest.Option{ingest.WithPrivate(ingest.NewPrivate(tz, time.Now))}
 	if rps > 0 {
 		ingestOpts = append(ingestOpts, ingest.WithRateLimit(rps, int(max(1, 2*rps))))
 	}
-	v1 := rewrite("/api/v1/", "/api/", apiH)
-	v1Read, v1Write := a.Bearer("read", v1), a.Bearer("write", v1)
+	v1 := a.API(rewrite("/api/v1/", "/api/", apiH))
 
 	mux := http.NewServeMux()
 	mux.Handle("/_t/e", ingest.New(st, geo, reg, ingestOpts...))
 	mux.Handle("/_t/", ingest.TrackerFiles())
 	mux.HandleFunc("POST /api/login", a.Login)
 	mux.Handle("/api/", a.Require(apiH))
-	mux.Handle("/api/v1/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodGet || r.Method == http.MethodHead {
-			v1Read.ServeHTTP(w, r)
-			return
-		}
-		v1Write.ServeHTTP(w, r) // goal and site changes
-	}))
-	mux.Handle("/mcp", a.Bearer("read", mcp.New(st.DB(), reg, tz)))
+	mux.Handle("/api/v1/", v1) // scope matrix of plan §0.12
+	mux.Handle("/mcp", a.API(mcp.New(st.DB(), reg, tz)))
 	if demoH != nil {
 		mux.Handle("/api/demo/", demoH) // unauthenticated; rewrites to /api/ itself
 	}

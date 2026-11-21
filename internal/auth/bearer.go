@@ -6,6 +6,7 @@ import (
 	"crypto/subtle"
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -89,6 +90,18 @@ type bearer struct {
 	extra   func(string) (Token, bool)
 }
 
+// EnvTokens returns the TRAIL_API_TOKENS identities (never the secrets), sorted by name.
+func (a *Auth) EnvTokens() []Token {
+	a.bearer.mu.Lock()
+	defer a.bearer.mu.Unlock()
+	out := make([]Token, 0, len(a.bearer.tokens))
+	for _, t := range a.bearer.tokens {
+		out = append(out, t.Token)
+	}
+	slices.SortFunc(out, func(x, y Token) int { return strings.Compare(x.Name, y.Name) })
+	return out
+}
+
 // SetLookup installs a second token source (the api_tokens table), consulted
 // with the plaintext token when no env token matches.
 func (a *Auth) SetLookup(fn func(plain string) (Token, bool)) {
@@ -161,23 +174,6 @@ func (a *Auth) SetTokens(toks map[string]Token) {
 		a.bearer.tokens = append(a.bearer.tokens, apiToken{hash: sha256.Sum256([]byte(tok)), Token: t})
 	}
 	a.bearer.buckets = map[string]*bucket{}
-}
-
-// Bearer guards h with "Authorization: Bearer <token>". It answers 401 for a
-// missing or unknown token, 403 when scope is "write" and the token is
-// read-only, and 429 past 300 requests per minute per token.
-func (a *Auth) Bearer(scope string, h http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		t, ok := a.authenticate(w, r)
-		if !ok {
-			return
-		}
-		if scope == "write" && t.Scope != "write" {
-			http.Error(w, "forbidden: token is read-only", http.StatusForbidden)
-			return
-		}
-		h.ServeHTTP(w, r.WithContext(WithToken(r.Context(), t)))
-	})
 }
 
 // lookup finds the token in header. Every configured token is compared by

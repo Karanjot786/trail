@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"time"
 
+	"trail/internal/auth"
 	"trail/internal/sites"
 )
 
@@ -44,10 +45,26 @@ func (s *server) out(w http.ResponseWriter, r *http.Request, site sites.Site) (s
 	return siteOut{site, a}, true
 }
 
+// allSitesToken refuses a bearer token bound to one site: adding, editing
+// or removing sites needs the owner or an all-sites token.
+func (s *server) allSitesToken(h http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if t, ok := auth.TokenFrom(r.Context()); ok && t.Site != "" {
+			http.Error(w, "token is limited to site "+t.Site, http.StatusForbidden)
+			return
+		}
+		h(w, r)
+	}
+}
+
 func (s *server) listSites(w http.ResponseWriter, r *http.Request) {
 	list := s.sites.List()
 	out := make([]siteOut, 0, len(list))
+	t, scoped := auth.TokenFrom(r.Context())
 	for _, site := range list {
+		if scoped && t.Site != "" && t.Site != site.ID {
+			continue
+		}
 		o, ok := s.out(w, r, site)
 		if !ok {
 			return
@@ -127,6 +144,10 @@ func (s *server) siteStatus(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	if !s.known(id) {
 		s.fail(w, r, sites.ErrNotFound)
+		return
+	}
+	if err := checkTokenSite(r, id); err != nil {
+		s.fail(w, r, err)
 		return
 	}
 	a, err := s.activity(id)
