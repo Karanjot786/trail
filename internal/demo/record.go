@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -27,9 +28,11 @@ type Plan struct {
 	Sites  []string `json:"sites"`
 	Ranges []string `json:"ranges"`
 	Combos []struct {
-		Ranges  json.RawMessage `json:"ranges"` // "all" or a list
-		Cmp     string          `json:"cmp"`
-		Filters [][]string      `json:"filters"`
+		Ranges  json.RawMessage   `json:"ranges"` // "all" or a list
+		Cmp     string            `json:"cmp"`
+		Filters [][]string        `json:"filters"`
+		Params  map[string]string `json:"params"` // extra query keys, e.g. actor=all
+		Routes  []string          `json:"routes"` // limits the combo to these routes; empty = routes.perCombo
 	} `json:"combos"`
 	Routes struct {
 		Static    []string `json:"static"`
@@ -45,6 +48,7 @@ type Plan struct {
 	Details       struct {
 		Journeys struct {
 			LatestPeople int `json:"latestPeople"`
+			AgentPeople  int `json:"agentPeople"` // journeys of the newest people in /agents' latest
 		} `json:"journeys"`
 	} `json:"details"`
 	Limits struct {
@@ -121,10 +125,6 @@ func (r *recorder) getN(path string, params url.Values, maxRows int) (json.RawMe
 	q.Set("tz", r.tz)
 	w := httptest.NewRecorder()
 	r.h.ServeHTTP(w, httptest.NewRequest(http.MethodGet, prefix+strings.TrimPrefix(path, "/")+"?"+q.Encode(), nil))
-	if w.Code == http.StatusNotImplemented {
-		// A P0 contract stub (AI agents plan §0.9) whose query has not landed: record nothing.
-		return nil, nil
-	}
 	if w.Code != http.StatusOK {
 		return nil, fmt.Errorf("record %s: %d %s", key, w.Code, strings.TrimSpace(w.Body.String()))
 	}
@@ -248,23 +248,31 @@ func (r *recorder) run(plan Plan) error {
 		if len(filterSets) == 0 {
 			filterSets = [][]string{nil}
 		}
+		routes := plan.Routes.PerCombo
+		if len(c.Routes) > 0 {
+			routes = c.Routes
+		}
+		extra := make([]string, 0, 2*len(c.Params))
+		for _, k := range slices.Sorted(maps.Keys(c.Params)) {
+			extra = append(extra, k, c.Params[k])
+		}
 		for _, rg := range rs {
 			rg = strings.ReplaceAll(rg, "{spikeDay}", spike)
 			for _, fs := range filterSets {
-				for _, path := range plan.Routes.PerCombo {
+				for _, path := range routes {
 					if path == "/sites/summary" {
-						if _, err := r.get(path, base(plan.SitesSummary.Site, rg, c.Cmp, fs)); err != nil {
+						if _, err := r.get(path, with(base(plan.SitesSummary.Site, rg, c.Cmp, fs), extra...)); err != nil {
 							return err
 						}
 						continue
 					}
 					for _, site := range plan.Sites {
-						if err := r.perCombo(plan, path, base(site, rg, c.Cmp, fs)); err != nil {
+						if err := r.perCombo(plan, path, with(base(site, rg, c.Cmp, fs), extra...)); err != nil {
 							return err
 						}
 					}
 				}
-				if plan.Routes.Live != "" && c.Cmp == "prev" && len(fs) == 0 && rg == "30d" {
+				if plan.Routes.Live != "" && c.Cmp == "prev" && len(fs) == 0 && rg == "30d" && len(c.Params) == 0 {
 					for _, site := range plan.Sites {
 						if _, err := r.get(plan.Routes.Live, base(site, rg, c.Cmp, nil)); err != nil {
 							return err
@@ -376,6 +384,9 @@ func (r *recorder) details(plan Plan, b url.Values) error {
 			return err
 		}
 	}
+	if err := r.agentJourneys(plan, b); err != nil {
+		return err
+	}
 	var events []query.EventRow
 	if raw, err = r.get("/events", b); err == nil {
 		err = json.Unmarshal(raw, &events)
@@ -385,6 +396,36 @@ func (r *recorder) details(plan Plan, b url.Values) error {
 	}
 	for _, e := range events {
 		if _, err := r.get("/events/detail", with(b, "name", e.Name)); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// agentJourneys records the journeys of the newest AI agent people in /agents' latest sessions.
+func (r *recorder) agentJourneys(plan Plan, b url.Values) error {
+	n := plan.Details.Journeys.AgentPeople
+	if n <= 0 {
+		return nil
+	}
+	var ag query.AgentsResult
+	raw, err := r.get("/agents", b)
+	if err == nil {
+		err = json.Unmarshal(raw, &ag)
+	}
+	if err != nil {
+		return err
+	}
+	seen := map[string]bool{}
+	for _, s := range ag.Latest {
+		if len(seen) == n {
+			break
+		}
+		if seen[s.Person] {
+			continue
+		}
+		seen[s.Person] = true
+		if _, err := r.get("/journey", with(b, "person", s.Person)); err != nil {
 			return err
 		}
 	}
