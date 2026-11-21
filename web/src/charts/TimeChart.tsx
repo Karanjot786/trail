@@ -153,7 +153,7 @@ export function TimeChart(o: TimeChartProps) {
   const prevLine = !bars && prevVals ? pathFor(prevVals, x, y) : ''
   const firstReal = values.findIndex((v) => v != null)
   const area = !bars && last >= 0 && firstReal >= 0 ? `${pathFor(values.slice(0, last + 1), x, y)} L${x(last).toFixed(1)} ${plotB} L${x(firstReal).toFixed(1)} ${plotB} Z` : ''
-  const markers = !bars && plotW / Math.max(1, n) >= 24
+  const markers = !bars && plotW / Math.max(1, n) >= 40
 
   const tickN = Math.min(n, W < 520 ? 4 : 7)
   const xTicks = Array.from({ length: tickN }, (_, t) => Math.round((t / (tickN - 1 || 1)) * (n - 1)))
