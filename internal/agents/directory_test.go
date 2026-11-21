@@ -143,8 +143,12 @@ func TestClassifyNeverBlocksOnFetch(t *testing.T) {
 	time.Sleep(20 * time.Millisecond) // the fetches are in flight
 	start := time.Now()
 	in := d.InList("google-agents", "192.0.2.1")
+	r := d.Classify(Input{Site: "s", UA: claudeAgentUA, IP: "192.0.2.1"})
 	if el := time.Since(start); in || el > 5*time.Millisecond {
 		t.Fatalf("InList = %v after %v", in, el)
+	}
+	if r != (Result{ID: "claude-agent", Via: ViaUA}) {
+		t.Errorf("Classify = %+v", r)
 	}
 }
 

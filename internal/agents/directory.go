@@ -107,6 +107,8 @@ type Directory struct {
 
 	kickMu   sync.Mutex
 	lastKick map[string]time.Time
+
+	relay *relayCache
 }
 
 // NewDirectory returns a Directory. Nothing is fetched until Start.
@@ -127,6 +129,7 @@ func NewDirectory(o DirOptions) *Directory {
 	}
 	c.CheckRedirect = sameHostRedirect
 	d := &Directory{o: o, client: &c, byName: map[string]*list{}, lastKick: map[string]time.Time{}}
+	d.relay = newRelayCache(o.Now)
 	specs := defaultLists
 	if o.URLs != nil {
 		specs = specsFor(o.URLs)
