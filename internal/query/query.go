@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"math"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -18,12 +19,49 @@ var ErrBadDim = errors.New("unknown dimension")
 // ErrBadMetric is returned for a series metric outside the allowlist.
 var ErrBadMetric = errors.New("unknown metric")
 
-// dims maps public dimension names to columns. User input never becomes a column name.
-var dims = map[string]string{
-	"path": "path", "route": "route", "host": "host", "referrer": "referrer_host",
-	"utm_source": "utm_source", "utm_medium": "utm_medium", "utm_campaign": "utm_campaign",
-	"country": "country", "device": "device", "browser": "browser", "os": "os",
-	"event": "name", "goal": "",
+// Dimension kinds. Row dims filter and group event rows; session dims are read from a
+// session's landing pageview (or last pageview, for exit) and filter whole sessions.
+const (
+	dimRow = iota
+	dimSession
+	dimExit
+	dimEvent
+	dimGoal
+	dimClock // dow, hour: local weekday (Mon=0) or hour of the event
+)
+
+type dimDef struct {
+	kind int
+	expr string // SQL over one events row; compile-time constants only
+}
+
+// dims maps public dimension names to their definitions. User input never becomes SQL text.
+var dims = map[string]dimDef{
+	"path": {dimRow, "path"}, "route": {dimRow, "route"}, "host": {dimRow, "host"},
+	"country": {dimRow, "country"}, "region": {dimRow, "region"}, "city": {dimRow, "city"},
+	"device": {dimRow, "device"}, "browser": {dimRow, "browser"}, "os": {dimRow, "os"},
+	"referrer": {dimSession, "referrer_host"}, "source": {dimSession, sourceNameExpr},
+	"channel": {dimSession, channelExpr}, "ai_source": {dimSession, aiSourceExpr}, "entry": {dimSession, "path"},
+	"utm_source": {dimSession, "utm_source"}, "utm_medium": {dimSession, "utm_medium"},
+	"utm_campaign": {dimSession, "utm_campaign"}, "utm_term": {dimSession, "utm_term"},
+	"utm_content": {dimSession, "utm_content"},
+	"exit":        {dimExit, "path"}, "event": {dimEvent, "name"}, "goal": {dimGoal, ""},
+	"dow":  {dimClock, "(CAST(strftime('%w', ts/1000 + ?, 'unixepoch') AS INTEGER)+6)%7"},
+	"hour": {dimClock, "CAST(strftime('%H', ts/1000 + ?, 'unixepoch') AS INTEGER)"},
+}
+
+// outboundKey is the event-dim key that stands for every outbound link click.
+const outboundKey = "Outbound link"
+
+// tzOffset is p.TZ's UTC offset in seconds at the window end. dow and hour use this one
+// offset for the whole range, so on a window that crosses a DST change the hours on the
+// other side are off by one hour (an accepted approximation; buckets in Series are exact).
+func (p Params) tzOffset() int {
+	if p.TZ == nil {
+		return 0
+	}
+	_, off := time.UnixMilli(p.To).In(p.TZ).Zone()
+	return off
 }
 
 const (
@@ -78,31 +116,47 @@ ev AS (SELECT e.*, COALESCE(idm.user_id, e.anon_id) AS person, idm.user_id IS NO
 	}
 	sort.Strings(keys)
 	for _, k := range keys {
-		col, ok := dims[k]
+		d, ok := dims[k]
 		if !ok {
 			return "", nil, fmt.Errorf("filter %q: %w", k, ErrBadDim)
 		}
-		switch k {
-		case "goal":
+		v := p.Filters[k]
+		switch d.kind {
+		case dimRow:
+			sb.WriteString(" AND e." + d.expr + "=?") // expr comes from the dims allowlist
+			args = append(args, v)
+		case dimClock:
+			n, err := strconv.Atoi(v)
+			if err != nil {
+				n = -1
+			}
+			sb.WriteString(" AND " + strings.ReplaceAll(d.expr, "ts/1000", "e.ts/1000") + "=?")
+			args = append(args, p.tzOffset(), n)
+		case dimSession:
+			// Sources are sent only on the landing pageview, so keep whole sessions whose
+			// landing pageview matches; a row filter would make every session a bounce.
+			sb.WriteString(" AND e.session_id IN (SELECT session_id FROM (SELECT session_id, min(ts), " + d.expr +
+				" AS v FROM events WHERE site_id=? AND type='pageview' AND ts BETWEEN ? AND ? GROUP BY session_id) WHERE v=?)")
+			args = append(args, p.Site, p.From, p.To, v)
+		case dimExit:
+			sb.WriteString(" AND e.session_id IN (SELECT session_id FROM (SELECT session_id, max(ts), path" +
+				" AS v FROM events WHERE site_id=? AND type='pageview' AND ts BETWEEN ? AND ? GROUP BY session_id) WHERE v=?)")
+			args = append(args, p.Site, p.From, p.To, v)
+		case dimEvent:
+			// An event filter keeps whole sessions that fired the event.
+			if v == outboundKey {
+				sb.WriteString(" AND e.session_id IN (SELECT session_id FROM events WHERE site_id=? AND type='outbound' AND ts BETWEEN ? AND ?)")
+				args = append(args, p.Site, p.From, p.To)
+				continue
+			}
+			sb.WriteString(" AND e.session_id IN (SELECT session_id FROM events WHERE site_id=? AND type='event' AND name=?)")
+			args = append(args, p.Site, v)
+		case dimGoal:
 			// A goal filter keeps whole sessions that hit the goal (any kind of goal).
 			sb.WriteString(" AND e.session_id IN (SELECT x.session_id FROM events x JOIN goals g ON g.id=? AND g.site_id=x.site_id" +
 				" WHERE x.site_id=? AND x.ts BETWEEN ? AND ? AND " + goalHitCond + ")")
-			args = append(args, p.Filters[k], p.Site, p.From, p.To)
-			continue
-		case "event":
-			// An event filter keeps whole sessions that fired the event.
-			sb.WriteString(" AND e.session_id IN (SELECT session_id FROM events WHERE site_id=? AND type='event' AND name=?)")
-			args = append(args, p.Site, p.Filters[k])
-			continue
-		case "referrer", "utm_source", "utm_medium", "utm_campaign":
-			// Sources are sent only on the landing pageview, so keep whole sessions
-			// that arrived from them; a row filter would make every session a bounce.
-			sb.WriteString(" AND e.session_id IN (SELECT session_id FROM events WHERE site_id=? AND " + col + "=?)")
-			args = append(args, p.Site, p.Filters[k])
-			continue
+			args = append(args, v, p.Site, p.From, p.To)
 		}
-		sb.WriteString(" AND e." + col + "=?") // col comes from the dims allowlist
-		args = append(args, p.Filters[k])
 	}
 	sb.WriteString(")\n")
 	return sb.String(), args, nil
@@ -201,182 +255,265 @@ WHERE cur=(SELECT cur FROM pc GROUP BY cur ORDER BY count(*) DESC, cur LIMIT 1)`
 	return t, nil
 }
 
-// Series returns metric (visitors|pageviews|bounce) bucketed by hour for
-// ranges of 48 h or less, otherwise by day, in p.TZ.
-func Series(db *sql.DB, p Params, metric string) (SeriesResult, error) {
-	switch metric {
-	case "visitors", "pageviews", "bounce":
-	default:
+// sessSrc is one row per session in ev (from base) with the session's landing pageview:
+// start, source name, channel, AI source, entry path and UTM tags. SQLite takes the bare
+// columns of a min() aggregate from the row holding the minimum, i.e. the landing pageview.
+var sessSrc = `SELECT session_id, person, min(ts) AS start, ` + sourceNameExpr + ` AS source, ` + channelExpr + ` AS channel,
+  ` + aiSourceExpr + ` AS ai, path AS entry, country, city, device, browser, os, referrer_host, utm_source, utm_medium, utm_campaign, utm_term, utm_content
+FROM ev WHERE type='pageview' GROUP BY session_id`
+
+var seriesMetrics = map[string]bool{
+	"visitors": true, "pageviews": true, "sessions": true, "duration": true,
+	"bounce": true, "conversion": true, "revenue": true,
+}
+
+// buckets is a series' bucket grid: sorted bucket starts, the last bucket that has begun, and
+// the window end. Bucket i covers [starts[i], starts[i+1]).
+type buckets struct {
+	starts []int64
+	last   int
+}
+
+func (b buckets) index(ms int64) (int, bool) {
+	i := sort.Search(len(b.starts), func(i int) bool { return b.starts[i] > ms }) - 1
+	return i, i >= 0
+}
+
+// legacyBuckets is the v2 grid for requests without a resolved window: hours for spans
+// of 48 h or less (starting at From's hour), otherwise days.
+func legacyBuckets(p Params, loc *time.Location) (buckets, string) {
+	bucket := "day"
+	trunc := func(t time.Time) time.Time { return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, loc) }
+	next := func(t time.Time) time.Time { return t.AddDate(0, 0, 1) }
+	if p.To-p.From <= int64(48*time.Hour/time.Millisecond) {
+		bucket = "hour"
+		trunc = func(t time.Time) time.Time { return time.Date(t.Year(), t.Month(), t.Day(), t.Hour(), 0, 0, 0, loc) }
+		next = func(t time.Time) time.Time { return t.Add(time.Hour) }
+	}
+	b := buckets{starts: []int64{}}
+	for t := trunc(time.UnixMilli(p.From).In(loc)); t.UnixMilli() <= p.To; t = next(t) {
+		b.starts = append(b.starts, t.UnixMilli())
+	}
+	b.last = len(b.starts) - 1
+	return b, bucket
+}
+
+// Series returns metric for every bucket of p.Win (hours of a one-day window, otherwise days,
+// in p.TZ), and Prev for the same bucket offsets of the comparison window. Buckets that have
+// not begun are nil. With extras, Extras[i] holds bucket i's top 3 sources, goal conversions
+// and revenue. Requests without a resolved window (Win.Key == "") use the v2 grid.
+func Series(db *sql.DB, p Params, metric string, extras bool) (SeriesResult, error) {
+	if !seriesMetrics[metric] {
 		return SeriesResult{}, fmt.Errorf("metric %q: %w", metric, ErrBadMetric)
 	}
 	loc := p.TZ
 	if loc == nil {
 		loc = time.UTC
 	}
-	res := SeriesResult{Metric: metric, Bucket: "day", Points: []Point{}, Prev: []Point{}}
-	trunc := func(ms int64) time.Time {
-		t := time.UnixMilli(ms).In(loc)
-		return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, loc)
-	}
-	next := func(t time.Time) time.Time { return t.AddDate(0, 0, 1) }
-	if p.To-p.From <= int64(48*time.Hour/time.Millisecond) {
-		res.Bucket = "hour"
-		trunc = func(ms int64) time.Time {
-			t := time.UnixMilli(ms).In(loc)
-			return time.Date(t.Year(), t.Month(), t.Day(), t.Hour(), 0, 0, 0, loc)
-		}
-		next = func(t time.Time) time.Time { return t.Add(time.Hour) }
-	}
-	index := map[int64]int{}
-	for t := trunc(p.From); t.UnixMilli() <= p.To; t = next(t) {
-		index[t.UnixMilli()] = len(res.Points)
-		res.Points = append(res.Points, Point{T: t.UnixMilli()})
-	}
-	vals := make([]float64, len(res.Points))
-	bucketOf := func(ms int64) (int, bool) {
-		i, ok := index[trunc(ms).UnixMilli()]
-		return i, ok
-	}
-
-	cte, args, err := base(p)
+	res := SeriesResult{Window: p.Win, Metric: metric, Points: []Point{}, Prev: []Point{}}
+	goal, err := convGoal(db, p.Site, p.Conv)
 	if err != nil {
 		return res, err
 	}
-	switch metric {
-	case "pageviews":
-		err = scanTS(db, cte+`SELECT ts FROM ev WHERE type='pageview'`, args, func(ts int64) {
-			if i, ok := bucketOf(ts); ok {
-				vals[i]++
-			}
-		})
-	case "visitors":
-		seen := make([]map[string]bool, len(res.Points))
-		err = forRows(db, cte+`SELECT ts, person FROM ev`, args, func(r *sql.Rows) error {
-			var ts int64
-			var person string
-			if err := r.Scan(&ts, &person); err != nil {
-				return err
-			}
-			if i, ok := bucketOf(ts); ok {
-				if seen[i] == nil {
-					seen[i] = map[string]bool{}
-				}
-				seen[i][person] = true
-			}
-			return nil
-		})
-		for i, s := range seen {
-			vals[i] = float64(len(s))
-		}
-	case "bounce":
-		sessions := make([]int, len(res.Points))
-		engaged := make([]int, len(res.Points))
-		err = forRows(db, cte+`SELECT start, `+engagedExpr+` FROM (`+sessionAgg+`)`, args, func(r *sql.Rows) error {
-			var start int64
-			var eng int
-			if err := r.Scan(&start, &eng); err != nil {
-				return err
-			}
-			if i, ok := bucketOf(start); ok {
-				sessions[i]++
-				engaged[i] += eng
-			}
-			return nil
-		})
-		for i := range res.Points {
-			vals[i] = bounce(sessions[i], engaged[i])
+	var cur buckets
+	if p.Win.Key == "" {
+		cur, res.Bucket = legacyBuckets(p, loc)
+	} else {
+		res.Bucket = p.Win.Bucket
+		cur = buckets{starts: BucketStarts(p.Win, loc), last: p.Win.LastBucket}
+	}
+	if res.Points, err = seriesPoints(db, p, metric, cur, goal); err != nil {
+		return res, err
+	}
+	if pp, ok := p.Prev(); ok {
+		pb := buckets{starts: bucketStarts(pp.From, pp.To, res.Bucket, loc)}
+		pb.last, _ = pb.index(pp.To)
+		if res.Prev, err = seriesPoints(db, pp, metric, pb, goal); err != nil {
+			return res, err
 		}
 	}
-	if err != nil {
-		return res, fmt.Errorf("series %s: %w", metric, err)
-	}
-	for i := range res.Points {
-		res.Points[i].V = &vals[i]
+	if extras {
+		if res.Extras, err = seriesExtras(db, p, cur, goal); err != nil {
+			return res, err
+		}
 	}
 	return res, nil
 }
 
-// Breakdown returns the top values of dim by visitors. q filters keys by
-// case-insensitive substring.
-func Breakdown(db *sql.DB, p Params, dim, q string, limit int) ([]Row, error) {
-	col, ok := dims[dim]
-	if !ok || col == "" {
-		return nil, fmt.Errorf("dim %q: %w", dim, ErrBadDim)
-	}
+// seriesPoints computes metric per bucket of b over p's rows; buckets after b.last are nil.
+func seriesPoints(db *sql.DB, p Params, metric string, b buckets, goal *Goal) ([]Point, error) {
+	n := len(b.starts)
+	vals := make([]float64, n)
 	cte, args, err := base(p)
 	if err != nil {
 		return nil, err
 	}
-	where := col + "!=''" // col comes from the dims allowlist
-	if dim == "event" {
-		where += " AND type='event'"
+	// perBucket runs q (first column ts) and calls fn with the bucket of each row.
+	perBucket := func(q string, qargs []any, dest func() []any, fn func(i int)) error {
+		return forRows(db, q, qargs, func(r *sql.Rows) error {
+			var ts int64
+			if err := r.Scan(append([]any{&ts}, dest()...)...); err != nil {
+				return err
+			}
+			if i, ok := b.index(ts); ok && i < n {
+				fn(i)
+			}
+			return nil
+		})
 	}
-	if q != "" {
-		where += " AND instr(lower(" + col + "), lower(?))>0"
-		args = append(args, q)
+	distinct := func(q string, qargs []any) ([]map[string]bool, error) {
+		sets := make([]map[string]bool, n)
+		var person string
+		err := perBucket(q, qargs, func() []any { return []any{&person} }, func(i int) {
+			if sets[i] == nil {
+				sets[i] = map[string]bool{}
+			}
+			sets[i][person] = true
+		})
+		return sets, err
 	}
-	args = append(args, clampLimit(limit))
-	sqlText := cte + `SELECT ` + col + `, count(DISTINCT person), coalesce(sum(type='pageview'),0), count(*)
-FROM ev WHERE ` + where + ` GROUP BY ` + col + ` ORDER BY 2 DESC, 3 DESC, 4 DESC, 1 LIMIT ?`
-
-	rows := []Row{}
-	err = forRows(db, sqlText, args, func(r *sql.Rows) error {
-		var row Row
-		if err := r.Scan(&row.Key, &row.Visitors, &row.Pageviews, &row.Total); err != nil {
-			return err
+	switch metric {
+	case "pageviews":
+		err = perBucket(cte+`SELECT ts FROM ev WHERE type='pageview'`, args, func() []any { return nil }, func(i int) { vals[i]++ })
+	case "visitors":
+		var sets []map[string]bool
+		sets, err = distinct(cte+`SELECT ts, person FROM ev`, args)
+		for i, s := range sets {
+			vals[i] = float64(len(s))
 		}
-		if dim != "event" {
-			row.Total = 0
+	case "sessions", "duration", "bounce":
+		sessions, engaged := make([]int, n), make([]int, n)
+		durs := make([]float64, n)
+		var eng int
+		var dur float64
+		err = perBucket(cte+`SELECT start, `+engagedExpr+`, dur FROM (`+sessionAgg+`)`, args,
+			func() []any { return []any{&eng, &dur} },
+			func(i int) { sessions[i]++; engaged[i] += eng; durs[i] += dur })
+		for i := range vals {
+			switch metric {
+			case "sessions":
+				vals[i] = float64(sessions[i])
+			case "duration":
+				if sessions[i] > 0 {
+					vals[i] = durs[i] / float64(sessions[i])
+				}
+			default:
+				vals[i] = bounce(sessions[i], engaged[i])
+			}
 		}
-		rows = append(rows, row)
-		return nil
-	})
+	case "conversion":
+		if goal == nil {
+			break
+		}
+		bp, _ := withoutGoalFilter(p)
+		bcte, bargs, berr := base(bp)
+		if berr != nil {
+			return nil, berr
+		}
+		baseSets, err1 := distinct(bcte+`SELECT ts, person FROM ev`, bargs)
+		if err1 != nil {
+			err = err1
+			break
+		}
+		where, gargs := goalWhere(*goal)
+		var convSets []map[string]bool
+		convSets, err = distinct(cte+`SELECT ts, person FROM ev WHERE `+where, append(args, gargs...))
+		for i := range vals {
+			if len(baseSets[i]) > 0 {
+				vals[i] = float64(len(convSets[i])) / float64(len(baseSets[i]))
+			}
+		}
+	case "revenue":
+		var amt int64
+		err = perBucket(cte+revenueRows, args, func() []any { return []any{&amt} }, func(i int) { vals[i] += float64(amt) })
+	}
 	if err != nil {
-		return nil, fmt.Errorf("breakdown %s: %w", dim, err)
+		return nil, fmt.Errorf("series %s: %w", metric, err)
 	}
-	return rows, nil
+	pts := make([]Point, n)
+	for i := range pts {
+		pts[i].T = b.starts[i]
+		if i <= b.last {
+			pts[i].V = &vals[i]
+		}
+	}
+	return pts, nil
 }
 
-// Visitors lists people seen in range, most recent first. q matches the
-// person id (user id or anon id) by case-insensitive substring.
-func Visitors(db *sql.DB, p Params, q string, limit int) ([]Visitor, error) {
+// revenueRows lists (ts, amount in minor units) of the purchases in ev that are in the
+// period's main currency (the most common one); it follows base()'s CTE.
+const revenueRows = `, pc AS (SELECT ts, ` + currencyExpr + ` AS cur, ` + amountMinorExpr + ` AS amt FROM ev WHERE ` + purchaseWhere + `)
+SELECT ts, amt FROM pc WHERE cur=(SELECT cur FROM pc GROUP BY cur ORDER BY count(*) DESC, cur LIMIT 1)`
+
+// seriesExtras fills each bucket's top 3 sources by visitors, goal conversions and revenue.
+func seriesExtras(db *sql.DB, p Params, b buckets, goal *Goal) ([]BucketExtra, error) {
+	n := len(b.starts)
+	out := make([]BucketExtra, n)
+	src := make([]map[string]map[string]bool, n)
+	for i := range out {
+		out[i] = BucketExtra{T: b.starts[i], TopSources: []TopSource{}}
+	}
 	cte, args, err := base(p)
 	if err != nil {
 		return nil, err
 	}
-	where := ""
-	if q != "" {
-		where = "WHERE instr(lower(person), lower(?))>0"
-		args = append(args, q)
-	}
-	args = append(args, clampLimit(limit))
-	sqlText := cte + `SELECT person, max(ident), min(ts), max(ts), count(DISTINCT session_id),
-  max(lc), max(ld), max(fs)
-FROM (SELECT person, ident, ts, session_id,
-  first_value(country) OVER (PARTITION BY person ORDER BY ts DESC) AS lc,
-  first_value(device) OVER (PARTITION BY person ORDER BY ts DESC) AS ld,
-  first_value(` + sourceExpr + `) OVER (PARTITION BY person ORDER BY ts) AS fs
-  FROM ev ` + where + `)
-GROUP BY person ORDER BY 4 DESC LIMIT ?`
-
-	out := []Visitor{}
-	err = forRows(db, sqlText, args, func(r *sql.Rows) error {
-		var v Visitor
-		if err := r.Scan(&v.Person, &v.Identified, &v.FirstSeen, &v.LastSeen, &v.Visits,
-			&v.Country, &v.Device, &v.Source); err != nil {
+	err = forRows(db, cte+`SELECT start, source, person FROM (`+sessSrc+`)`, args, func(r *sql.Rows) error {
+		var ts int64
+		var s, person string
+		if err := r.Scan(&ts, &s, &person); err != nil {
 			return err
 		}
-		out = append(out, v)
+		if i, ok := b.index(ts); ok {
+			if src[i] == nil {
+				src[i] = map[string]map[string]bool{}
+			}
+			if src[i][s] == nil {
+				src[i][s] = map[string]bool{}
+			}
+			src[i][s][person] = true
+		}
 		return nil
 	})
 	if err != nil {
-		return nil, fmt.Errorf("visitors: %w", err)
+		return nil, fmt.Errorf("series sources: %w", err)
+	}
+	for i, m := range src {
+		for k, people := range m {
+			out[i].TopSources = append(out[i].TopSources, TopSource{Key: k, Visitors: len(people)})
+		}
+		sort.Slice(out[i].TopSources, func(a, c int) bool {
+			x, y := out[i].TopSources[a], out[i].TopSources[c]
+			return x.Visitors > y.Visitors || x.Visitors == y.Visitors && x.Key < y.Key
+		})
+		if len(out[i].TopSources) > 3 {
+			out[i].TopSources = out[i].TopSources[:3]
+		}
+	}
+	if goal != nil {
+		where, gargs := goalWhere(*goal)
+		if err := scanTS(db, cte+`SELECT ts FROM ev WHERE `+where, append(args, gargs...), func(ts int64) {
+			if i, ok := b.index(ts); ok {
+				out[i].Conversions++
+			}
+		}); err != nil {
+			return nil, fmt.Errorf("series conversions: %w", err)
+		}
+	}
+	err = forRows(db, cte+revenueRows, args, func(r *sql.Rows) error {
+		var ts, amt int64
+		if err := r.Scan(&ts, &amt); err != nil {
+			return err
+		}
+		if i, ok := b.index(ts); ok {
+			out[i].RevenueMinor += amt
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("series revenue: %w", err)
 	}
 	return out, nil
 }
-
-// sourceExpr is an event's traffic source: referrer host, else utm_source, else "" (direct).
-const sourceExpr = `CASE WHEN referrer_host!='' THEN referrer_host ELSE utm_source END`
 
 func clampLimit(n int) int {
 	switch {
