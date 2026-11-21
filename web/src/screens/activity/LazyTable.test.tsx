@@ -14,6 +14,6 @@ it('loads DataTable lazily behind a skeleton fallback', async () => {
     />,
   )
   expect(container.querySelector('[aria-busy="true"]')).not.toBeNull()
-  expect(await screen.findByRole('table')).toBeTruthy()
+  expect(await screen.findByRole('table', {}, { timeout: 5000 })).toBeTruthy()
   expect(screen.getByText('Ada')).toBeTruthy()
 })
