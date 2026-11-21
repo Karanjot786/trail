@@ -16,6 +16,7 @@ import { StatusDot } from '../../ui/small'
 import { EmptyState, ErrorState, Skeleton } from '../../ui/states'
 import { Segmented } from '../../ui/tabs'
 import { CountryCode, hm, sourceText, useAq } from '../activity/shared'
+import { Globe } from './Globe'
 import './live.css'
 
 export const POLL_MS = 5000
@@ -89,7 +90,7 @@ export default function LiveScreen() {
           <span className="upd" data-testid="live-updated">
             in the last 5 minutes · {off ? `as of ${asOf}, not updating` : paused ? `paused, as of ${asOf}` : 'updated just now'}
           </span>
-          <div className="plane" aria-hidden="true" />
+          <Globe points={d.countries.map((c) => ({ code: c.key, n: c.count }))} frozen={frozen} />
           <div className="live-stats">
             <div>
               <span className="sk2">Events, last 5 min</span>
