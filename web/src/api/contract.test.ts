@@ -46,6 +46,8 @@ const TYPE_OF: Record<string, [string, boolean]> = {
   dropoff: ['DropoffPerson', true], 'revenue-breakdown': ['RevenueRow', true], views: ['SavedView', true], notes: ['Note', true],
   status: ['SiteStatus', false], check: ['InstallCheck', false], config: ['Config', false], tokens: ['ApiToken', true],
   shares: ['Share', true], whoami: ['WhoAmI', false], 'share-meta': ['ShareMeta', false],
+  // B2's golden names for the same shapes
+  'funnel-dropoff': ['DropoffPerson', true], 'series-today': ['Series', false], 'site-status': ['SiteStatus', false],
 }
 
 describe('requiredKeys', () => {
