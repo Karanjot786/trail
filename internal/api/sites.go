@@ -2,18 +2,15 @@ package api
 
 import (
 	"database/sql"
+	"errors"
 	"net/http"
 	"time"
 
 	"trail/internal/auth"
+	"trail/internal/query"
 	"trail/internal/sites"
 )
 
-// siteOut is a site plus how much it has received.
-type siteOut struct {
-	sites.Site
-	activity
-}
 
 type activity struct {
 	LastEventAt *int64 `json:"lastEventAt"` // unix ms; null before the first event
@@ -36,13 +33,27 @@ func (s *server) activity(id string) (activity, error) {
 	return a, err
 }
 
-func (s *server) out(w http.ResponseWriter, r *http.Request, site sites.Site) (siteOut, bool) {
+// siteInfo is the /api/sites entry for site: its settings, activity and features.
+func (s *server) siteInfo(site sites.Site) (query.Site, error) {
 	a, err := s.activity(site.ID)
 	if err != nil {
-		s.fail(w, r, err)
-		return siteOut{}, false
+		return query.Site{}, err
 	}
-	return siteOut{site, a}, true
+	f, err := query.SiteFeatures(s.db, site.ID)
+	if err != nil && !errors.Is(err, query.ErrNotImplemented) {
+		return query.Site{}, err
+	}
+	return query.Site{ID: site.ID, Domain: site.Domain, Origins: site.Origins, Created: site.Created,
+		LastEventAt: a.LastEventAt, Events24h: a.Events24h, Features: f}, nil
+}
+
+func (s *server) out(w http.ResponseWriter, r *http.Request, site sites.Site) (query.Site, bool) {
+	o, err := s.siteInfo(site)
+	if err != nil {
+		s.fail(w, r, err)
+		return o, false
+	}
+	return o, true
 }
 
 // allSitesToken refuses a bearer token bound to one site: adding, editing
@@ -59,7 +70,7 @@ func (s *server) allSitesToken(h http.HandlerFunc) http.HandlerFunc {
 
 func (s *server) listSites(w http.ResponseWriter, r *http.Request) {
 	list := s.sites.List()
-	out := make([]siteOut, 0, len(list))
+	out := make([]query.Site, 0, len(list))
 	t, scoped := auth.TokenFrom(r.Context())
 	for _, site := range list {
 		if scoped && t.Site != "" && t.Site != site.ID {

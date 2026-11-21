@@ -248,6 +248,7 @@ func routes(st *store.Store, geo *enrich.Geo, reg *sites.Registry, tz *time.Loca
 	mux.HandleFunc("POST /api/login", a.Login)
 	mux.Handle("/api/", a.Require(apiH))
 	mux.Handle("/api/v1/", v1) // scope matrix of plan §0.12
+	mux.Handle("/api/share/", api.ShareHandler(st.DB(), reg, tz)) // read-only links; the token is the credential
 	mux.Handle("/mcp", a.API(mcp.New(st.DB(), reg, tz)))
 	if demoH != nil {
 		mux.Handle("/api/demo/", demoH) // unauthenticated; rewrites to /api/ itself
@@ -298,6 +299,11 @@ func spaHandler(fsys fs.FS) http.Handler {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("X-Frame-Options", "DENY")
 		w.Header().Set("Referrer-Policy", "same-origin")
+		if strings.HasPrefix(r.URL.Path, "/share/") {
+			// The token is in the path: never send it on as a Referer, and keep the page out of search.
+			w.Header().Set("Referrer-Policy", "no-referrer")
+			w.Header().Set("X-Robots-Tag", "noindex, nofollow")
+		}
 		name := strings.TrimPrefix(path.Clean("/"+r.URL.Path), "/")
 		if name != "" && name != "index.html" {
 			if fi, err := fs.Stat(fsys, name); err == nil && !fi.IsDir() {
