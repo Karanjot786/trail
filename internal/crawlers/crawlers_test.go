@@ -212,3 +212,29 @@ func TestCrawlerAdditions(t *testing.T) {
 		}
 	}
 }
+
+func TestParseCombinedIP(t *testing.T) {
+	for line, want := range map[string]string{
+		`203.0.113.9 - - [20/Nov/2026:10:05:00 +0530] "GET / HTTP/1.1" 200 1 "-" "GPTBot"`:   "203.0.113.9",
+		`2001:db8::1 - - [20/Nov/2026:10:05:00 +0530] "GET / HTTP/1.1" 200 1 "-" "GPTBot"`:   "2001:db8::1",
+		`host.example - - [20/Nov/2026:10:05:00 +0530] "GET / HTTP/1.1" 200 1 "-" "GPTBot"`:  "",
+		` 203.0.113.9 - - [20/Nov/2026:10:05:00 +0530] "GET / HTTP/1.1" 200 1 "-" "GPTBot"`: "203.0.113.9",
+	} {
+		r, ok := ParseCombined(line)
+		if !ok || r.IP != want {
+			t.Errorf("%q → %q %v, want %q", line, r.IP, ok, want)
+		}
+	}
+}
+
+func TestParseCaddyIP(t *testing.T) {
+	both := `{"ts":1795149300,"request":{"remote_ip":"10.0.0.1","client_ip":"203.0.113.9","uri":"/","headers":{"User-Agent":["GPTBot"]}},"status":200}`
+	remote := `{"ts":1795149300,"request":{"remote_ip":"203.0.113.7","uri":"/","headers":{"User-Agent":["GPTBot"]}},"status":200}`
+	bad := `{"ts":1795149300,"request":{"remote_ip":"nope","uri":"/","headers":{"User-Agent":["GPTBot"]}},"status":200}`
+	for line, want := range map[string]string{both: "203.0.113.9", remote: "203.0.113.7", bad: ""} {
+		r, ok := ParseCaddyJSON([]byte(line))
+		if !ok || r.IP != want {
+			t.Errorf("%s → %q %v", line, r.IP, ok)
+		}
+	}
+}
