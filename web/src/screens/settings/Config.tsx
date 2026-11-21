@@ -1,7 +1,9 @@
 // Settings → Config (plan F5-5): the effective server configuration (read-only), this view as an API call, and
 // appearance (theme and sidebar, stored in this browser only).
+import type { ReactNode } from 'react'
 import { Keyboard, Palette, SlidersHorizontal, Terminal } from 'lucide-react'
 import { api } from '../../api/client'
+import type { GeoInfo } from '../../api/types'
 import { useQuery } from '../../api/useQuery'
 import { useDataMode } from '../../shell/useDataMode'
 import { useTheme, type Theme } from '../../shell/theme'
@@ -16,6 +18,20 @@ import { Segmented } from '../../ui/tabs'
 import { apiCall } from './model'
 import { Card, Switch } from './parts'
 
+// The built-in database is DB-IP Lite Country (CC BY 4.0), which asks for a credit and a link where results show.
+function locations(g: GeoInfo): ReactNode {
+  if (g.source === 'custom') return `Your database (${g.build}): country, region and city`
+  if (g.source !== 'embedded-country') return 'Off: the built-in database could not be read'
+  return (
+    <>
+      Countries, built in ({g.build}). Set TRAIL_GEO_DB for region and city.
+      <a className="geo-credit" href="https://db-ip.com" target="_blank" rel="noopener noreferrer">
+        IP geolocation by DB-IP
+      </a>
+    </>
+  )
+}
+
 export default function Config() {
   const s = useUrlState()
   const { mode } = useDataMode()
@@ -23,12 +39,12 @@ export default function Config() {
   const { theme, setTheme } = useTheme()
   const ui = useUi()
   const c = cfg.data
-  const rows: [string, string, string][] = c
+  const rows: [string, ReactNode, string][] = c
     ? [
         ['Version', c.version, 'build'],
         ['Time zone', c.tz, 'TRAIL_TZ'],
         ['Public demo', c.demo ? 'On, at /demo' : 'Off', 'TRAIL_DEMO'],
-        ['Locations', c.geo ? 'On: country, region and city' : 'Off: no GeoIP database', 'TRAIL_GEO_DB'],
+        ['Locations', locations(c.geo), 'TRAIL_GEO_DB'],
         ['Ingest limit', `${c.ingestRps} events per second`, 'TRAIL_INGEST_RPS'],
         ['Sites from env', c.envSites.length ? c.envSites.join(', ') : 'None', 'TRAIL_SITES'],
         ['Tokens from env', String(c.envTokens), 'TRAIL_API_TOKENS'],

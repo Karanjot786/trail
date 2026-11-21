@@ -15,7 +15,7 @@ Trail reads its settings from the environment at startup. Nothing is stored in a
 | `TRAIL_ADDR` | `:8080` | Listen address. Use `127.0.0.1:8080` behind a local proxy |
 | `TRAIL_TZ` | `Asia/Kolkata` | IANA timezone for daily buckets and the private-mode key rotation |
 | `TRAIL_SECRET` | random per start | Signs dashboard session cookies. At least 32 characters. Set it so logins survive restarts: `openssl rand -hex 32` |
-| `TRAIL_GEO_DB` | unset | Path to a DB-IP Lite City `.mmdb` file. Without it, country is empty. See [Geo database](/operations/geo) |
+| `TRAIL_GEO_DB` | unset | Path to your own City `.mmdb`, such as DB-IP Lite City, for region and city. Without it, the built-in database gives country only. See [Geo database](/operations/geo) |
 | `TRAIL_API_TOKENS` | unset | Comma list of `name:token:scope` for the [read API and MCP](/api/tokens). Scope is `read` or `write`; tokens shorter than 24 characters stop the server at startup |
 | `TRAIL_INGEST_RPS` | `50` | Requests per second per client IP on `/_t/e`, with a burst of twice that. Over the limit is `429`. `0` turns the limit off. See [Rate limit](#rate-limit) |
 | `TRAIL_DEMO` | unset | `1` serves a read-only demo with generated data at `/demo` |

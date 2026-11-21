@@ -58,7 +58,7 @@ Trail reads the visitor IP from the first `X-Forwarded-For` entry when the heade
 
 ## Geo data
 
-To get countries, mount a DB-IP Lite City file and point `TRAIL_GEO_DB` at it. See [Geo database](/operations/geo).
+Countries work with no setup: the image carries the built-in DB-IP Lite Country database. For region and city, mount a DB-IP Lite City file and point `TRAIL_GEO_DB` at it. See [Geo database](/operations/geo).
 
 ```sh
 docker run ... -v /srv/geo:/geo:ro -e TRAIL_GEO_DB=/geo/dbip-city-lite.mmdb trail

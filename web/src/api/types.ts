@@ -136,4 +136,6 @@ export interface WhoAmI { name: string; scope: TokenScope; site: string | null }
 export interface Share { id: string; label: string; site: string; state: string; hideRevenue: boolean; created: number; expires: number | null; lastUsed: number | null; url?: string }
 export interface ShareMeta { site: Site; state: string; hideRevenue: boolean; expires: number | null }
 export interface SavedView { id: number; name: string; site: string | null; state: string; created: number }
-export interface Config { version: string; tz: string; demo: boolean; geo: boolean; ingestRps: number; envSites: string[]; envTokens: number; dbFile: string }
+/** Which IP database answers lookups: the built-in DB-IP Lite Country file, a TRAIL_GEO_DB file, or none. */
+export interface GeoInfo { source: 'embedded-country' | 'custom' | 'none'; build: string }
+export interface Config { version: string; tz: string; demo: boolean; geo: GeoInfo; ingestRps: number; envSites: string[]; envTokens: number; dbFile: string }

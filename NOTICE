@@ -1,0 +1,13 @@
+Trail
+Copyright (c) the Trail authors. Licensed under the MIT License (see LICENSE).
+
+This product includes IP geolocation data:
+
+  IP geolocation by DB-IP (https://db-ip.com)
+  File: internal/enrich/geodata/dbip-country-lite.mmdb (DB-IP Lite Country)
+  Licensed under the Creative Commons Attribution 4.0 International License
+  (CC BY 4.0, https://creativecommons.org/licenses/by/4.0/).
+
+The MIT License covers Trail's code only. The embedded database keeps its
+CC BY 4.0 licence, which requires this attribution wherever the data is shown.
+Trail shows it in the dashboard under Settings > Config.

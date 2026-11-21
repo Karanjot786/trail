@@ -303,7 +303,7 @@ describe('Sharing, Data and Config', () => {
   })
 
   it('config renders every field and the current view as an API call', async () => {
-    H.config = { version: 'v9.9.9', tz: 'Asia/Kolkata', demo: false, geo: true, ingestRps: 50, envSites: ['demo', 'docs'], envTokens: 2, dbFile: 'trail.db' }
+    H.config = { version: 'v9.9.9', tz: 'Asia/Kolkata', demo: false, geo: { source: 'embedded-country', build: '2026-11' }, ingestRps: 50, envSites: ['demo', 'docs'], envTokens: 2, dbFile: 'trail.db' }
     visit('/settings/config?site=docs&range=7d')
     render(<SettingsScreen />)
     await flush()
@@ -311,5 +311,24 @@ describe('Sharing, Data and Config', () => {
     for (const v of ['v9.9.9', 'Asia/Kolkata', 'trail.db', '50', 'demo, docs', '2']) expect(t).toContain(v)
     expect(t).toContain('/api/v1/stats?site=docs&range=7d')
     expect(screen.getByRole('radiogroup', { name: 'Theme' })).toBeTruthy()
+  })
+
+  it('config credits DB-IP when the built-in country database answers', async () => {
+    H.config = { version: 'v', tz: 'UTC', demo: false, geo: { source: 'embedded-country', build: '2026-11' }, ingestRps: 0, envSites: [], envTokens: 0, dbFile: 'trail.db' }
+    visit('/settings/config')
+    render(<SettingsScreen />)
+    await flush()
+    expect(document.body.textContent).toContain('Countries, built in (2026-11)')
+    const credit = screen.getByRole('link', { name: 'IP geolocation by DB-IP' })
+    expect(credit.getAttribute('href')).toBe('https://db-ip.com')
+  })
+
+  it('config names a custom geo database and drops the DB-IP credit', async () => {
+    H.config = { version: 'v', tz: 'UTC', demo: false, geo: { source: 'custom', build: '2026-10' }, ingestRps: 0, envSites: [], envTokens: 0, dbFile: 'trail.db' }
+    visit('/settings/config')
+    render(<SettingsScreen />)
+    await flush()
+    expect(document.body.textContent).toContain('Your database (2026-10)')
+    expect(screen.queryByRole('link', { name: 'IP geolocation by DB-IP' })).toBeNull()
   })
 })

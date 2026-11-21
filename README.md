@@ -66,7 +66,7 @@ Open the host in a browser and log in with `TRAIL_PASSWORD`. Run Trail behind HT
 | `TRAIL_SITES` | empty | Optional `id=domain,id2=domain2`, added at startup if missing. Sites edited in the dashboard keep their edits. You can also add sites in **Settings** |
 | `TRAIL_INGEST_RPS` | `50` | Events requests per second per client IP on `/_t/e`, burst twice that. Over the limit is `429`. `0` turns it off |
 | `TRAIL_TZ` | `Asia/Kolkata` | Timezone for daily buckets |
-| `TRAIL_GEO_DB` | unset | Path to a DB-IP Lite City `.mmdb`. Without it, country is empty |
+| `TRAIL_GEO_DB` | unset | Path to your own City `.mmdb` (for example DB-IP Lite City) for region and city. Without it, the built-in database gives country only |
 | `TRAIL_SECRET` | random per start | Signs session cookies (32+ chars). Set it so logins survive restarts |
 | `TRAIL_API_TOKENS` | unset | `name:token:scope,...` for the read API and MCP. Scope `read` or `write`; tokens of 24+ chars |
 | `TRAIL_DEMO` | unset | `1` serves a read-only demo with generated data at `/demo` |
@@ -178,11 +178,15 @@ Definitions:
 - **Bounce rate**: `1 - engaged sessions / sessions`.
 - **Online**: distinct anonymous ids with any event in the last 5 minutes.
 
-## Geo (optional)
+## Geo
 
-Trail reads country from a DB-IP Lite City database. Download `dbip-city-lite-YYYY-MM.mmdb` manually from <https://db-ip.com/db/lite.php>, put it on the server (for example in `/data`) and set `TRAIL_GEO_DB`. Refresh it monthly if you want current data.
+Countries work out of the box. The binary embeds the DB-IP Lite Country database (about 8.5 MB), so there is nothing to download or configure. The lookup happens in memory; the IP is never stored or sent anywhere.
 
-The DB-IP Lite database is licensed CC-BY 4.0. You must attribute it, for example: "IP geolocation by DB-IP.com".
+For region and city, download `dbip-city-lite-YYYY-MM.mmdb` from <https://db-ip.com/db/lite.php>, put it on the server (for example in `/data`) and set `TRAIL_GEO_DB` to its path. It replaces the built-in database. Private and consent-denied visitors keep country only, whichever database is in use.
+
+Settings → Config shows which database is in use and its month. The built-in file is refreshed monthly with `make geo` (`scripts/update-geo.sh`); a scheduled workflow opens a PR with each new edition.
+
+[IP geolocation by DB-IP](https://db-ip.com). The DB-IP Lite data is licensed [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/); see [NOTICE](NOTICE). The dashboard carries the same credit.
 
 ## Backups
 
@@ -266,4 +270,4 @@ Issues and PRs welcome — see [CONTRIBUTING.md](CONTRIBUTING.md) and the [Code 
 
 ## License
 
-MIT © [Karanjot Singh](https://github.com/karanjot786). See [LICENSE](LICENSE).
+MIT © [Karanjot Singh](https://github.com/karanjot786). See [LICENSE](LICENSE). The embedded DB-IP Lite Country database is CC BY 4.0, not MIT; see [NOTICE](NOTICE).
