@@ -53,9 +53,12 @@ export interface UseDataTableOptions<T> {
   getSearchText?: (row: T) => string
   initialSort?: { id: string; desc: boolean }
   pageSize?: number
+  /** Server-side sorting: rows arrive sorted; sort changes go to `onSortingChange`. */
+  manualSorting?: boolean
+  onSortingChange?: (sort: { id: string; desc: boolean } | null) => void
 }
 
-export function useDataTable<T>({ columns, data, getSearchText, initialSort, pageSize = PAGE_SIZE }: UseDataTableOptions<T>) {
+export function useDataTable<T>({ columns, data, getSearchText, initialSort, pageSize = PAGE_SIZE, manualSorting, onSortingChange }: UseDataTableOptions<T>) {
   const [sorting, setSorting] = useState<SortingState>(initialSort ? [initialSort] : [])
   const [globalFilter, setGlobalFilter] = useState('')
   const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize })
@@ -69,6 +72,7 @@ export function useDataTable<T>({ columns, data, getSearchText, initialSort, pag
         header: c.header,
         enableSorting: c.enableSorting ?? true,
         enableHiding: c.enableHiding ?? true,
+        ...(c.sortDescFirst != null ? { sortDescFirst: c.sortDescFirst } : {}),
         sortFn: (a: Row<Features, RowData>, b: Row<Features, RowData>, id: string) => compareValues(a.getValue(id), b.getValue(id)),
       })),
     [columns],
@@ -85,7 +89,12 @@ export function useDataTable<T>({ columns, data, getSearchText, initialSort, pag
     // TanStack constrains rows to RowData; DataTable keeps T at its edges and casts `row.original` back.
     data: data as RowData[],
     state: { sorting, globalFilter, pagination, columnVisibility },
-    onSortingChange: setSorting,
+    onSortingChange: (u: SortingState | ((old: SortingState) => SortingState)) => {
+      const next = typeof u === 'function' ? u(sorting) : u
+      setSorting(next)
+      onSortingChange?.(next[0] ? { id: next[0].id, desc: next[0].desc } : null)
+    },
+    manualSorting: !!manualSorting,
     onGlobalFilterChange: setGlobalFilter,
     onPaginationChange: setPagination,
     onColumnVisibilityChange: setColumnVisibility,

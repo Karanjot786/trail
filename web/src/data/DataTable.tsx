@@ -18,6 +18,8 @@ export interface TableColumn<T> {
   meta?: { align?: 'r'; hideSm?: boolean; definition?: string }
   enableHiding?: boolean
   enableSorting?: boolean
+  /** F3 addition: the first click sorts descending (counts, durations, dates). */
+  sortDescFirst?: boolean
 }
 export interface DataTableProps<T> {
   columns: TableColumn<T>[]
@@ -44,6 +46,15 @@ export interface DataTableProps<T> {
   /** "source Google" → the button reads "Filter by source Google". */
   getRowFilterLabel?: (row: T) => string
   isRowFiltered?: (row: T) => boolean
+  /** Server-side sorting: `data` arrives sorted; header clicks call `onSortingChange`. */
+  manualSorting?: boolean
+  onSortingChange?: (sort: { id: string; desc: boolean } | null) => void
+  /** Replaces the toolbar count text ("1,204 people · 50 loaded"). */
+  countText?: string
+  /** Under the pager: e.g. a Load more button for server-paged lists. */
+  footer?: ReactNode
+  /** Accessible name per row (rows that open something). */
+  getRowLabel?: (row: T) => string
 }
 
 const SKELETON_ROWS = 8
@@ -77,8 +88,13 @@ export default function DataTable<T>(props: DataTableProps<T>) {
     onRowFilter,
     getRowFilterLabel,
     isRowFiltered,
+    manualSorting,
+    onSortingChange,
+    countText,
+    footer,
+    getRowLabel,
   } = props
-  const dt = useDataTable({ columns, data, getSearchText, initialSort, pageSize })
+  const dt = useDataTable({ columns, data, getSearchText, initialSort, pageSize, manualSorting, onSortingChange })
   const [announce, setAnnounce] = useState('')
 
   if (error) {
@@ -131,8 +147,14 @@ export default function DataTable<T>(props: DataTableProps<T>) {
         </label>
         <span className="flex-1" />
         <span data-testid="dt-count" className="text-small text-muted">
-          <b className="font-semibold tabular-nums text-fg">{fmtInt(shownCount)}</b>
-          {` ${shownCount === 1 ? (nounOne ?? noun) : noun}${q ? ' match' : ''}`}
+          {countText && !q ? (
+            countText
+          ) : (
+            <>
+              <b className="font-semibold tabular-nums text-fg">{fmtInt(shownCount)}</b>
+              {` ${shownCount === 1 ? (nounOne ?? noun) : noun}${q ? ' match' : ''}`}
+            </>
+          )}
         </span>
         {dt.hideable.length > 0 && (
           <Menu
@@ -251,6 +273,7 @@ export default function DataTable<T>(props: DataTableProps<T>) {
                       <tr
                         key={row.id}
                         tabIndex={onRowOpen ? 0 : undefined}
+                        aria-label={onRowOpen && getRowLabel ? getRowLabel(r) : undefined}
                         onClick={onRowOpen ? () => onRowOpen(r) : undefined}
                         onKeyDown={onRowOpen ? onRowKey(r) : undefined}
                         className={`border-b border-border last:border-b-0 ${onRowOpen ? `cursor-pointer transition-colors duration-[120ms] motion-reduce:transition-none ${HOVER}bg-hover focus-visible:outline-2 focus-visible:outline-ring focus-visible:-outline-offset-2` : ''}`}
@@ -315,6 +338,7 @@ export default function DataTable<T>(props: DataTableProps<T>) {
           <ChevronRight aria-hidden="true" className="size-4" />
         </Button>
       </div>
+      {footer}
       <div role="status" aria-live="polite" className="sr-only" data-testid="dt-announce">
         {announce}
       </div>
