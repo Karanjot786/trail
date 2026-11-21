@@ -77,7 +77,7 @@ func TestEveryReportRouteServes(t *testing.T) {
 		{fmt.Sprintf("/api/goals/%d/detail?%s", goal, q), func() any { return &query.GoalDetailResult{} }},
 		{fmt.Sprintf("/api/paths?goal=%d&%s", goal, q), func() any { return &query.PathsReport{} }},
 		{fmt.Sprintf("/api/funnels/%d/report?%s", funnel, q), func() any { return &query.FunnelReportResult{} }},
-		{fmt.Sprintf("/api/funnels/%d/dropoff?step=0&%s", funnel, q), func() any { return &[]query.DropoffPerson{} }},
+		{fmt.Sprintf("/api/funnels/%d/dropoff?step=1&%s", funnel, q), func() any { return &[]query.DropoffPerson{} }},
 		{"/api/revenue?" + q, func() any { return &query.RevenueResult{} }},
 		{"/api/revenue/breakdown?dim=source&" + q, func() any { return &[]query.RevenueRow{} }},
 		{"/api/crawlers?" + q, func() any { return &query.CrawlersResult{} }},
@@ -149,7 +149,7 @@ func TestExportFilename(t *testing.T) {
 
 func TestFunnelReportUnknown404(t *testing.T) {
 	h, _, funnel := reportFixture(t)
-	for _, u := range []string{"/api/funnels/999/report?site=s", "/api/funnels/999/dropoff?site=s&step=0"} {
+	for _, u := range []string{"/api/funnels/999/report?site=s", "/api/funnels/999/dropoff?site=s&step=1"} {
 		if w := get(h, u); w.Code != http.StatusNotFound {
 			t.Errorf("%s: %d", u, w.Code)
 		}
@@ -161,7 +161,7 @@ func TestFunnelReportUnknown404(t *testing.T) {
 
 func TestDropoffTotalHeader(t *testing.T) {
 	h, _, funnel := reportFixture(t)
-	w := get(h, fmt.Sprintf("/api/funnels/%d/dropoff?site=s&step=0&range=7d", funnel))
+	w := get(h, fmt.Sprintf("/api/funnels/%d/dropoff?site=s&step=1&range=7d", funnel))
 	if w.Code == http.StatusNotImplemented {
 		t.Skip("FunnelDropoff not implemented yet (B3)")
 	}
@@ -169,7 +169,7 @@ func TestDropoffTotalHeader(t *testing.T) {
 		t.Fatalf("%d %v", w.Code, w.Header())
 	}
 	w = get(h, "/api/visitors?site=s&range=7d&limit=1")
-	if w.Header().Get("X-Total-Count") != "4" {
+	if w.Header().Get("X-Total-Count") != "2" {
 		t.Errorf("visitors total %q", w.Header().Get("X-Total-Count"))
 	}
 }

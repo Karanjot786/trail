@@ -26,16 +26,23 @@ import (
 
 	"trail/internal/api"
 	"trail/internal/auth"
+	"trail/internal/crawlers"
 	"trail/internal/demo"
 	"trail/internal/enrich"
 	"trail/internal/ingest"
 	"trail/internal/mcp"
 	"trail/internal/meta"
+	"trail/internal/query"
 	"trail/internal/seed"
 	"trail/internal/sites"
 	"trail/internal/store"
 	"trail/web"
 )
+
+func init() {
+	// The crawler report names each bot's provider and category from the ingest catalogue.
+	query.CrawlerInfo = crawlers.Info
+}
 
 func main() {
 	cmd := "serve"

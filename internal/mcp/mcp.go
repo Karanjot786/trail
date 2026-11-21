@@ -88,7 +88,7 @@ type (
 	dropoffIn struct {
 		Scope
 		ID   int64 `json:"id" jsonschema:"funnel id from list_funnels"`
-		Step int   `json:"step" jsonschema:"0-based step index; lists people who reached it and did not reach the next"`
+		Step int   `json:"step" jsonschema:"1-based step number; lists people who reached it and did not reach the next"`
 	}
 	siteIn struct {
 		Site string `json:"site" jsonschema:"site id from list_sites"`
@@ -289,7 +289,7 @@ func (s *server) site(ctx context.Context, id string) error {
 }
 
 // userErrs are query errors whose text is safe and useful to the model.
-var userErrs = []error{query.ErrBadDim, query.ErrBadMetric, query.ErrNotFound, query.ErrGoalNotFound, query.ErrNeedSite, query.ErrNotImplemented}
+var userErrs = []error{query.ErrBadRequest, query.ErrBadDim, query.ErrBadMetric, query.ErrNotFound, query.ErrGoalNotFound, query.ErrNeedSite, query.ErrNotImplemented}
 
 // wrap adapts a query result to a tool result. A query error becomes a tool
 // error (isError:true); a nil slice becomes [] so clients never see null.

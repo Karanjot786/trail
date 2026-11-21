@@ -178,7 +178,7 @@ func (s *server) fail(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
 	case errors.Is(err, errSiteScope):
 		http.Error(w, err.Error(), http.StatusForbidden)
-	case errors.Is(err, errBadRequest) || errors.Is(err, query.ErrNeedSite) || errors.Is(err, query.ErrBadDim) || errors.Is(err, query.ErrBadMetric) ||
+	case errors.Is(err, errBadRequest) || errors.Is(err, query.ErrBadRequest) || errors.Is(err, query.ErrNeedSite) || errors.Is(err, query.ErrBadDim) || errors.Is(err, query.ErrBadMetric) ||
 		errors.Is(err, query.ErrBadGoal) || errors.Is(err, query.ErrBadFunnel) || errors.Is(err, sites.ErrInvalid) ||
 		errors.Is(err, meta.ErrInvalid):
 		http.Error(w, err.Error(), http.StatusBadRequest)
