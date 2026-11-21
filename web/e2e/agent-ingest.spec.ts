@@ -26,7 +26,9 @@ test.describe('agent browser', () => {
         // reach a loopback server directly (Chromium's local network access check blocks it).
         await page.route('https://demo.trail.dev/_t/**', async (route) => {
           const u = new URL(route.request().url())
-          await route.fulfill({ response: await route.fetch({ url: base + u.pathname + u.search }) })
+          // Firefox adds User-Agent below the interception layer, so pass the browser's own UA on, as a proxy would.
+          const headers = { ...route.request().headers(), 'user-agent': await route.request().headerValue('user-agent') ?? AGENT_UA }
+          await route.fulfill({ response: await route.fetch({ url: base + u.pathname + u.search, headers }) })
         })
         const beacon = page.waitForResponse((r) => r.url().endsWith('/_t/e'))
         await page.goto('https://demo.trail.dev/agent-test')
