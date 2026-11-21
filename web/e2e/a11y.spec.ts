@@ -45,14 +45,21 @@ for (const theme of ['dark', 'light'] as const) {
       })
     }
 
-    test(`axe: agent journey and the unlock card with its command (${theme})`, async ({ app }) => {
+    test(`axe: agent journey and the unlock card with its command (${theme})`, async ({ app }, info) => {
       const { page } = app
+      // Tests share one server and the card names tokens per minute: tag the name so parallel runs never collide.
+      await page.route('**/api/tokens', (route) => {
+        const req = route.request()
+        if (req.method() !== 'POST') return route.continue()
+        const body = req.postDataJSON()
+        return route.continue({ postData: JSON.stringify({ ...body, name: `${body.name} ${info.project.name} ${theme} a11y` }) })
+      })
       await app.goto('/ai/agents')
       await page.getByRole('table', { name: 'Latest agent sessions' }).getByRole('row').nth(1).click()
       await expect(page.getByRole('dialog').getByRole('heading', { name: /AI agent/ })).toBeVisible()
       expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([])
       await page.keyboard.press('Escape')
-      const made = page.waitForResponse((r) => r.url().includes('/api/tokens') && r.request().method() === 'POST')
+      const made = page.waitForResponse((r) => r.url().includes('/api/tokens') && r.request().method() === 'POST' && r.status() === 201)
       await app.goto('/ai/funnel?site=docs')
       await page.getByRole('button', { name: 'Create token and copy command' }).click()
       const id = (await (await made).json()).id
