@@ -140,3 +140,7 @@ code.inl { font-family: var(--font-mono); font-size: 12px; padding: 1px 5px; bor
   .scard-h, .srow { flex-wrap: wrap; }
   .kv { grid-template-columns: 110px minmax(0, 1fr); }
 }
+
+/* The Receiving badge sits on the row colour (opaque), not a tint over it, so its contrast is the row's:
+ * light theme --success on the selected row's --hover is 4.56:1 (plan F5-1, proto R-17). */
+.srow .badge[data-tone="good"] { background: transparent; border-color: color-mix(in srgb, var(--success) 45%, transparent); }

@@ -5,6 +5,8 @@ import { api, HttpError } from '../../api/client'
 import type { Site } from '../../api/types'
 import { suggestId } from '../../lib/install'
 import { writeFailed } from '../../shell/writes'
+import { useSitesQuery } from '../../shell/useSite'
+import { setUi } from '../../shell/uiStore'
 import { Button } from '../../ui/button'
 import { Dialog } from '../../ui/dialog'
 import { toast } from '../../ui/toast'
@@ -25,6 +27,16 @@ export function AddSiteDialog({ open, onOpenChange, onAdded }: AddSiteDialogProp
   const [domain, setDomain] = useState('')
   const [err, setErr] = useState<{ field: Field | 'form'; text: string } | null>(null)
   const [busy, setBusy] = useState(false)
+  // After the shell drops the cached site list, fetch it again and repaint the shell, so the new site is known
+  // when the shell lands on its Install page (the shell's own hook does not refetch on invalidate).
+  const sitesQ = useSitesQuery().sites
+  const added = useRef<string | null>(null)
+  useEffect(() => {
+    if (added.current && sitesQ.data?.some((x) => x.id === added.current)) {
+      added.current = null
+      setUi({})
+    }
+  }, [sitesQ.data])
   const refs = { name: useRef<HTMLInputElement>(null), id: useRef<HTMLInputElement>(null), domain: useRef<HTMLInputElement>(null) }
 
   useEffect(() => {
@@ -48,7 +60,9 @@ export function AddSiteDialog({ open, onOpenChange, onAdded }: AddSiteDialogProp
     try {
       const site = await api.createSite(f.site)
       toast(`Added ${site.domain}. Install the snippet, then send a test visit.`, { tone: 'good' })
+      added.current = site.id
       onAdded(site)
+      sitesQ.refetch()
     } catch (e) {
       if (e instanceof HttpError && e.status === 409) fail('id', `That id is taken. Choose another, like ${f.site.id}-2.`)
       else if (e instanceof HttpError && e.status === 400) fail('form', e.message)

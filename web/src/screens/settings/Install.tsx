@@ -74,7 +74,7 @@ export default function Install() {
           : st.tone === 'ok'
             ? 'Everything looks healthy.'
             : st.tone === 'bad'
-              ? 'The fix is in the checklist below.'
+              ? `${check.data?.lastEventAt == null ? 'Not receiving events yet. ' : ''}The fix is in the checklist below.`
               : `This updates by itself once the snippet is live. Load any page of ${site.domain}, or send a test visit.`
 
   return (
