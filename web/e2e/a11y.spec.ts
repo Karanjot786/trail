@@ -58,7 +58,7 @@ for (const theme of ['dark', 'light'] as const) {
       const f = (await app.api('funnels'))[0]
       await app.goto(`/conversions/funnels/${f.id}?fd=${f.id}:1`)
       expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([])
-      const sh = await (await page.request.post('/api/shares', { data: { site: 'demo', label: 'a11y', state: 'range=30d', hideRevenue: false } })).json()
+      const sh = await (await page.request.post('/api/shares', { data: { site: 'demo', label: 'a11y', state: 'range=30d', hideRevenue: false, ttl: '7d' } })).json()
       await app.goto(new URL(sh.url, 'http://x').pathname)
       expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([])
       await page.request.delete(`/api/shares/${sh.id}`)

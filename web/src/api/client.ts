@@ -159,7 +159,7 @@ export const api = {
   createView: (v: { name: string; site: string | null; state: string }) => send<SavedView>('POST', '/views', v),
   deleteView: (id: number) => send<unknown>('DELETE', `/views/${id}`).then(() => undefined),
   shares: (signal?: AbortSignal) => get<Share[]>('/shares', new URLSearchParams(), signal),
-  createShare: (s: { site: string; label: string; state: string; hideRevenue: boolean; expires: number | null }) => send<Share>('POST', '/shares', s),
+  createShare: (s: { site: string; label: string; state: string; hideRevenue: boolean; ttl: '24h' | '7d' | '30d' | 'never' }) => send<Share>('POST', '/shares', s),
   deleteShare: (id: string) => send<unknown>('DELETE', `/shares/${enc(id)}`).then(() => undefined),
   shareMeta: (signal?: AbortSignal) => get<ShareMeta>('/meta', new URLSearchParams(), signal),
   tokens: (signal?: AbortSignal) => get<ApiToken[]>('/tokens', new URLSearchParams(), signal),

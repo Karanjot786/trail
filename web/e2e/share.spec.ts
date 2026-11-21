@@ -15,7 +15,7 @@ const check = (title: string, body: (app: App) => Promise<void>, opts: { phone?:
   })
 
 async function newShare(page: import('@playwright/test').Page, body: Record<string, unknown> = {}) {
-  const res = await page.request.post('/api/shares', { data: { site: 'demo', label: 'e2e', state: 'range=30d', hideRevenue: false, ...body } })
+  const res = await page.request.post('/api/shares', { data: { site: 'demo', label: 'e2e', state: 'range=30d', hideRevenue: false, ttl: '7d', ...body } })
   expect(res.status()).toBeLessThan(300)
   const s = await res.json()
   expect(s.url, 'share url on create').toBeTruthy()
