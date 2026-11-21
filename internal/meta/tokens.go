@@ -82,7 +82,7 @@ func CreateToken(db *sql.DB, name, scope, site string) (NewToken, error) {
 		id, name, out.Prefix, hash[:], scope, siteArg, out.Created)
 	if err != nil {
 		if strings.Contains(err.Error(), "UNIQUE constraint") {
-			return out, fmt.Errorf("%w: a token named %q already exists", ErrInvalid, name)
+			return out, fmt.Errorf("%w: a token named %q", ErrExists, name)
 		}
 		return out, fmt.Errorf("create token: %w", err)
 	}
