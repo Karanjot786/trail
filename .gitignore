@@ -4,6 +4,8 @@ node_modules
 web/dist/*
 !web/dist/.keep
 *.mmdb
+!internal/enrich/geodata/dbip-country-lite.mmdb
+!internal/enrich/testdata/*.mmdb
 /trail
 test-results
 playwright-report

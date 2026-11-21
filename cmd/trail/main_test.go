@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -318,5 +319,30 @@ func TestParseRPS(t *testing.T) {
 		if _, err := parseRPS(bad); err == nil {
 			t.Errorf("%q: want error", bad)
 		}
+	}
+}
+
+// With no TRAIL_GEO_DB, /api/config reports the embedded country database.
+func TestConfigReportsGeo(t *testing.T) {
+	h := testRoutes(t)
+	lw := httptest.NewRecorder()
+	h.ServeHTTP(lw, httptest.NewRequest("POST", "/api/login", strings.NewReader(`{"password":"pw"}`)))
+	if lw.Code != http.StatusOK && lw.Code != http.StatusNoContent {
+		t.Fatalf("login: %d", lw.Code)
+	}
+	r := httptest.NewRequest("GET", "/api/config", nil)
+	for _, c := range lw.Result().Cookies() {
+		r.AddCookie(c)
+	}
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+	var cfg struct {
+		Geo enrich.GeoInfo `json:"geo"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &cfg); err != nil {
+		t.Fatalf("config %d %s: %v", w.Code, w.Body, err)
+	}
+	if cfg.Geo.Source != enrich.SourceEmbedded || len(cfg.Geo.Build) != len("2006-01") {
+		t.Errorf("geo = %+v", cfg.Geo)
 	}
 }

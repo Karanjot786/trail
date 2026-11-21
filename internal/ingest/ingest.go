@@ -339,6 +339,10 @@ func (h *handler) event(r *http.Request, p *payload, domain, props string) store
 	device, browser, os, bot := enrich.ParseUA(r.UserAgent())
 	// The client IP is used only for this lookup and never stored.
 	country, region, city := h.geo.Lookup(enrich.ClientIP(r))
+	if p.M == "p" {
+		// Private and consent-denied visitors: country only.
+		region, city = "", ""
+	}
 	route := p.RT
 	if route == "" && path != "" {
 		route = enrich.DeriveRoute(path)

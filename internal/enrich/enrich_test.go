@@ -107,12 +107,12 @@ func TestRefHost(t *testing.T) {
 	}
 }
 
-func TestNoopGeo(t *testing.T) {
-	g, err := OpenGeo("")
-	if err != nil {
-		t.Fatal(err)
-	}
+func TestNilGeoIsNoop(t *testing.T) {
+	var g *Geo
 	if c, r, ci := g.Lookup("1.2.3.4"); c != "" || r != "" || ci != "" {
-		t.Errorf("noop geo returned %q %q %q", c, r, ci)
+		t.Errorf("nil geo returned %q %q %q", c, r, ci)
+	}
+	if err := g.Close(); err != nil {
+		t.Errorf("Close: %v", err)
 	}
 }

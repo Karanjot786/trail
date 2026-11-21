@@ -2,7 +2,6 @@
 package enrich
 
 import (
-	"fmt"
 	"net"
 	"net/http"
 	"net/netip"
@@ -11,7 +10,6 @@ import (
 	"strings"
 
 	"github.com/mileusna/useragent"
-	"github.com/oschwald/maxminddb-golang/v2"
 )
 
 // ParseUA maps a User-Agent to device (desktop|mobile|tablet), browser, os and a bot flag.
@@ -37,62 +35,6 @@ func ParseUA(ua string) (device, browser, os string, bot bool) {
 		os = "GNU/Linux"
 	}
 	return device, p.Name, os, bot
-}
-
-// Geo resolves IPs to country/region/city. A nil reader is a no-op.
-type Geo struct {
-	db *maxminddb.Reader
-}
-
-// OpenGeo opens a DB-IP/MaxMind City mmdb. An empty path yields a no-op Geo.
-func OpenGeo(path string) (*Geo, error) {
-	if path == "" {
-		return &Geo{}, nil
-	}
-	db, err := maxminddb.Open(path)
-	if err != nil {
-		return nil, fmt.Errorf("open geo db %s: %w", path, err)
-	}
-	return &Geo{db: db}, nil
-}
-
-type cityRecord struct {
-	Country struct {
-		ISOCode string `maxminddb:"iso_code"`
-	} `maxminddb:"country"`
-	Subdivisions []struct {
-		Names map[string]string `maxminddb:"names"`
-	} `maxminddb:"subdivisions"`
-	City struct {
-		Names map[string]string `maxminddb:"names"`
-	} `maxminddb:"city"`
-}
-
-// Lookup returns the ISO-2 country, region and city for ip, or empty strings.
-func (g *Geo) Lookup(ip string) (country, region, city string) {
-	if g == nil || g.db == nil {
-		return "", "", ""
-	}
-	addr, err := netip.ParseAddr(ip)
-	if err != nil {
-		return "", "", ""
-	}
-	var rec cityRecord
-	if err := g.db.Lookup(addr.Unmap()).Decode(&rec); err != nil {
-		return "", "", ""
-	}
-	if len(rec.Subdivisions) > 0 {
-		region = rec.Subdivisions[0].Names["en"]
-	}
-	return rec.Country.ISOCode, region, rec.City.Names["en"]
-}
-
-// Close releases the geo database.
-func (g *Geo) Close() error {
-	if g == nil || g.db == nil {
-		return nil
-	}
-	return g.db.Close()
 }
 
 // ClientIP returns the first X-Forwarded-For entry, else the RemoteAddr host.

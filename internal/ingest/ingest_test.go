@@ -543,3 +543,38 @@ func TestMixedModeBatchCookieFromFullEvent(t *testing.T) {
 		t.Errorf("%d, Set-Cookie %q", w.Code, w.Header().Get("Set-Cookie"))
 	}
 }
+
+// Private (and consent-denied) events keep the country but never region or city.
+func TestPrivateKeepsCountryOnly(t *testing.T) {
+	st, reg := newRegistry(t, map[string]string{"s1": "example.com"})
+	geo, err := enrich.OpenGeo("../enrich/testdata/city-test.mmdb")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = geo.Close() })
+	h := New(st, geo, reg)
+	hdr := map[string]string{"Origin": "https://example.com", "X-Forwarded-For": "49.36.0.1"}
+	postFrom(h, privatePV, hdr)
+	postFrom(h, pageview, hdr)
+	rows(t, st)
+	got := map[string][3]string{}
+	r, err := st.DB().Query(`SELECT substr(anon_id, 1, 2), country, region, city FROM events`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+	for r.Next() {
+		var k string
+		var v [3]string
+		if err := r.Scan(&k, &v[0], &v[1], &v[2]); err != nil {
+			t.Fatal(err)
+		}
+		got[k] = v
+	}
+	if want := [3]string{"IN", "", ""}; got["p_"] != want {
+		t.Errorf("private = %q, want %q", got["p_"], want)
+	}
+	if want := [3]string{"IN", "Maharashtra", "Mumbai"}; got["an"] != want {
+		t.Errorf("full = %q, want %q", got["an"], want)
+	}
+}

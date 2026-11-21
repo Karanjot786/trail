@@ -242,6 +242,9 @@ func runServe() error {
 		return err
 	}
 	defer geo.Close()
+	if gi := geo.Info(); gi.Source != enrich.SourceNone {
+		log.Printf("geo: %s database, built %s", gi.Source, gi.Build)
+	}
 	secret, err := parseSecret(os.Getenv("TRAIL_SECRET"))
 	if err != nil {
 		return err
@@ -287,7 +290,7 @@ func runServe() error {
 		ids = append(ids, id)
 	}
 	slices.Sort(ids)
-	cfg := appConfig{Version: version, TZ: tz.String(), Demo: demoH != nil, Geo: os.Getenv("TRAIL_GEO_DB") != "",
+	cfg := appConfig{Version: version, TZ: tz.String(), Demo: demoH != nil,
 		IngestRPS: rps, EnvSites: ids, EnvTokens: len(tokens), DBFile: env("TRAIL_DB", "trail.db")}
 	mux := routes(st, geo, reg, tz, a, dist, demoH, rps, cfg)
 
@@ -348,14 +351,14 @@ var version = "dev"
 
 // appConfig is the /api/config payload (Config in web/src/api/types.ts).
 type appConfig struct {
-	Version   string   `json:"version"`
-	TZ        string   `json:"tz"`
-	Demo      bool     `json:"demo"`
-	Geo       bool     `json:"geo"`
-	IngestRPS float64  `json:"ingestRps"`
-	EnvSites  []string `json:"envSites"`
-	EnvTokens int      `json:"envTokens"`
-	DBFile    string   `json:"dbFile"`
+	Version   string         `json:"version"`
+	TZ        string         `json:"tz"`
+	Demo      bool           `json:"demo"`
+	Geo       enrich.GeoInfo `json:"geo"` // set by routes from the open database
+	IngestRPS float64        `json:"ingestRps"`
+	EnvSites  []string       `json:"envSites"`
+	EnvTokens int            `json:"envTokens"`
+	DBFile    string         `json:"dbFile"`
 }
 
 func routes(st *store.Store, geo *enrich.Geo, reg *sites.Registry, tz *time.Location, a *auth.Auth, dist fs.FS, demoH http.Handler, rps float64, cfg appConfig) *http.ServeMux {
@@ -372,6 +375,7 @@ func routes(st *store.Store, geo *enrich.Geo, reg *sites.Registry, tz *time.Loca
 	mux.Handle("/_t/", ingest.TrackerFiles())
 	mux.HandleFunc("POST /api/login", a.Login)
 	mux.Handle("/api/", a.Require(apiH))
+	cfg.Geo = geo.Info()
 	if cfg.EnvSites == nil {
 		cfg.EnvSites = []string{}
 	}

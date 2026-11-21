@@ -9,4 +9,5 @@ trail
 *.db
 *.db-*
 *.mmdb
+!internal/enrich/geodata/dbip-country-lite.mmdb
 docs
