@@ -12,28 +12,6 @@ import (
 // ErrBadRequest is returned for a request that names something out of range (a funnel step, for example).
 var ErrBadRequest = errors.New("bad request")
 
-// loadFunnel reads funnel id of site, or ErrNotFound.
-// It stands in for GetFunnel (funnel_defs.go) until that lands; drop it at integration.
-func loadFunnel(db *sql.DB, site string, id int64) (Funnel, error) {
-	f := Funnel{Steps: []FunnelStep{}}
-	var steps string
-	err := db.QueryRow(`SELECT id, name, window_ms, steps, created FROM funnels WHERE site_id=? AND id=?`, site, id).
-		Scan(&f.ID, &f.Name, &f.WindowMs, &steps, &f.Created)
-	if err == sql.ErrNoRows {
-		return f, fmt.Errorf("funnel %d: %w", id, ErrNotFound)
-	}
-	if err != nil {
-		return f, fmt.Errorf("funnel %d: %w", id, err)
-	}
-	if err := json.Unmarshal([]byte(steps), &f.Steps); err != nil {
-		return f, fmt.Errorf("funnel %d steps: %w", id, err)
-	}
-	if f.Steps == nil {
-		f.Steps = []FunnelStep{}
-	}
-	return f, nil
-}
-
 // funnelRun is how far one person got: the time each reached step was matched.
 type funnelRun struct {
 	person string
@@ -115,7 +93,7 @@ func FunnelReport(db *sql.DB, p Params, id int64) (FunnelReportResult, error) {
 	if err := needSite(p); err != nil {
 		return res, err
 	}
-	f, err := loadFunnel(db, p.Site, id)
+	f, err := GetFunnel(db, p.Site, id)
 	if err != nil {
 		return res, err
 	}
@@ -176,7 +154,7 @@ func FunnelDropoff(db *sql.DB, p Params, id int64, step int) ([]DropoffPerson, i
 	if err := needSite(p); err != nil {
 		return out, 0, err
 	}
-	f, err := loadFunnel(db, p.Site, id)
+	f, err := GetFunnel(db, p.Site, id)
 	if err != nil {
 		return out, 0, err
 	}

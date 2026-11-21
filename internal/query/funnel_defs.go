@@ -59,6 +59,9 @@ func scanFunnel(r interface{ Scan(...any) error }) (Funnel, error) {
 	if err := json.Unmarshal([]byte(steps), &f.Steps); err != nil {
 		return f, fmt.Errorf("funnel %d steps: %w", f.ID, err)
 	}
+	if f.Steps == nil {
+		f.Steps = []FunnelStep{}
+	}
 	return f, nil
 }
 
