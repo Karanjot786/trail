@@ -28,7 +28,9 @@ func aiPlan(t *testing.T) Plan {
 	return p
 }
 
-func TestRecordActorCombo(t *testing.T) {
+// TestRecordActorComboAndAgentJourneys records the AI plan once and checks the actor=all combo,
+// the AI routes and the journeys of the 10 newest agent people.
+func TestRecordActorComboAndAgentJourneys(t *testing.T) {
 	man, err := record(context.Background(), sharedDemo(t), aiPlan(t), t.TempDir(), recNow, ist)
 	if err != nil {
 		t.Fatal(err)
@@ -53,27 +55,15 @@ func TestRecordActorCombo(t *testing.T) {
 			t.Errorf("missing %s", key)
 		}
 	}
-}
-
-func TestRecordAgentJourneys(t *testing.T) {
-	out := t.TempDir()
-	man, err := record(context.Background(), sharedDemo(t), aiPlan(t), out, recNow, ist)
-	if err != nil {
-		t.Fatal(err)
-	}
 	w := do(sharedDemo(t), http.MethodGet, "/api/demo/agents?site=demo&range=30d&tz=Asia/Kolkata")
 	var ag query.AgentsResult
 	if err := json.Unmarshal(w.Body.Bytes(), &ag); err != nil || len(ag.Latest) < 10 {
 		t.Fatalf("agents: %v %d", err, len(ag.Latest))
 	}
-	n := 0
 	for _, s := range ag.Latest[:10] {
-		if _, ok := man.Keys["/journey?cmp=prev&env=production&person="+s.Person+"&range=30d&site=demo"]; ok {
-			n++
+		if _, ok := man.Keys["/journey?cmp=prev&env=production&person="+s.Person+"&range=30d&site=demo"]; !ok {
+			t.Errorf("no recorded journey for agent person %s", s.Person)
 		}
-	}
-	if n != 10 {
-		t.Fatalf("%d of the 10 newest agent people have a recorded journey", n)
 	}
 }
 
