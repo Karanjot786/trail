@@ -14,6 +14,14 @@ jobs:
       - run: go vet ./...
       - run: go test -race ./...
 
+  go-perf:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version-file: go.mod }
+      - run: go test ./internal/query -run Perf -count=1 -v # no -race: it measures time
+
   tracker:
     runs-on: ubuntu-latest
     defaults: { run: { working-directory: tracker } }
@@ -38,6 +46,53 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm vitest run
       - run: pnpm build
+      - run: node scripts/budget.mjs # initial JS <= 170 KB gzip, lazy chunks <= 60 KB, no table or chart lib in the entry
+
+  web-e2e:
+    needs: [go, web]
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: web } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version-file: go.mod }
+      - uses: pnpm/action-setup@v4
+        with: { version: 9 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm, cache-dependency-path: web/pnpm-lock.yaml }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pnpm exec playwright install --with-deps chromium firefox
+      - run: E2E_ALL=1 pnpm exec playwright test
+        env: { E2E_SKIP_BUILD: '1' }
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with: { name: playwright-report, path: web/playwright-report, retention-days: 7 }
+
+  demo-fixtures:
+    needs: [go, web]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version-file: go.mod }
+      - uses: pnpm/action-setup@v4
+        with: { version: 9 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm, cache-dependency-path: web/pnpm-lock.yaml }
+      - run: pnpm install --frozen-lockfile
+        working-directory: web
+      - run: node scripts/fixtures-check.mjs # records twice: determinism, contract keys, size caps
+        working-directory: web
+      - run: go run ./cmd/trail demo record --out web/public/demo-data --plan testdata/fixtures/plan.json
+      - run: VITE_DATA=fixtures pnpm exec vite build && mkdir -p dist/demo-data && cp -R public/demo-data/. dist/demo-data/
+        working-directory: web
+      - run: pnpm exec playwright install --with-deps chromium
+        working-directory: web
+      - run: E2E_ALL=1 pnpm exec playwright test -c playwright.fixtures.config.ts # no Go server is running
+        working-directory: web
+      - uses: actions/upload-artifact@v4
+        with: { name: demo-dist, path: web/dist, retention-days: 14 }
 
   trail-analytics:
     runs-on: ubuntu-latest
