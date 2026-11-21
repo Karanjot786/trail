@@ -204,7 +204,7 @@ func dayChange(db *sql.DB, p Params, loc *time.Location) (ChangeItem, bool, erro
 			continue
 		}
 		found = true
-		best = ChangeItem{Kind: "day", Day: weekdayLabel(d), Cur: float64(cur), Prev: float64(prev), Added: float64(cur - prev),
+		best = ChangeItem{Kind: "day", Day: k, Cur: float64(cur), Prev: float64(prev), Added: float64(cur - prev),
 			Basis: "vs " + weekdayLabel(before) + " (the day before)"}
 		srcBefore := bySource[before.Format("2006-01-02")]
 		topSrc, topGain := "", 0

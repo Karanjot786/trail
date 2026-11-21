@@ -199,7 +199,7 @@ func TestChangesDayItemByVisitorsAdded(t *testing.T) {
 		t.Fatal("no items")
 	}
 	it := c.Items[0]
-	if it.Kind != "day" || it.Day != "Thu, Nov 12" || it.Cur != 41 || it.Prev != 22 || it.Added != 19 ||
+	if it.Kind != "day" || it.Day != "2026-11-12" || it.Cur != 41 || it.Prev != 22 || it.Added != 19 ||
 		it.Source == nil || *it.Source != "Hacker News" || it.Basis != "vs Wed, Nov 11 (the day before)" {
 		t.Fatalf("%+v", it)
 	}
