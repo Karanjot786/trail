@@ -1,8 +1,9 @@
-// STUB (P0). F1 owns this file (plan §0.10): keep the props, replace the body.
+// Skeleton, EmptyState, ErrorState (plan §0.10). Empty states teach; errors offer a retry.
 import type { ReactNode } from 'react'
+import { Button } from './button'
 
-export function Skeleton({ height = 16 }: { height?: number }) {
-  return <div aria-hidden="true" style={{ height }} />
+export function Skeleton({ height = 16, width }: { height?: number; width?: number | string }) {
+  return <div aria-hidden="true" className="sk" style={{ height, width }} />
 }
 
 export interface EmptyStateProps {
@@ -13,22 +14,30 @@ export interface EmptyStateProps {
 }
 export function EmptyState({ title, body, action, numeral }: EmptyStateProps) {
   return (
-    <div>
-      {numeral != null && <div aria-hidden="true">{numeral}</div>}
-      <p>{title}</p>
-      {body && <div>{body}</div>}
-      {action}
+    <div className="empty">
+      {numeral != null && (
+        <div className="numeral" aria-hidden="true">
+          {numeral}
+        </div>
+      )}
+      <b>{title}</b>
+      {body && <p>{body}</p>}
+      {action && <div className="acts">{action}</div>}
+      <div className="plane" aria-hidden="true" />
     </div>
   )
 }
 
-export function ErrorState({ onRetry }: { onRetry: () => void }) {
+export function ErrorState({ onRetry, message = 'Could not load this.' }: { onRetry: () => void; message?: string }) {
   return (
-    <div role="alert">
-      <p>Could not load this.</p>
-      <button type="button" onClick={onRetry}>
-        Try again
-      </button>
+    <div className="empty" role="alert">
+      <b>{message}</b>
+      <p>The last numbers stay on screen. Trail tries again by itself.</p>
+      <div className="acts">
+        <Button size="sm" onClick={onRetry}>
+          Try again
+        </Button>
+      </div>
     </div>
   )
 }
