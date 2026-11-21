@@ -131,10 +131,10 @@ describe('main chart', () => {
 
   it('names the chart and the dashed period in the readout and legend', async () => {
     const r = render(<OverviewScreen />)
-    const readout = await r.findByTestId('chart-readout')
-    expect(readout.textContent).toContain('Visitors per day · Nov 14 – Nov 20')
-    expect(r.getByTestId('chart-legend').textContent).toContain('Nov 7 – Nov 13')
-  })
+    // The readout renders before every query has settled; wait for the content, not a fixed moment.
+    await waitFor(() => expect(r.getByTestId('chart-readout').textContent).toContain('Visitors per day · Nov 14 – Nov 20'), { timeout: 10_000 })
+    await waitFor(() => expect(r.getByTestId('chart-legend').textContent).toContain('Nov 7 – Nov 13'), { timeout: 10_000 })
+  }, 20_000)
 })
 
 describe('What changed', () => {
