@@ -16,6 +16,7 @@ chk(23, 'Activity: Visitors, Sessions, Events, Paths; G V jumps there; ?view=vis
   await page.keyboard.press('g')
   await page.keyboard.press('v')
   await expect.poll(() => loc(page)).toContain('/activity')
+  await expect(page.getByRole('tablist').first().getByRole('tab')).toHaveCount(4) // the screen chunk is lazy
   const tabs = await page.getByRole('tablist').first().getByRole('tab').allInnerTexts()
   expect(tabs.map((t) => t.replace(/\d+/g, '').trim())).toEqual(['Visitors', 'Sessions', 'Events', 'Paths'])
   await goto('/people/visits')
@@ -23,7 +24,7 @@ chk(23, 'Activity: Visitors, Sessions, Events, Paths; G V jumps there; ?view=vis
   await goto('/?view=visitors')
   await expect.poll(() => loc(page)).toContain('/activity/visitors')
   await goto('/?person=abc')
-  await expect.poll(() => loc(page)).toContain('/activity/visitors?v=abc')
+  await expect.poll(() => loc(page)).toMatch(/\/activity\/visitors\?(.*&)?v=abc(&|$)/) // the shell may add site= first
 })
 
 chk(24, 'event catalogue: a row opens the event sheet; an occurrence opens that visitor journey', async ({ page, goto, api }) => {
