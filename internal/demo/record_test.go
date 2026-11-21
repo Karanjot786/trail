@@ -9,12 +9,11 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"trail/internal/query"
 )
 
-var recNow = time.Date(2026, 11, 20, 10, 5, 0, 0, ist)
+var recNow = t0
 
 // smallPlan is the real plan cut down to one site and a few routes, so tests stay quick.
 func smallPlan(t *testing.T) Plan {
@@ -34,10 +33,10 @@ func smallPlan(t *testing.T) Plan {
 func TestRecordDeterministic(t *testing.T) {
 	p := smallPlan(t)
 	a, b := t.TempDir(), t.TempDir()
-	if _, err := Record(context.Background(), p, a, recNow, ist); err != nil {
+	if _, err := record(context.Background(), sharedDemo(t), p, a, recNow, ist); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := Record(context.Background(), p, b, recNow, ist); err != nil {
+	if _, err := record(context.Background(), sharedDemo(t), p, b, recNow, ist); err != nil {
 		t.Fatal(err)
 	}
 	files, _ := os.ReadDir(a)
@@ -56,7 +55,7 @@ func TestRecordDeterministic(t *testing.T) {
 func TestRecordCoversPlan(t *testing.T) {
 	p := smallPlan(t)
 	out := t.TempDir()
-	man, err := Record(context.Background(), p, out, recNow, ist)
+	man, err := record(context.Background(), sharedDemo(t), p, out, recNow, ist)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -124,13 +123,13 @@ func TestRecordKeysMatchTS(t *testing.T) {
 func TestRecordSizeCap(t *testing.T) {
 	p := smallPlan(t)
 	p.Limits.MaxDiskBytes = 1000
-	if _, err := Record(context.Background(), p, t.TempDir(), recNow, ist); err == nil || !strings.Contains(err.Error(), "limit") {
+	if _, err := record(context.Background(), sharedDemo(t), p, t.TempDir(), recNow, ist); err == nil || !strings.Contains(err.Error(), "limit") {
 		t.Fatalf("disk cap: %v", err)
 	}
 	p = smallPlan(t)
 	p.Limits.MaxGzipBytes = 100
 	out := t.TempDir()
-	if _, err := Record(context.Background(), p, out, recNow, ist); err == nil {
+	if _, err := record(context.Background(), sharedDemo(t), p, out, recNow, ist); err == nil {
 		t.Fatal("gzip cap not enforced")
 	}
 	if files, _ := os.ReadDir(out); len(files) != 0 {

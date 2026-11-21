@@ -25,7 +25,11 @@ func TestSharesLifecycle(t *testing.T) {
 	if _, _, err := LookupShare(db, plain, time.Now().Add(25*time.Hour)); !errors.Is(err, ErrGone) {
 		t.Errorf("expired: %v", err)
 	}
-	if _, _, err := LookupShare(db, plain[:len(plain)-1]+"A", time.Now()); !errors.Is(err, ErrNotFound) {
+	wrong := plain[:len(plain)-1] + "A"
+	if wrong == plain {
+		wrong = plain[:len(plain)-1] + "B"
+	}
+	if _, _, err := LookupShare(db, wrong, time.Now()); !errors.Is(err, ErrNotFound) {
 		t.Errorf("wrong token: %v", err)
 	}
 	list, _ := ListShares(db)

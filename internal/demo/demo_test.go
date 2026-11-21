@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -28,6 +29,21 @@ func mustNew(t *testing.T, now func() time.Time) *demo {
 	return d
 }
 
+// shared is one demo at t0 for the read-only tests: building one takes long under -race.
+var shared = sync.OnceValues(func() (*demo, error) {
+	now, _ := clock(t0)
+	return newDemo(ist, now)
+})
+
+func sharedDemo(t *testing.T) *demo {
+	t.Helper()
+	d, err := shared()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return d
+}
+
 func do(h http.Handler, method, url string) *httptest.ResponseRecorder {
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, httptest.NewRequest(method, url, nil))
@@ -41,8 +57,7 @@ func rng(now time.Time, days int) string {
 var t0 = time.Date(2026, 11, 20, 15, 30, 0, 0, ist)
 
 func TestDemoGetStats(t *testing.T) {
-	now, _ := clock(t0)
-	d := mustNew(t, now)
+	d := sharedDemo(t)
 	w := do(d, http.MethodGet, "/api/demo/stats?site=demo&"+rng(t0, 30))
 	if w.Code != 200 {
 		t.Fatalf("status %d: %s", w.Code, w.Body)
@@ -57,16 +72,14 @@ func TestDemoGetStats(t *testing.T) {
 }
 
 func TestDemoDefaultsToDemoSite(t *testing.T) {
-	now, _ := clock(t0)
-	d := mustNew(t, now)
+	d := sharedDemo(t)
 	if w := do(d, http.MethodGet, "/api/demo/stats?"+rng(t0, 30)); w.Code != 200 {
 		t.Fatalf("no site param: %d %s", w.Code, w.Body)
 	}
 }
 
 func TestDemoRefusesWrites(t *testing.T) {
-	now, _ := clock(t0)
-	d := mustNew(t, now)
+	d := sharedDemo(t)
 	for _, m := range []string{http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete, http.MethodHead, http.MethodOptions} {
 		for _, u := range []string{"/api/demo/goals", "/api/demo/goals/1?site=demo", "/api/demo/stats?site=demo", "/api/demo/nothing"} {
 			w := do(d, m, u)
@@ -83,8 +96,7 @@ func TestDemoRefusesWrites(t *testing.T) {
 }
 
 func TestDemoOnlyDemoSite(t *testing.T) {
-	now, _ := clock(t0)
-	d := mustNew(t, now)
+	d := sharedDemo(t)
 	for _, site := range []string{"other", "demo2", "Demo"} {
 		if w := do(d, http.MethodGet, "/api/demo/stats?site="+site+"&"+rng(t0, 7)); w.Code != http.StatusBadRequest {
 			t.Errorf("site=%s: %d, want 400", site, w.Code)
@@ -93,8 +105,7 @@ func TestDemoOnlyDemoSite(t *testing.T) {
 }
 
 func TestDemoRoutesAreAllowlisted(t *testing.T) {
-	now, _ := clock(t0)
-	d := mustNew(t, now)
+	d := sharedDemo(t)
 	for _, p := range []string{"stats", "series?metric=visitors", "breakdown?dim=path", "visitors", "journey?person=x",
 		"goals", "goals/report", "delivery"} {
 		sep := "?"
@@ -116,7 +127,7 @@ func TestDemoRoutesAreAllowlisted(t *testing.T) {
 
 func TestDemoDeterministic(t *testing.T) {
 	now, _ := clock(t0)
-	a, b := mustNew(t, now), mustNew(t, now)
+	a, b := sharedDemo(t), mustNew(t, now)
 	u := "/api/demo/breakdown?dim=path&site=demo&" + rng(t0, 30)
 	wa, wb := do(a, http.MethodGet, u), do(b, http.MethodGet, u)
 	if wa.Code != 200 || wa.Body.String() != wb.Body.String() {
@@ -162,8 +173,7 @@ func TestDemoReseedsDaily(t *testing.T) {
 }
 
 func TestDemoHasGoals(t *testing.T) {
-	now, _ := clock(t0)
-	d := mustNew(t, now)
+	d := sharedDemo(t)
 	w := do(d, http.MethodGet, "/api/demo/goals?site=demo")
 	var gs []struct{ Name, Kind, Match string }
 	if err := json.Unmarshal(w.Body.Bytes(), &gs); err != nil {
@@ -207,8 +217,7 @@ func TestDemoIsolatedFromRealDB(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	clk, _ := clock(t0)
-	d := mustNew(t, clk)
+	d := sharedDemo(t)
 	for _, u := range []string{
 		"/api/demo/breakdown?dim=path&limit=1000&site=demo&env=all&" + rng(t0, 400),
 		"/api/demo/visitors?limit=1000&env=all&" + rng(t0, 400),
@@ -241,8 +250,7 @@ func TestNewServesHandler(t *testing.T) {
 }
 
 func TestDemoAllowlistCoversReads(t *testing.T) {
-	now, _ := clock(t0)
-	d := mustNew(t, now)
+	d := sharedDemo(t)
 	for site, goal := range map[string]string{"demo": "1", "docs": "3"} {
 		for _, p := range []string{"sites", "sites/summary?site=all", "sites/" + site + "/status", "stats", "series?metric=revenue&extras=1",
 			"breakdown?dim=channel", "changes", "heatmap", "live", "visitors", "sessions", "campaigns", "ai-referrals", "events",

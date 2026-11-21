@@ -158,6 +158,11 @@ func Record(ctx context.Context, plan Plan, out string, now time.Time, tz *time.
 		return Manifest{}, err
 	}
 	defer func() { _ = d.cur().st.Close() }()
+	return record(ctx, d, plan, out, now, tz)
+}
+
+// record replays plan against d, whose clock must read now.
+func record(ctx context.Context, d *demo, plan Plan, out string, now time.Time, tz *time.Location) (Manifest, error) {
 	r := &recorder{ctx: ctx, h: d, tz: tz.String(), files: map[string][]byte{},
 		man: Manifest{RecordedAt: now.UnixMilli(), Now: now.UnixMilli(), TZ: tz.String(), Keys: map[string]string{}}}
 	if err := r.run(plan); err != nil {
