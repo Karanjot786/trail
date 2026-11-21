@@ -259,7 +259,7 @@ WHERE cur=(SELECT cur FROM pc GROUP BY cur ORDER BY count(*) DESC, cur LIMIT 1)`
 // start, source name, channel, AI source, entry path and UTM tags. SQLite takes the bare
 // columns of a min() aggregate from the row holding the minimum, i.e. the landing pageview.
 var sessSrc = `SELECT session_id, person, min(ts) AS start, ` + sourceNameExpr + ` AS source, ` + channelExpr + ` AS channel,
-  ` + aiSourceExpr + ` AS ai, path AS entry, country, device, referrer_host, utm_source, utm_medium, utm_campaign, utm_term, utm_content
+  ` + aiSourceExpr + ` AS ai, path AS entry, country, city, device, browser, os, referrer_host, utm_source, utm_medium, utm_campaign, utm_term, utm_content
 FROM ev WHERE type='pageview' GROUP BY session_id`
 
 var seriesMetrics = map[string]bool{
@@ -514,47 +514,6 @@ func seriesExtras(db *sql.DB, p Params, b buckets, goal *Goal) ([]BucketExtra, e
 	}
 	return out, nil
 }
-
-// Visitors lists people seen in range, most recent first. q matches the
-// person id (user id or anon id) by case-insensitive substring.
-func Visitors(db *sql.DB, p Params, q string, limit int) ([]Visitor, error) {
-	cte, args, err := base(p)
-	if err != nil {
-		return nil, err
-	}
-	where := ""
-	if q != "" {
-		where = "WHERE instr(lower(person), lower(?))>0"
-		args = append(args, q)
-	}
-	args = append(args, clampLimit(limit))
-	sqlText := cte + `SELECT person, max(ident), min(ts), max(ts), count(DISTINCT session_id),
-  max(lc), max(ld), max(fs)
-FROM (SELECT person, ident, ts, session_id,
-  first_value(country) OVER (PARTITION BY person ORDER BY ts DESC) AS lc,
-  first_value(device) OVER (PARTITION BY person ORDER BY ts DESC) AS ld,
-  first_value(` + sourceExpr + `) OVER (PARTITION BY person ORDER BY ts) AS fs
-  FROM ev ` + where + `)
-GROUP BY person ORDER BY 4 DESC LIMIT ?`
-
-	out := []Visitor{}
-	err = forRows(db, sqlText, args, func(r *sql.Rows) error {
-		var v Visitor
-		if err := r.Scan(&v.Person, &v.Identified, &v.FirstSeen, &v.LastSeen, &v.Visits,
-			&v.Country, &v.Device, &v.Source); err != nil {
-			return err
-		}
-		out = append(out, v)
-		return nil
-	})
-	if err != nil {
-		return nil, fmt.Errorf("visitors: %w", err)
-	}
-	return out, nil
-}
-
-// sourceExpr is an event's traffic source: referrer host, else utm_source, else "" (direct).
-const sourceExpr = `CASE WHEN referrer_host!='' THEN referrer_host ELSE utm_source END`
 
 func clampLimit(n int) int {
 	switch {

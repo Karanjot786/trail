@@ -22,11 +22,6 @@ func Heatmap(db *sql.DB, p Params) (HeatmapResult, error) { return HeatmapResult
 // Live returns the last minutes of activity.
 func Live(db *sql.DB, p Params) (LiveResult, error) { return LiveResult{}, ErrNotImplemented }
 
-// Sessions lists sessions (optionally one person's) and the total count.
-func Sessions(db *sql.DB, p Params, person string) ([]SessionRow, int, error) {
-	return nil, 0, ErrNotImplemented
-}
-
 // Campaigns lists UTM campaigns.
 func Campaigns(db *sql.DB, p Params) ([]Campaign, error) { return nil, ErrNotImplemented }
 

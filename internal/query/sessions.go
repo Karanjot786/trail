@@ -3,7 +3,9 @@ package query
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"strings"
 )
 
 // sessionAgg aggregates ev (from base) into one row per session.
@@ -34,32 +36,236 @@ type Step struct {
 	Props     json.RawMessage `json:"props"`
 }
 
-// Journey returns every non-bot session of person on site, oldest first.
-// person is a user id or an anon id, resolved through identity_map as in base.
-func Journey(db *sql.DB, site, person string) ([]Session, error) {
-	const q = `WITH idm AS (SELECT anon_id, user_id FROM identity_map WHERE site_id=? AND rowid IN
+// sortSpec resolves "col" or "-col" against an allowlist of SQL expressions; "" uses def.
+func sortSpec(sortKey, def string, cols map[string]string) (string, error) {
+	if sortKey == "" {
+		sortKey = def
+	}
+	dir := " ASC"
+	if k, ok := strings.CutPrefix(sortKey, "-"); ok {
+		sortKey, dir = k, " DESC"
+	}
+	col, ok := cols[sortKey]
+	if !ok {
+		return "", fmt.Errorf("sort %q: %w", sortKey, ErrBadSort)
+	}
+	return col + dir, nil
+}
+
+// ErrBadSort is returned for a sort column outside the endpoint's allowlist.
+var ErrBadSort = errors.New("unknown sort")
+
+// personLabel is how a person is shown: the identified user id, else "Visitor" and the
+// first four characters of the anonymous id.
+func personLabel(person string, identified bool) string {
+	if identified {
+		return person
+	}
+	short := person
+	if len(short) > 4 {
+		short = short[:4]
+	}
+	return "Visitor " + strings.ToUpper(short)
+}
+
+func offsetOf(p Params) int { return max(p.Offset, 0) }
+
+var visitorSorts = map[string]string{"last": "last", "visits": "visits", "pages": "pages", "duration": "dur"}
+
+// Visitors lists people seen in range (sort last (default, newest first), visits, pages or
+// duration, "-" for descending) with p.Limit/p.Offset, and the total number of people.
+// q matches the person id (user id or anon id) by case-insensitive substring.
+func Visitors(db *sql.DB, p Params, q string) ([]Person, int, error) {
+	order, err := sortSpec(p.Sort, "-last", visitorSorts)
+	if err != nil {
+		return nil, 0, err
+	}
+	cte, args, err := base(p)
+	if err != nil {
+		return nil, 0, err
+	}
+	where, qargs := "", []any(nil)
+	if q != "" {
+		where, qargs = " WHERE instr(lower(person), lower(?))>0", []any{q}
+	}
+	var total int
+	if err := db.QueryRow(cte+`SELECT count(DISTINCT person) FROM ev`+where, append(append([]any{}, args...), qargs...)...).
+		Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("visitors total: %w", err)
+	}
+	sqlText := cte + `, px AS (SELECT person, max(ident) AS ident, min(ts) AS first, max(ts) AS last,
+    count(DISTINCT session_id) AS visits, sum(type='pageview') AS pages FROM ev` + where + ` GROUP BY person),
+  pd AS (SELECT person, sum(d) AS dur FROM (SELECT person, max(ts)-min(ts) AS d FROM ev GROUP BY session_id) GROUP BY person),
+  pl AS (SELECT person, max(ts), country, region, city, device, browser, os FROM ev GROUP BY person),
+  ps AS (SELECT person, min(ts), ` + sourceNameExpr + ` AS source FROM ev WHERE type='pageview' GROUP BY person)
+SELECT px.person, px.ident, px.first, px.last, px.visits, px.pages, coalesce(pd.dur,0), pl.country, pl.region, pl.city,
+  pl.device, pl.browser, pl.os, coalesce(ps.source,'Direct')
+FROM px JOIN pl USING(person) LEFT JOIN pd USING(person) LEFT JOIN ps USING(person)
+ORDER BY ` + order + `, px.person LIMIT ? OFFSET ?`
+	qa := append(append(append([]any{}, args...), qargs...), clampLimit(p.Limit), offsetOf(p))
+	out := []Person{}
+	err = forRows(db, sqlText, qa, func(r *sql.Rows) error {
+		var v Person
+		if err := r.Scan(&v.Person, &v.Identified, &v.FirstSeen, &v.LastSeen, &v.Visits, &v.Pages, &v.DurationMs,
+			&v.Country, &v.Region, &v.City, &v.Device, &v.Browser, &v.OS, &v.Source); err != nil {
+			return err
+		}
+		v.Label = personLabel(v.Person, v.Identified)
+		out = append(out, v)
+		return nil
+	})
+	if err != nil {
+		return nil, 0, fmt.Errorf("visitors: %w", err)
+	}
+	return out, total, nil
+}
+
+var sessionSorts = map[string]string{"start": "sx.start", "duration": "sx.dur", "pages": "sx.pv"}
+
+// Sessions lists sessions in range (sort start (default, newest first), duration or pages,
+// "-" for descending) with p.Limit/p.Offset, and the total. person, when set, keeps one
+// person's sessions. Goals are the ids of the goals hit in the session; revenue is the
+// session's purchases in the range's main currency.
+func Sessions(db *sql.DB, p Params, person string) ([]SessionRow, int, error) {
+	order, err := sortSpec(p.Sort, "-start", sessionSorts)
+	if err != nil {
+		return nil, 0, err
+	}
+	cte, args, err := base(p)
+	if err != nil {
+		return nil, 0, err
+	}
+	where, wargs := "", []any(nil)
+	if person != "" {
+		where, wargs = " WHERE sx.person=?", []any{person}
+	}
+	sx := cte + `, sx AS (SELECT session_id, person, max(ident) AS ident, min(ts) AS start, max(ts)-min(ts) AS dur,
+  sum(type='pageview') AS pv FROM ev GROUP BY session_id)
+`
+	var total int
+	if err := db.QueryRow(sx+`SELECT count(*) FROM sx`+where, append(append([]any{}, args...), wargs...)...).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("sessions total: %w", err)
+	}
+	sqlText := sx + `, sl AS (` + sessSrc + `),
+  se AS (SELECT session_id, max(ts), path AS exitp FROM ev WHERE type='pageview' GROUP BY session_id)
+SELECT sx.session_id, sx.person, sx.ident, sx.start, sx.dur, sx.pv, coalesce(sl.entry,''), coalesce(se.exitp,''),
+  coalesce(sl.source,'Direct'), coalesce(sl.country,''), coalesce(sl.city,''), coalesce(sl.device,''),
+  coalesce(sl.browser,''), coalesce(sl.os,'')
+FROM sx LEFT JOIN sl USING(session_id) LEFT JOIN se USING(session_id)` + where + `
+ORDER BY ` + order + `, sx.session_id DESC LIMIT ? OFFSET ?`
+	qa := append(append(append([]any{}, args...), wargs...), clampLimit(p.Limit), offsetOf(p))
+	out := []SessionRow{}
+	idx := map[string]int{}
+	err = forRows(db, sqlText, qa, func(r *sql.Rows) error {
+		var s SessionRow
+		var ident bool
+		if err := r.Scan(&s.SessionID, &s.Person, &ident, &s.Start, &s.DurationMs, &s.Pages, &s.Entry, &s.Exit,
+			&s.Source, &s.Country, &s.City, &s.Device, &s.Browser, &s.OS); err != nil {
+			return err
+		}
+		s.Label, s.Goals = personLabel(s.Person, ident), []int64{}
+		idx[s.SessionID] = len(out)
+		out = append(out, s)
+		return nil
+	})
+	if err != nil {
+		return nil, 0, fmt.Errorf("sessions: %w", err)
+	}
+	if len(out) == 0 {
+		return out, total, nil
+	}
+	ids := make([]any, 0, len(out))
+	for _, s := range out {
+		ids = append(ids, s.SessionID)
+	}
+	in := " IN (?" + strings.Repeat(",?", len(ids)-1) + ")"
+	err = forRows(db, cte+`SELECT x.session_id, g.id FROM ev x JOIN goals g ON g.site_id=?
+WHERE x.session_id`+in+` AND `+goalHitCond+` GROUP BY 1, 2 ORDER BY 1, 2`,
+		append(append(append([]any{}, args...), p.Site), ids...), func(r *sql.Rows) error {
+			var sid string
+			var gid int64
+			if err := r.Scan(&sid, &gid); err != nil {
+				return err
+			}
+			out[idx[sid]].Goals = append(out[idx[sid]].Goals, gid)
+			return nil
+		})
+	if err != nil {
+		return nil, 0, fmt.Errorf("session goals: %w", err)
+	}
+	cur, err := mainCurrency(db, cte, args)
+	if err != nil || cur == "" {
+		return out, total, err
+	}
+	err = forRows(db, cte+`SELECT session_id, sum(`+amountMinorExpr+`) FROM ev WHERE `+purchaseWhere+` AND `+currencyExpr+`=?
+  AND session_id`+in+` GROUP BY 1`, append(append(append([]any{}, args...), cur), ids...), func(r *sql.Rows) error {
+		var sid string
+		var amt int64
+		if err := r.Scan(&sid, &amt); err != nil {
+			return err
+		}
+		out[idx[sid]].RevenueMinor = amt
+		return nil
+	})
+	if err != nil {
+		return nil, 0, fmt.Errorf("session revenue: %w", err)
+	}
+	return out, total, nil
+}
+
+// goalHit reports whether a journey step hits g.
+func goalHit(g Goal, s Step) bool {
+	if g.Kind == "event" {
+		return s.Type == "event" && s.Name == g.Match
+	}
+	if s.Type != "pageview" {
+		return false
+	}
+	if prefix, ok := strings.CutSuffix(g.Match, "*"); ok {
+		return strings.HasPrefix(s.Path, prefix)
+	}
+	return s.Path == g.Match
+}
+
+// Journey returns every non-bot session of person on site, oldest first, numbered from the
+// person's first visit ever. person is a user id or an anon id, resolved through identity_map
+// as in base. Each session lists the goals among goals it hit (first hit of each).
+func Journey(db *sql.DB, site, person string, goals []Goal) ([]JourneySession, error) {
+	q := `WITH idm AS (SELECT anon_id, user_id FROM identity_map WHERE site_id=? AND rowid IN
   (SELECT min(rowid) FROM identity_map WHERE site_id=? GROUP BY anon_id))
-SELECT e.session_id, e.ts, e.type, e.path, e.name, e.engaged_ms, e.scroll_pct, e.props, ` + sourceExpr + `
+SELECT e.session_id, e.ts, e.type, e.path, e.name, e.engaged_ms, e.scroll_pct, e.props, ` + sourceNameExpr + `,
+  e.country, e.city, e.device
 FROM events e LEFT JOIN idm USING(anon_id)
 WHERE e.site_id=? AND e.is_bot=0 AND COALESCE(idm.user_id, e.anon_id)=?
 ORDER BY e.ts, e.id`
 
-	out := []Session{}
+	out := []JourneySession{}
 	bySession := map[string]int{}
 	lastPV := map[string]int{} // session → index of its latest pageview step
+	hit := map[string]map[int64]bool{}
 	err := forRows(db, q, []any{site, site, site, person}, func(r *sql.Rows) error {
-		var sid, props, src string
+		var sid, props, src, country, city, device string
 		var s Step
-		if err := r.Scan(&sid, &s.TS, &s.Type, &s.Path, &s.Name, &s.EngagedMs, &s.ScrollPct, &props, &src); err != nil {
+		if err := r.Scan(&sid, &s.TS, &s.Type, &s.Path, &s.Name, &s.EngagedMs, &s.ScrollPct, &props, &src,
+			&country, &city, &device); err != nil {
 			return err
 		}
 		i, ok := bySession[sid]
 		if !ok {
 			i = len(out)
 			bySession[sid] = i
-			out = append(out, Session{SessionID: sid, Start: s.TS, Source: src, Steps: []Step{}, Goals: []GoalHit{}})
+			hit[sid] = map[int64]bool{}
+			out = append(out, JourneySession{SessionID: sid, Start: s.TS, Source: src, Steps: []Step{}, Goals: []GoalHit{},
+				Visit: i + 1, Country: country, City: city, Device: device})
 		}
 		sess := &out[i]
+		sess.DurationMs = s.TS - sess.Start
+		for _, g := range goals {
+			if !hit[sid][g.ID] && goalHit(g, s) {
+				hit[sid][g.ID] = true
+				sess.Goals = append(sess.Goals, GoalHit{ID: g.ID, Name: g.Name, TS: s.TS})
+			}
+		}
 		if s.Type == "engage" {
 			if j, ok := lastPV[sid]; ok {
 				pv := &sess.Steps[j]

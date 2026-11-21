@@ -114,7 +114,9 @@ func New(db *sql.DB, reg *sites.Registry, tz *time.Location) http.Handler {
 			if err != nil {
 				return nil, nil, err
 			}
-			return wrap(query.Visitors(s.db, p, in.Q, in.Limit))
+			p.Limit = in.Limit
+			rows, _, err := query.Visitors(s.db, p, in.Q)
+			return wrap(rows, err)
 		})
 	sdk.AddTool(srv, add("get_journey", "One person's sessions and every step in them, newest first."),
 		func(_ context.Context, _ *sdk.CallToolRequest, in journeyIn) (*sdk.CallToolResult, any, error) {
@@ -124,7 +126,11 @@ func New(db *sql.DB, reg *sites.Registry, tz *time.Location) http.Handler {
 			if in.Person == "" {
 				return nil, nil, errors.New("person is required")
 			}
-			return wrap(query.Journey(s.db, in.Site, in.Person))
+			goals, err := query.ListGoals(s.db, in.Site)
+			if err != nil {
+				return nil, nil, err
+			}
+			return wrap(query.Journey(s.db, in.Site, in.Person, goals))
 		})
 	sdk.AddTool(srv, add("goal_report", "Conversions, converting visitors and conversion rate for each goal, with the previous period."),
 		func(_ context.Context, _ *sdk.CallToolRequest, in goalsIn) (*sdk.CallToolResult, any, error) {

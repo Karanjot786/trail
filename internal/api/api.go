@@ -50,14 +50,20 @@ func New(db *sql.DB, reg *sites.Registry, tz *time.Location) http.Handler {
 	}))
 	mux.HandleFunc("GET /api/visitors", s.handle(func(p query.Params, r *http.Request) (any, error) {
 		q := r.URL.Query()
-		return query.Visitors(s.db, p, q.Get("q"), atoi(q.Get("limit")))
+		p.Limit = atoi(q.Get("limit"))
+		rows, _, err := query.Visitors(s.db, p, q.Get("q"))
+		return rows, err
 	}))
 	mux.HandleFunc("GET /api/journey", s.handle(func(p query.Params, r *http.Request) (any, error) {
 		person := r.URL.Query().Get("person")
 		if person == "" {
 			return nil, errBadRequest
 		}
-		return query.Journey(s.db, p.Site, person)
+		goals, err := query.ListGoals(s.db, p.Site)
+		if err != nil {
+			return nil, err
+		}
+		return query.Journey(s.db, p.Site, person, goals)
 	}))
 	mux.HandleFunc("GET /api/goals/report", s.handle(func(p query.Params, _ *http.Request) (any, error) {
 		return query.GoalReport(s.db, p)

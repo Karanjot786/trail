@@ -105,14 +105,14 @@ func TestIdentifyMergesAcrossAnons(t *testing.T) {
 	if s := mustStats(t, db, around()); s.Visitors != 1 {
 		t.Fatalf("visitors = %d, want 1", s.Visitors)
 	}
-	j, err := Journey(db, "s", "u1")
+	j, err := Journey(db, "s", "u1", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(j) != 2 {
 		t.Fatalf("journey sessions = %d, want 2", len(j))
 	}
-	vs, err := Visitors(db, around(), "", 10)
+	vs, _, err := Visitors(db, around(), "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -125,14 +125,14 @@ func TestFirstIdentifierWins(t *testing.T) {
 	db := fixture(t,
 		pv("A", "s1", "/", t0), identify("A", "s1", "u1", t0+1), identify("A", "s1", "u2", t0+2),
 	)
-	vs, err := Visitors(db, around(), "", 10)
+	vs, _, err := Visitors(db, around(), "")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(vs) != 1 || vs[0].Person != "u1" {
 		t.Fatalf("visitors = %+v, want only u1", vs)
 	}
-	j, err := Journey(db, "s", "u1")
+	j, err := Journey(db, "s", "u1", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -148,11 +148,11 @@ func TestJourneyMergesEngage(t *testing.T) {
 		engage("A", "s1", t0+20000, 20000),
 		pv("A", "s1", "/docs", t0+30000),
 	)
-	j, err := Journey(db, "s", "A")
+	j, err := Journey(db, "s", "A", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(j) != 1 || j[0].Source != "google.com" || j[0].Start != t0 || len(j[0].Steps) != 2 {
+	if len(j) != 1 || j[0].Source != "Google" || j[0].Start != t0 || len(j[0].Steps) != 2 {
 		t.Fatalf("journey = %+v", j)
 	}
 	if st := j[0].Steps[0]; st.EngagedMs != 20000 || st.ScrollPct != 50 {
@@ -241,12 +241,12 @@ func TestEmptyRange(t *testing.T) {
 		t.Fatal(err)
 	}
 	noNull(t, br)
-	vs, err := Visitors(db, p, "", 10)
+	vs, _, err := Visitors(db, p, "")
 	if err != nil {
 		t.Fatal(err)
 	}
 	noNull(t, vs)
-	j, err := Journey(db, "s", "nobody")
+	j, err := Journey(db, "s", "nobody", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
