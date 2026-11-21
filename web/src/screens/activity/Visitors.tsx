@@ -17,6 +17,9 @@ import { Banner } from './Banner'
 import { CountryCode, sourceText, useAq, Who, csvHref } from './shared'
 
 export const PAGE = 50
+/** Plan F-6: the same words as the Overview Location panel's city hint (overview/panels.tsx CITY_HINT). */
+export const CITY_DEF =
+  'City: rough estimate, often the ISP’s hub city. Often the city of your visitor’s network hub, not where they are. Mobile networks route through a few hub cities; independent GPS checks put only 20–37% of Indian visitors within 25 km of the city shown, whatever the database.'
 
 export function DeviceIcon({ device }: { device: string }) {
   const d = device.toLowerCase()
@@ -61,7 +64,7 @@ export default function Visitors() {
       id: 'loc',
       header: 'Location',
       enableSorting: false,
-      meta: { hideSm: true },
+      meta: { hideSm: true, definition: CITY_DEF },
       accessorFn: (p) => p.city,
       cell: (p) => (
         <span className="inl">

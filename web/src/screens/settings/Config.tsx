@@ -19,12 +19,23 @@ import { apiCall } from './model'
 import { Card, Switch } from './parts'
 
 // The built-in database is DB-IP Lite Country (CC BY 4.0), which asks for a credit and a link where results show.
+// Plan F-6: for offline cities, recommend GeoLite2 City with the user's own MaxMind key over DB-IP City, and say why.
+export const CITY_ADVICE =
+  'For cities, use GeoLite2 City with your own free MaxMind key (TRAIL_GEO_DB) rather than DB-IP City: it places about 1.5× more visitors within 25 km in India. Any database’s city is a rough estimate, often the ISP’s hub city.'
+
 function locations(g: GeoInfo): ReactNode {
-  if (g.source === 'custom') return `Your database (${g.build}): country, region and city`
+  if (g.source === 'custom')
+    return (
+      <>
+        Your database ({g.build}): country, region and city.
+        <span className="geo-credit">{CITY_ADVICE}</span>
+      </>
+    )
   if (g.source !== 'embedded-country') return 'Off: the built-in database could not be read'
   return (
     <>
       Countries, built in ({g.build}). Set TRAIL_GEO_DB for region and city.
+      <span className="geo-credit">{CITY_ADVICE}</span>
       <a className="geo-credit" href="https://db-ip.com" target="_blank" rel="noopener noreferrer">
         IP geolocation by DB-IP
       </a>
