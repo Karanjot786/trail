@@ -247,7 +247,7 @@ func routes(st *store.Store, geo *enrich.Geo, reg *sites.Registry, tz *time.Loca
 	mux.Handle("/_t/", ingest.TrackerFiles())
 	mux.HandleFunc("POST /api/login", a.Login)
 	mux.Handle("/api/", a.Require(apiH))
-	mux.Handle("/api/v1/", v1) // scope matrix of plan §0.12
+	mux.Handle("/api/v1/", v1)                                    // scope matrix of plan §0.12
 	mux.Handle("/api/share/", api.ShareHandler(st.DB(), reg, tz)) // read-only links; the token is the credential
 	mux.Handle("/mcp", a.API(mcp.New(st.DB(), reg, tz)))
 	if demoH != nil {

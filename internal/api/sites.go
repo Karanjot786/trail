@@ -11,7 +11,6 @@ import (
 	"trail/internal/sites"
 )
 
-
 type activity struct {
 	LastEventAt *int64 `json:"lastEventAt"` // unix ms; null before the first event
 	Events24h   int    `json:"events24h"`
