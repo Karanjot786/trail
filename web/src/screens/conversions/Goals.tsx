@@ -23,7 +23,7 @@ function GoalCard({ g, basis, cmp }: { g: GoalRow; basis: Basis | null; cmp: boo
   const d = useReport(`goal:${g.id}`, (q, sig) => api.goalDetail(q, g.id, sig), { dropGoal: true })
   const spark = (d.data?.series ?? []).map((p) => p.v).slice(-7)
   return (
-    <RouteLink className="gcard" patch={{ screen: 'conversions', tab: 'goals', id: g.id, sheet: null }} aria-label={`${g.name}: ${fmtPct(g.rate)} conversion rate, ${fmtInt(g.visitors)} converted`}>
+    <RouteLink className="gcard" patch={{ screen: 'conversions', tab: 'goals', id: g.id, sheet: null }}>
       <span className="h">
         <span className="goal-ring" aria-hidden="true" />
         <b>{g.name}</b>

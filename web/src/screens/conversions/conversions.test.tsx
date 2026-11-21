@@ -174,6 +174,13 @@ describe('Funnels', () => {
     expect(m.createFunnel).toBe(0)
   })
 
+  it('a drop-off link to a deleted funnel says so in the page, with a way back', async () => {
+    visit('/conversions/funnels?site=demo&fd=999:1')
+    render(<Conversions />)
+    expect(await screen.findByText('The funnel in this link no longer exists')).toBeTruthy()
+    expect(screen.getAllByRole('link', { name: /Back to all funnels/ }).length).toBeGreaterThan(0)
+  })
+
   it('an unknown funnel id shows a calm stale state', async () => {
     visit('/conversions/funnels/999?site=demo')
     render(<Conversions />)

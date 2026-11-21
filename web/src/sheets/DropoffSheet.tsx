@@ -1,5 +1,6 @@
 // The drop-off sheet (Task F4-4, `?fd=funnel:step`): every person who reached step N and never step N+1,
 // newest last visit first. CSV export, a copyable link, and each person opens their journey (Back returns here).
+// A link to a funnel that no longer exists keeps the sheet closed; the Funnels screen says so in the page.
 import { Download, Link2 } from 'lucide-react'
 import { api } from '../api/client'
 import type { DropoffPerson } from '../api/types'
@@ -138,7 +139,7 @@ export function DropoffSheet() {
     )
 
   return (
-    <Sheet open={!!sheet} onOpenChange={(o) => !o && navigate({ sheet: null })} title={title}>
+    <Sheet open={!!sheet && !stale} onOpenChange={(o) => !o && navigate({ sheet: null })} title={title}>
       {body}
     </Sheet>
   )

@@ -63,7 +63,7 @@ export default function AcquisitionScreen() {
           </span>
         </RouteLink>
         {top && !share ? (
-          <button type="button" onClick={() => toggleFilter(s.filters, 'source', top.key)} aria-label={`Filter by top source ${rowLabel('source', top.key)}`}>
+          <button type="button" onClick={() => toggleFilter(s.filters, 'source', top.key)}>
             <span className="k">Top source</span>
             <span className="v word">{rowLabel('source', top.key)}</span>
             <span className="s">

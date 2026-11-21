@@ -20,7 +20,7 @@ export function Campaigns({ r, ctx, share, s, q }: { r: QueryResult<List<Campaig
         const dim = `utm_${k}` as Dim
         const label = (
           <>
-            <span className="k">{k}</span>
+            <span className="k">{k}</span>{' '}
             <span className="v mono">{c[k]}</span>
           </>
         )
@@ -34,13 +34,13 @@ export function Campaigns({ r, ctx, share, s, q }: { r: QueryResult<List<Campaig
             type="button"
             className="chip chip-btn"
             data-utm={k}
-            aria-label={`Filter by UTM ${k} ${c[k]}`}
             onClick={(e) => {
               e.stopPropagation()
               toggleFilter(s.filters, dim, c[k])
             }}
             onKeyDown={(e) => e.stopPropagation()}
           >
+            <span className="sr-only">Filter by UTM </span>
             {label}
           </button>
         )

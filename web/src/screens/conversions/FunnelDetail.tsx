@@ -87,9 +87,10 @@ export function FunnelDetail({ id }: { id: number }) {
                       <b>{fmtInt(st.leftAfter)}</b> left after step {i + 1} ({st.reached ? fmtPct(st.leftAfter / st.reached) : '0%'}): reached {st.label}, never {steps[i + 1].label}
                     </span>
                     {st.leftAfter > 0 && (
-                      <Button size="sm" onClick={() => openDropoff(rep.funnel.id, i + 1)} aria-label={`See all ${st.leftAfter} people who left after step ${i + 1}`}>
+                      <Button size="sm" onClick={() => openDropoff(rep.funnel.id, i + 1)}>
                         <Users size={14} aria-hidden="true" />
                         See all {fmtInt(st.leftAfter)}
+                        <span className="sr-only"> people who left after step {i + 1}</span>
                       </Button>
                     )}
                   </div>

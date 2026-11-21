@@ -88,11 +88,10 @@ describe('DropoffSheet', () => {
     expect(location.search).toContain('fd=7')
   })
 
-  it('a stale funnel id gives a calm state with a way out', async () => {
+  it('a stale funnel id keeps the sheet closed (the Funnels screen says so in the page)', async () => {
     visit('/conversions/funnels?site=demo&fd=999:1')
     render(<DropoffSheet />)
-    const dlg = await screen.findByRole('dialog')
-    expect(await within(dlg).findByText('This funnel no longer exists')).toBeTruthy()
-    expect(within(dlg).getAllByRole('button', { name: 'Close' }).length).toBeGreaterThan(0)
+    await act(() => new Promise((r) => setTimeout(r, 30)))
+    expect(screen.queryByRole('dialog')).toBeNull()
   })
 })
