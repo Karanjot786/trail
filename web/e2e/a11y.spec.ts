@@ -40,7 +40,9 @@ for (const theme of ['dark', 'light'] as const) {
     test(`axe: command palette and ? sheet (${theme})`, async ({ app }) => {
       test.fixme(!process.env.E2E_ALL, 'waits for the owning builders to merge')
       await app.goto('/')
-      await app.page.keyboard.press('Control+k')
+      // Opened from the sidebar's search button. Opened with Ctrl+K under Playwright, axe-core 4.14's run never
+      // returns in Firefox (the palette itself stays responsive; CommandPalette.test covers the shortcut).
+      await app.page.getByRole('button', { name: /Search or jump to/ }).click()
       await expect(app.page.getByRole('dialog', { name: 'Command palette' })).toBeVisible()
       expect((await new AxeBuilder({ page: app.page }).analyze()).violations).toEqual([])
       await app.page.keyboard.press('Escape')

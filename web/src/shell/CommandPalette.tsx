@@ -247,7 +247,9 @@ function Palette({ scope, instant, close }: { scope: '' | 'filter'; instant: boo
                     role="option"
                     aria-selected={i === active}
                     className="cmdk-i"
-                    onMouseMove={() => i !== active && setSel(i)}
+                    // Only a real pointer move selects: Firefox also sends mousemove when the list scrolls under a
+                    // still pointer, and selecting scrolls the list, which looped.
+                    onMouseMove={(e) => (e.movementX || e.movementY) && i !== active && setSel(i)}
                     onMouseDown={(e) => e.preventDefault()}
                     onClick={() => run(i)}
                   >
