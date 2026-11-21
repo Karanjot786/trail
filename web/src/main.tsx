@@ -1,6 +1,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
+import './data/data.css' // .panel, .panel-h and the bar list are shared by every screen, not only the ones that import Panel
 import { applyTheme } from './shell/theme'
 import { startRouter } from './shell/router'
 import { TooltipProvider } from './ui/tooltip'

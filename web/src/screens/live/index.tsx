@@ -19,6 +19,23 @@ import { CountryCode, hm, sourceText, useAq } from '../activity/shared'
 import { Globe } from './Globe'
 import './live.css'
 
+const regions = (() => {
+  try {
+    return new Intl.DisplayNames(['en'], { type: 'region' })
+  } catch {
+    return null
+  }
+})()
+/** "IN" → "India" (the code is shown beside it). */
+function countryName(code: string): string {
+  if (!code) return 'Unknown'
+  try {
+    return regions?.of(code) ?? code
+  } catch {
+    return code
+  }
+}
+
 export const POLL_MS = 5000
 const STREAM_CAP = 50
 type Side = 'country' | 'source' | 'page'
@@ -79,10 +96,10 @@ export default function LiveScreen() {
   return (
     <div className={`live${frozen ? ' live-off' : ''}`}>
       <div className="live-top">
-        <section className="live-hero" aria-label="Visitors now">
+        <section className="live-hero" aria-label="Active visitors">
           <span className="k">
             <StatusDot tone={off ? 'off' : 'live'} />
-            Visitors now
+            Active visitors
           </span>
           <span className="v" data-testid="live-active">
             {fmtInt(d.active)}
@@ -91,20 +108,6 @@ export default function LiveScreen() {
             in the last 5 minutes · {off ? `as of ${asOf}, not updating` : paused ? `paused, as of ${asOf}` : 'updated just now'}
           </span>
           <Globe points={d.countries.map((c) => ({ code: c.key, n: c.count }))} frozen={frozen} />
-          <div className="live-stats">
-            <div>
-              <span className="sk2">Events, last 5 min</span>
-              <span className="sv">{fmtInt(d.events5m)}</span>
-            </div>
-            <div>
-              <span className="sk2">Countries now</span>
-              <span className="sv">{fmtInt(d.countries.length)}</span>
-            </div>
-            <div>
-              <span className="sk2">Pages open now</span>
-              <span className="sv">{fmtInt(d.pages.length)}</span>
-            </div>
-          </div>
         </section>
 
         <section className="panel live-side" aria-label={SIDE_LABEL[side]}>
@@ -125,13 +128,27 @@ export default function LiveScreen() {
               Active now
             </span>
           </div>
+          <div className="live-stats">
+            <div>
+              <span className="sk2">Events, last 5 min</span>
+              <span className="sv">{fmtInt(d.events5m)}</span>
+            </div>
+            <div>
+              <span className="sk2">Countries now</span>
+              <span className="sv">{fmtInt(d.countries.length)}</span>
+            </div>
+            <div>
+              <span className="sk2">Pages open now</span>
+              <span className="sv">{fmtInt(d.pages.length)}</span>
+            </div>
+          </div>
           {list.length ? (
             <ul className="live-rows">
               {list.map((x) => (
                 <li key={x.key}>
                   <span className="lab">
                     {side === 'country' && <CountryCode code={x.key} />}
-                    <span className={`name${side === 'page' ? ' mono' : ''}`}>{side === 'source' ? sourceText(x.key).replace(/^Came from /, '') : x.key || 'Unknown'}</span>
+                    <span className={`name${side === 'page' ? ' mono' : ''}`}>{side === 'source' ? sourceText(x.key).replace(/^Came from /, '') : side === 'country' ? countryName(x.key) : x.key || 'Unknown'}</span>
                   </span>
                   <span className="track" aria-hidden="true">
                     <i data-bar="" style={{ transform: `scaleX(${bar(x.count, max)})` }} />
@@ -151,7 +168,7 @@ export default function LiveScreen() {
       </div>
 
       <div className="sec-h">
-        <h2 style={{ margin: 0, fontSize: 'var(--text-body-strong)' }}>Live events</h2>
+        <h2>Live events</h2>
         <p data-testid="live-stream-copy">
           {streamCopy(d.stream.length, d.streamTotal)} from the last 5 minutes, newest first. Select one to open the visitor’s journey.
         </p>

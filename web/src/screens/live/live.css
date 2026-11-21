@@ -5,15 +5,14 @@
 .live-hero .k { display: flex; gap: 8px; align-items: center; color: var(--muted); font-size: var(--text-small); font-weight: 500; }
 .live-hero .v { font: 600 56px/1 var(--font-sans); letter-spacing: -.03em; color: var(--fg); font-variant-numeric: tabular-nums; }
 .live-hero .upd { color: var(--muted); font-size: var(--text-caption); }
-.live-hero { min-height: 460px; }
+.live-hero { min-height: 420px; }
 .live-hero > .k, .live-hero > .v, .live-hero > .upd { position: relative; z-index: 1; pointer-events: none; }
-.live-hero .globe { position: absolute; left: 0; top: 0; width: 100%; height: calc(100% - 64px); display: block; }
-.live-hero .live-stats { margin-top: auto; }
-.globe-ctrl { position: absolute; left: 16px; right: 16px; bottom: 78px; z-index: 1; display: flex; align-items: center; gap: 8px; color: var(--subtle, var(--muted)); font-size: var(--text-caption); }
+.live-hero .globe { position: absolute; left: 0; top: 0; width: 100%; height: 100%; display: block; }
+.globe-ctrl { position: absolute; left: 16px; right: 16px; bottom: 14px; z-index: 1; display: flex; align-items: center; gap: 8px; color: var(--subtle, var(--muted)); font-size: var(--text-caption); }
 .globe-ctrl .spacer { flex: 1; }
 @media (max-width: 640px) { .live-hero { min-height: 380px; } .globe-note { display: none; } }
-.live-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-top: 1px solid var(--border); margin: 0 -20px -20px; position: relative; z-index: 1; background: var(--surface); }
-.live-stats > div { display: flex; flex-direction: column; gap: 4px; padding: 12px 20px; border-right: 1px solid var(--border); min-width: 0; }
+.live-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); margin-top: 6px; }
+.live-stats > div { display: flex; flex-direction: column; gap: 4px; padding: 12px 16px; border-right: 1px solid var(--border); min-width: 0; }
 .live-stats > div:last-child { border-right: 0; }
 .live-stats .sk2 { color: var(--muted); font-size: var(--text-caption); }
 .live-stats .sv { font: 600 24px/1.1 var(--font-sans); font-variant-numeric: tabular-nums; }
@@ -54,3 +53,8 @@
 @media (prefers-reduced-motion: reduce) { .ev-row.new { animation: none; } }
 @media (max-width: 720px) { .ev-row { grid-template-columns: auto minmax(0, 1fr) auto; } .ev-row .what + .ctx, .ev-row .ctx { display: none; } }
 .live-off .sdot { background: var(--subtle) !important; box-shadow: none !important; animation: none !important; }
+
+/* The stream heading: title and its one-line description on one baseline, as in the prototype. */
+.live .sec-h { display: flex; align-items: baseline; gap: 4px 12px; flex-wrap: wrap; margin: 0 0 12px; }
+.live .sec-h h2 { margin: 0; font-size: var(--text-body-strong); font-weight: 600; }
+.live .sec-h p { margin: 0; color: var(--muted); font-size: var(--text-small); }

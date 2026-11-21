@@ -58,6 +58,8 @@ export function rangeLabel(r: RangeKey): [string, string] {
 
 /** "Asia/Kolkata" → "Kolkata". */
 export function tzCity(tz: string): string {
+  // One zone, two names (browsers still report the old one); the prototype says "India time".
+  if (tz === 'Asia/Kolkata' || tz === 'Asia/Calcutta') return 'India'
   const last = tz.split('/').pop() ?? tz
   return last.replace(/_/g, ' ')
 }
