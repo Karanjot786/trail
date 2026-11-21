@@ -66,17 +66,17 @@ export function BarList({ rows, columns, onOpen, onFilter, overlapNote, isActive
             return (
               <li key={r.key} className={`bl-row${active ? ' active' : ''}`}>
                 <button type="button" className={`bl-open${MONO_DIMS.has(r.dim) ? ' mono' : ''}`} title={r.label} onClick={() => onOpen?.(r)}>
-                  <span className="name">{r.label}</span>
+                  <span className="name" data-label="">{r.label}</span>
                 </button>
                 <span className="bl-bar" aria-hidden="true">
-                  <i data-testid="bar" style={{ transform: `scaleX(${Number(f.toFixed(4))})` }} />
+                  <i data-testid="bar" data-bar="" style={{ transform: `scaleX(${Number(f.toFixed(4))})` }} />
                 </span>
                 {columns.map((c) => {
                   const v = c.value(r)
                   const text = cellText(c, r)
                   return (
                     <span key={c.id} className={`c${c.muted ? ' dim' : ''}`} title={v == null ? `Not available: ${c.naReason ?? 'does not apply here'}` : undefined}>
-                      {text}
+                      <span data-testid={c.id === 'exitRate' ? 'exit-rate' : undefined}>{text}</span>
                       <span className="sr-only">
                         {' '}
                         {c.header.toLowerCase()}

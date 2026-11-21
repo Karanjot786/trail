@@ -42,13 +42,14 @@
 @media (prefers-reduced-motion: reduce) { .ctip { transition: none; } }
 .ctip .tt-d { display: flex; flex-direction: column; margin-bottom: 6px; font-weight: 600; font-size: var(--text-small); }
 .ctip .tt-vs { display: inline-flex; align-items: center; gap: 6px; color: var(--subtle); font-weight: 400; font-size: 12px; }
-.ctip .tt-r, .ctip .tt-ref { display: grid; grid-template-columns: 10px minmax(0, 1fr) auto auto; align-items: center; gap: 8px; min-height: 22px; }
+.ctip .tt-r, .ctip .tt-ref { display: grid; grid-template-columns: 10px minmax(0, 1fr) auto auto auto; align-items: center; gap: 8px; min-height: 22px; }
 .ctip .tt-ref { grid-template-columns: 18px minmax(0, 1fr) auto 34px; min-height: 20px; }
 .ctip .tt-dot { width: 8px; height: 8px; border-radius: 50%; }
 .ctip .tt-l { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ctip .tt-r.on .tt-l { color: var(--fg); }
 .ctip .tt-v { font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; }
 .ctip .tt-r.plain .tt-v { font-weight: 500; }
+.ctip .tt-prev { color: var(--subtle); text-align: right; font-variant-numeric: tabular-nums; }
 .ctip .tt-sh { color: var(--subtle); text-align: right; font-variant-numeric: tabular-nums; }
 .ctip .tt-h { margin: 8px 0 2px; padding-top: 8px; border-top: 1px solid var(--border); color: var(--subtle); font-size: 12px; font-weight: 500; }
 .ctip .tt-ini { display: grid; place-items: center; width: 18px; height: 18px; border-radius: var(--radius-tag); background: var(--hover); color: var(--muted); font-size: 10px; font-weight: 600; }

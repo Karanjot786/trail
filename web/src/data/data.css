@@ -62,3 +62,20 @@
   .panel-f button:hover, .panel-more:hover { background: var(--hover); color: var(--fg); }
 }
 @media (pointer: coarse) { .panel-more, .panel-f button { min-height: 44px; min-width: 44px; } }
+
+/* Row report and full report sheets */
+.rr, .rep { display: flex; flex-direction: column; gap: 16px; }
+.rr-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); border: 1px solid var(--border); border-radius: var(--radius-panel); overflow: hidden; }
+.rr-stats > div { display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; border-right: 1px solid var(--border); }
+.rr-stats > div:last-child { border-right: 0; }
+.rr-stats .k { color: var(--muted); font-size: var(--text-caption); }
+.rr-stats .v { font: 600 22px/1.1 var(--font-sans); letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.rr-acts { display: flex; gap: 8px; }
+.rr-sec h3, .rep-api h3 { margin: 0 0 8px; font-size: var(--text-small); font-weight: 600; }
+.rr-two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+@media (max-width: 640px) { .rr-two { grid-template-columns: minmax(0, 1fr); } }
+.rr-people { display: flex; flex-direction: column; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.rr-people button { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 36px; padding: 4px 6px; border: 0; border-radius: var(--radius-row); background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.rr-people button:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.rr-people .subtle { margin-left: auto; font-size: var(--text-caption); white-space: nowrap; }
+@media (hover: hover) and (pointer: fine) { .rr-people button:hover { background: var(--hover); } }
