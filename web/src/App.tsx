@@ -1,83 +1,62 @@
-import { useEffect, useState, type ReactNode } from 'react'
-import { api, isDemo, type Site } from './api'
-import { useDashboard } from './state'
-import { onUnauthorized, useFetch } from './useFetch'
-import { Header } from './components/Header'
-import { Login } from './components/Login'
-import { FilterChips } from './components/FilterChips'
-import { Dashboard } from './Dashboard'
-import { TabStrip } from './components/TabStrip'
-import { VisitorsView } from './components/VisitorsView'
-import { JourneyView } from './components/JourneyView'
-import { ReadOnlyToast } from './components/ReadOnlyToast'
-import { SettingsView } from './components/SettingsView'
+// Boot (plan F1-7): the login gate, the share-link and demo modes, the first-site redirect, then the shell.
+import { useEffect, useState } from 'react'
+import { invalidate, onUnauthorized } from './api/useQuery'
+import { navigate, useUrlState } from './state/useUrlState'
+import { Shell } from './shell/Shell'
+import { Login } from './shell/Login'
+import { useSitesQuery } from './shell/useSite'
+import { useGone } from './shell/Banners'
+import { useDataMode } from './shell/useDataMode'
+import { Button } from './ui/button'
 
 export function App() {
+  const s = useUrlState()
   const [authed, setAuthed] = useState(true)
-  const [gen, setGen] = useState(0)
-  // The demo never asks for a password.
-  useEffect(() => (isDemo ? undefined : onUnauthorized(() => setAuthed(false))), [])
-  const { data: sites, error } = useFetch<Site[]>(authed ? `sites|${gen}` : null, (s) => api.sites(s))
+  const { mode } = useDataMode()
+  const isShare = s.prefix.startsWith('/share/')
+  const open = isShare || s.prefix === '/demo' || mode === 'fixtures'
+  useEffect(() => (open ? undefined : onUnauthorized(() => setAuthed(false))), [open])
+  const { sites, meta } = useSitesQuery()
+  const gone = useGone()
+
+  // Keep the URL complete and honest: a site is always named, a share link pins its own site.
+  const shareSite = meta.data?.site.id
+  const firstSite = sites.data?.[0]?.id
+  const noSites = !isShare && sites.data != null && sites.data.length === 0
+  useEffect(() => {
+    if (isShare) {
+      if (shareSite && s.site !== shareSite) navigate({ site: shareSite }, { replace: true })
+      else if (s.screen === 'settings') navigate({ screen: 'overview', tab: '', id: null }, { replace: true })
+    } else if (noSites) {
+      if (s.screen !== 'settings') navigate({ screen: 'settings', tab: 'sites', id: null, sheet: null }, { replace: true })
+    } else if (firstSite && !s.site) navigate({ site: firstSite }, { replace: true })
+  }, [isShare, shareSite, firstSite, noSites, s.site, s.screen])
 
   if (!authed)
     return (
       <Login
         onDone={() => {
+          invalidate()
           setAuthed(true)
-          setGen((g) => g + 1)
         }}
       />
     )
-  if (error && !sites) return <Centered>Couldn’t reach the Trail server.</Centered>
-  if (!sites) return null
-  const reload = () => setGen((g) => g + 1)
-  // No sites yet: Settings is the whole app until the first one is added.
-  if (sites.length === 0)
+  if (isShare) {
+    if (!meta.data && !gone) return null
+    return <Shell />
+  }
+  if (sites.error && !sites.data)
     return (
-      <div className="mx-auto flex w-full max-w-[880px] flex-col gap-6 px-4 py-8 sm:px-6 sm:py-12">
-        <h1 className="text-2xl font-semibold tracking-[-0.02em] text-fg">Welcome to Trail</h1>
-        <SettingsView onSitesChanged={reload} />
-      </div>
+      <main className="center-screen">
+        <div className="empty" role="alert" style={{ alignItems: 'center' }}>
+          <b>Couldn’t reach the Trail server.</b>
+          <p>Check that it is running, then try again.</p>
+          <Button size="sm" onClick={() => sites.refetch()}>
+            Try again
+          </Button>
+        </div>
+      </main>
     )
-  return <Shell sites={sites} onSitesChanged={reload} />
-}
-
-function Centered({ children }: { children: ReactNode }) {
-  return <main className="grid min-h-dvh place-items-center px-4 text-center text-muted">{children}</main>
-}
-
-const VIEWS = [
-  { value: 'overview', label: 'Overview' },
-  { value: 'visitors', label: 'Visitors' },
-  { value: 'settings', label: 'Settings' },
-] as const
-
-function Shell({ sites, onSitesChanged }: { sites: Site[]; onSitesChanged: () => void }) {
-  const d = useDashboard()
-  useEffect(() => {
-    if (!sites.some((s) => s.id === d.site)) d.set({ site: sites[0].id })
-  }, [sites, d])
-  if (!d.site) return null
-  return (
-    <div className="mx-auto flex w-full max-w-[1200px] flex-col gap-6 px-4 py-5 sm:px-6 sm:py-6">
-      <Header sites={sites} />
-      <nav className="-mt-2 flex h-10 border-b border-border" aria-label="Views">
-        <TabStrip
-          label="Views"
-          tabs={isDemo ? VIEWS.slice(0, 2) : [...VIEWS]}
-          value={d.view}
-          onChange={(view) => d.set({ view, person: '' }, { push: true })}
-        />
-      </nav>
-      {d.view === 'settings' && !isDemo ? (
-        <SettingsView onSitesChanged={onSitesChanged} />
-      ) : (
-        <>
-          {!d.person && <FilterChips />}
-          {d.person ? <JourneyView person={d.person} /> : d.view === 'visitors' ? <VisitorsView /> : <Dashboard />}
-        </>
-      )}
-      {isDemo && <ReadOnlyToast />}
-    </div>
-  )
+  if (!sites.data) return null
+  return <Shell />
 }

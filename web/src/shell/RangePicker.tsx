@@ -1,0 +1,99 @@
+// RangePicker (plan F1-5): presets in §0.3 order plus a custom range from two native date inputs.
+// The custom form lives in its own popover (inputs inside a Radix menu would fight its typeahead).
+import { useId, useState, type FormEvent } from 'react'
+import { Calendar, ChevronDown } from 'lucide-react'
+import { Popover as PP } from 'radix-ui'
+import type { RangeKey } from '../api/types'
+import { navigate, useUrlState } from '../state/useUrlState'
+import { Menu, MenuItem, MenuLabel, MenuRadio, MenuRadioGroup, MenuSeparator } from '../ui/menu'
+import { useLayer } from '../ui/layers'
+import { Button } from '../ui/button'
+import { RANGE_GROUPS, rangeLabel, tzCity, viewerTz } from './labels'
+import { useStats } from './useStats'
+
+const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+
+export function RangePicker() {
+  const s = useUrlState()
+  const stats = useStats()
+  const [custom, setCustom] = useState(false)
+  useLayer(custom, () => setCustom(false))
+  const labelId = useId()
+  const isCustom = s.range.startsWith('c:')
+  const w = stats.data?.window
+  const [long, short] = w && w.key === s.range && w.label ? [w.label, rangeLabel(s.range)[1]] : rangeLabel(s.range)
+  const today = iso(new Date())
+  const [from0, to0] = isCustom ? s.range.slice(2).split('~') : [iso(new Date(Date.now() - 29 * 86_400_000)), today]
+  const [from, setFrom] = useState(from0)
+  const [to, setTo] = useState(to0)
+
+  const submit = (e: FormEvent) => {
+    e.preventDefault()
+    if (!from || !to) return
+    const [a, b] = from <= to ? [from, to] : [to, from]
+    setCustom(false)
+    navigate({ range: `c:${a}~${b}` as RangeKey })
+  }
+
+  const button = (
+    <button type="button" className="btn range-btn" aria-label="Date range" aria-describedby={labelId}>
+      <Calendar size={14} aria-hidden="true" />
+      <span className="rl" id={labelId}>
+        {long}
+      </span>
+      <span className="rs" aria-hidden="true">
+        {short}
+      </span>
+      <ChevronDown size={14} aria-hidden="true" />
+    </button>
+  )
+
+  return (
+    <PP.Root open={custom} onOpenChange={setCustom}>
+      <PP.Anchor asChild>
+        <span style={{ display: 'inline-flex' }}>
+          <Menu trigger={button} label="Date range" align="end" minWidth={260}>
+            <MenuRadioGroup value={s.range} onValueChange={(v) => navigate({ range: v as RangeKey })}>
+              {RANGE_GROUPS.map((g) => (
+                <div key={g.label} role="group" aria-label={g.label}>
+                  <MenuLabel>{g.label}</MenuLabel>
+                  {g.keys.map((k) => (
+                    <MenuRadio key={k} value={k}>
+                      {rangeLabel(k)[0]}
+                    </MenuRadio>
+                  ))}
+                </div>
+              ))}
+            </MenuRadioGroup>
+            <MenuSeparator />
+            <MenuItem onSelect={() => setTimeout(() => setCustom(true), 0)} end={isCustom ? long : undefined}>
+              <span className="chk" aria-hidden="true" />
+              Custom range…
+            </MenuItem>
+            <MenuSeparator />
+            <MenuLabel>{tzCity(w?.tz || viewerTz())} time. Weeks start on Monday.</MenuLabel>
+          </Menu>
+        </span>
+      </PP.Anchor>
+      <PP.Portal>
+        <PP.Content className="pop" role="dialog" aria-label="Custom range" align="end" sideOffset={6} collisionPadding={8}>
+          <form className="pop-form" onSubmit={submit}>
+            <div className="row2">
+              <label>
+                From
+                <input className="input" type="date" required max={today} value={from} onChange={(e) => setFrom(e.target.value)} />
+              </label>
+              <label>
+                To
+                <input className="input" type="date" required max={today} value={to} onChange={(e) => setTo(e.target.value)} />
+              </label>
+            </div>
+            <Button type="submit" size="sm">
+              Show this range
+            </Button>
+          </form>
+        </PP.Content>
+      </PP.Portal>
+    </PP.Root>
+  )
+}
