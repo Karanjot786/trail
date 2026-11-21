@@ -65,6 +65,7 @@ Open the host in a browser and log in with `TRAIL_PASSWORD`. Run Trail behind HT
 | `TRAIL_ADDR` | `:8080` | Listen address |
 | `TRAIL_SITES` | empty | Optional `id=domain,id2=domain2`, added at startup if missing. Sites edited in the dashboard keep their edits. You can also add sites in **Settings** |
 | `TRAIL_INGEST_RPS` | `50` | Events requests per second per client IP on `/_t/e`, burst twice that. Over the limit is `429`. `0` turns it off |
+| `TRAIL_TRUSTED_PROXIES` | `private,cloudflare` | Which TCP peers may report the visitor IP in `X-Forwarded-For` (or `CF-Connecting-IP` from Cloudflare). Comma list of IPs, CIDRs, `private` (loopback and private ranges) and `cloudflare`. `none` trusts no header. Headers from any other peer are ignored, so they cannot dodge the rate limit or fake geo |
 | `TRAIL_TZ` | `Asia/Kolkata` | Timezone for daily buckets |
 | `TRAIL_GEO_DB` | unset | Path to your own City `.mmdb` (for example DB-IP Lite City) for region and city. Without it, the built-in database gives country only |
 | `TRAIL_SECRET` | random per start | Signs session cookies (32+ chars). Set it so logins survive restarts |

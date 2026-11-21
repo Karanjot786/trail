@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"trail/internal/enrich"
+	"trail/internal/netx"
 	"trail/internal/sites"
 	"trail/internal/store"
 )
@@ -100,6 +101,7 @@ type handler struct {
 	now   func() time.Time
 	priv  *Private
 	limit *limiter // nil: no rate limit
+	ips   *netx.Resolver
 }
 
 // Option configures the ingest handler.
@@ -108,6 +110,12 @@ type Option func(*handler)
 // WithPrivate sets the identity source for private-mode events.
 func WithPrivate(p *Private) Option {
 	return func(h *handler) { h.priv = p }
+}
+
+// WithProxies sets which proxies' forwarding headers are believed when
+// deriving the client IP. The default is netx.Default().
+func WithProxies(r *netx.Resolver) Option {
+	return func(h *handler) { h.ips = r }
 }
 
 // WithRateLimit limits each client IP to rps requests per second with the
@@ -129,6 +137,9 @@ func New(st *store.Store, geo *enrich.Geo, reg *sites.Registry, opts ...Option) 
 	}
 	if h.priv == nil {
 		h.priv = NewPrivate(time.UTC, time.Now)
+	}
+	if h.ips == nil {
+		h.ips = netx.Default()
 	}
 	return h
 }
@@ -156,7 +167,7 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	if h.limit != nil && !h.limit.allow(enrich.ClientIP(r)) {
+	if h.limit != nil && !h.limit.allow(h.ips.ClientIP(r)) {
 		w.Header().Set("Retry-After", "1")
 		http.Error(w, "too many requests", http.StatusTooManyRequests)
 		return
@@ -231,7 +242,7 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	for i := range evs {
 		if ps[i].M == "p" {
 			if anon == "" {
-				anon, sess = h.priv.Identify(ps[i].S, enrich.ClientIP(r), r.UserAgent())
+				anon, sess = h.priv.Identify(ps[i].S, h.ips.ClientIP(r), r.UserAgent())
 			}
 			evs[i].AnonID, evs[i].SessionID, evs[i].UserID = anon, sess, ""
 		} else if cookie == "" {
@@ -338,7 +349,7 @@ func (h *handler) event(r *http.Request, p *payload, domain, props string) store
 	host, path, utm := enrich.ParseURL(p.U)
 	device, browser, os, bot := enrich.ParseUA(r.UserAgent())
 	// The client IP is used only for this lookup and never stored.
-	country, region, city := h.geo.Lookup(enrich.ClientIP(r))
+	country, region, city := h.geo.Lookup(h.ips.ClientIP(r))
 	if p.M == "p" {
 		// Private and consent-denied visitors: country only.
 		region, city = "", ""

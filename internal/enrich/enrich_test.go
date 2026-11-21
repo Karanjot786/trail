@@ -1,7 +1,6 @@
 package enrich
 
 import (
-	"net/http/httptest"
 	"testing"
 )
 
@@ -62,19 +61,6 @@ func TestDeriveEnv(t *testing.T) {
 		if got := DeriveEnv(tt.host, tt.domain, tt.given); got != tt.want {
 			t.Errorf("DeriveEnv(%q,%q,%q) = %q, want %q", tt.host, tt.domain, tt.given, got, tt.want)
 		}
-	}
-}
-
-func TestClientIP(t *testing.T) {
-	r := httptest.NewRequest("POST", "/", nil)
-	r.RemoteAddr = "9.9.9.9:1234"
-	r.Header.Set("X-Forwarded-For", "1.2.3.4, 10.0.0.1")
-	if got := ClientIP(r); got != "1.2.3.4" {
-		t.Errorf("with XFF got %q", got)
-	}
-	r.Header.Del("X-Forwarded-For")
-	if got := ClientIP(r); got != "9.9.9.9" {
-		t.Errorf("without XFF got %q", got)
 	}
 }
 

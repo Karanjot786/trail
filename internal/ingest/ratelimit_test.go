@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"trail/internal/netx"
 )
 
 func postMethod(h http.Handler, method, origin string) *httptest.ResponseRecorder {
@@ -71,5 +73,41 @@ func TestRateLimiterFullMapCapsNewIPs(t *testing.T) {
 	}
 	if allowed != 20 { // overflow bucket burst = 20 x per-IP burst
 		t.Fatalf("fresh IPs allowed %d while full, want 20 (shared overflow burst)", allowed)
+	}
+}
+
+// A client connecting directly cannot dodge its bucket by rotating a forged
+// X-Forwarded-For: only a trusted proxy's header counts.
+func TestRateLimitIgnoresSpoofedXFF(t *testing.T) {
+	_, h := newHandler(t, map[string]string{"s1": "example.com"}, WithRateLimit(1, 3))
+	limited := false
+	for i := range 10 {
+		w := postFrom(h, pageview, map[string]string{
+			"Origin":          "https://example.com",
+			"RemoteAddr":      "198.51.100.7:5000",
+			"X-Forwarded-For": "203.0.113." + strconv.Itoa(i),
+		})
+		if w.Code == http.StatusTooManyRequests {
+			limited = true
+		}
+	}
+	if !limited {
+		t.Fatal("spoofer rotating X-Forwarded-For was never limited")
+	}
+}
+
+// With TRAIL_TRUSTED_PROXIES=none even a loopback proxy's header is ignored,
+// so everyone behind it shares one bucket.
+func TestRateLimitTrustedNone(t *testing.T) {
+	none, err := netx.ParseTrusted("none")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, h := newHandler(t, map[string]string{"s1": "example.com"}, WithRateLimit(1, 3), WithProxies(none))
+	for i := range 3 {
+		postFrom(h, pageview, map[string]string{"Origin": "https://example.com", "X-Forwarded-For": "203.0.113." + strconv.Itoa(i)})
+	}
+	if w := postFrom(h, pageview, map[string]string{"Origin": "https://example.com", "X-Forwarded-For": "203.0.113.99"}); w.Code != http.StatusTooManyRequests {
+		t.Fatalf("got %d, want 429: XFF must be ignored with none", w.Code)
 	}
 }

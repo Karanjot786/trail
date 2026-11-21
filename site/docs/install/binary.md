@@ -76,7 +76,7 @@ Trail stops cleanly on `SIGTERM`: it finishes in-flight requests and flushes que
 
 ## Caddy
 
-Binding to `127.0.0.1` keeps Trail private; Caddy serves it over HTTPS and sets `X-Forwarded-For` and `X-Forwarded-Proto` for you.
+Binding to `127.0.0.1` keeps Trail private; Caddy serves it over HTTPS and sets `X-Forwarded-For` and `X-Forwarded-Proto` for you. Trail trusts that header because Caddy connects from loopback (see [Client IP and proxies](/operations/configuration#client-ip)).
 
 ::: code-group
 ```txt [/etc/caddy/Caddyfile]

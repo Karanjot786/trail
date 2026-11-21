@@ -54,7 +54,7 @@ volumes:
 
 Put Trail behind a reverse proxy that terminates TLS, such as Caddy, nginx or your platform's load balancer. The dashboard cookie is marked `Secure` when the request arrives over TLS or with `X-Forwarded-Proto: https`.
 
-Trail reads the visitor IP from the first `X-Forwarded-For` entry when the header is present, so do not expose port 8080 directly to the internet: a client could send its own header. Let the proxy set it.
+Trail believes `X-Forwarded-For` only from a trusted proxy. By default that is loopback and private addresses, which covers a proxy on the same host or Docker network, plus Cloudflare. A client that connects to port 8080 directly cannot fake its IP, but it can skip the proxy, so publish the port on `127.0.0.1` only. Other setups are in [Client IP and proxies](/operations/configuration#client-ip).
 
 ## Geo data
 
