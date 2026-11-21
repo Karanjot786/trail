@@ -2,6 +2,7 @@
 //
 //	trail [serve]  run the server (default)
 //	trail seed     fill TRAIL_DB with fake data
+//	trail demo record --out DIR --plan FILE [--now RFC3339]
 //	trail crawlers import --site ID [--format combined|caddy] [--since auto|RFC3339] [--url URL --token T] FILE|-
 package main
 
@@ -12,6 +13,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"io/fs"
 	"log"
 	mrand "math/rand/v2"
@@ -56,6 +58,8 @@ func main() {
 		err = runServe()
 	case "seed":
 		err = runSeed(os.Args[2:])
+	case "demo":
+		err = runDemo(os.Args[2:], os.Stdout)
 	case "crawlers":
 		err = runCrawlers(os.Args[2:], os.Stdin, os.Stdout)
 	default:
@@ -90,6 +94,43 @@ func parseSites(s string) (map[string]string, error) {
 		sites[id] = strings.ToLower(domain)
 	}
 	return sites, nil
+}
+
+// runDemo runs `trail demo record`: it records the static demo fixtures.
+func runDemo(args []string, out io.Writer) error {
+	if len(args) == 0 || args[0] != "record" {
+		return errors.New("usage: trail demo record --out DIR --plan FILE [--now RFC3339]")
+	}
+	fs := flag.NewFlagSet("demo record", flag.ContinueOnError)
+	dir := fs.String("out", "", "output directory (e.g. web/public/demo-data)")
+	planPath := fs.String("plan", "testdata/fixtures/plan.json", "recording plan")
+	nowFlag := fs.String("now", "", "pinned clock, RFC 3339 (default: now, to the minute)")
+	if err := fs.Parse(args[1:]); err != nil {
+		return err
+	}
+	if *dir == "" {
+		return errors.New("demo record: --out is required")
+	}
+	tz, err := time.LoadLocation(env("TRAIL_TZ", "Asia/Kolkata"))
+	if err != nil {
+		return fmt.Errorf("TRAIL_TZ: %w", err)
+	}
+	now := time.Now().Truncate(time.Minute)
+	if *nowFlag != "" {
+		if now, err = time.Parse(time.RFC3339, *nowFlag); err != nil {
+			return fmt.Errorf("--now: %w", err)
+		}
+	}
+	plan, err := demo.LoadPlan(*planPath)
+	if err != nil {
+		return err
+	}
+	man, err := demo.Record(context.Background(), plan, *dir, now, tz)
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(out, "recorded %d responses into %s\n", len(man.Keys), *dir)
+	return nil
 }
 
 // seedOpts are the `trail seed` flags.
