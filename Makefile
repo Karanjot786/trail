@@ -1,4 +1,4 @@
-.PHONY: tracker web build test dev seed dev-seed e2e demo-fixtures geo clean
+.PHONY: tracker web build test npm-test npm-smoke dev seed dev-seed e2e demo-fixtures geo clean
 
 tracker:
 	cd tracker && npm ci && node build.mjs
@@ -9,10 +9,18 @@ web:
 build: tracker web
 	CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o trail ./cmd/trail
 
-test:
+test: npm-test
 	go test ./...
 	cd tracker && npm test
 	cd web && pnpm test
+
+# The npm package: typecheck, unit tests, build.
+npm-test:
+	cd packages/trail-analytics && npm ci && npm run typecheck && npm test && npm run build
+
+# Real Next and Astro apps against a mock Trail (slow; needs network for installs).
+npm-smoke:
+	cd packages/trail-analytics && npm ci && npm run build && npm run smoke -- all
 
 # Backend on :8080 with a throwaway DB; run `cd web && pnpm dev` in another shell for the UI.
 dev:
