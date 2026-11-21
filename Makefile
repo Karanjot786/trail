@@ -1,4 +1,4 @@
-.PHONY: tracker web build test dev seed clean
+.PHONY: tracker web build test dev seed dev-seed e2e demo-fixtures clean
 
 tracker:
 	cd tracker && npm ci && node build.mjs
@@ -20,6 +20,22 @@ dev:
 
 seed:
 	TRAIL_DB=$${TRAIL_DB:-dev.db} go run ./cmd/trail seed
+
+# Seed dev.db like the e2e harness does (60 days, 1,800 people, seed 42). Falls back to the plain seed until the flags exist.
+dev-seed:
+	TRAIL_DB=$${TRAIL_DB:-dev.db} TRAIL_SITES=demo=demo.trail.dev,docs=docs.trail.dev go run ./cmd/trail seed --sites demo,docs --days 60 --persons 1800 --seed 42 --revenue demo --crawlers demo \
+		|| TRAIL_DB=$${TRAIL_DB:-dev.db} TRAIL_SITES=demo=demo.trail.dev,docs=docs.trail.dev go run ./cmd/trail seed
+
+# Build, seed a temp DB, serve on :8120 and run every Playwright project (chromium, firefox, phone).
+e2e: tracker
+	cd web && pnpm install --frozen-lockfile && pnpm build && E2E_ALL=1 pnpm exec playwright test
+
+# Check fixture drift, record, build the static demo and run the server-less smoke.
+demo-fixtures:
+	cd web && node scripts/fixtures-check.mjs
+	go run ./cmd/trail demo record --out web/public/demo-data --plan testdata/fixtures/plan.json
+	cd web && VITE_DATA=fixtures pnpm exec vite build && mkdir -p dist/demo-data && cp -R public/demo-data/. dist/demo-data/
+	cd web && pnpm exec playwright test -c playwright.fixtures.config.ts
 
 clean:
 	rm -f trail dev.db dev.db-* internal/ingest/t.js
