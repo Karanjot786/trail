@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"trail/internal/auth"
+	"trail/internal/meta"
 	"trail/internal/query"
 	"trail/internal/sites"
 )
@@ -82,6 +83,7 @@ func (s *server) routes() http.Handler {
 	mux.HandleFunc("DELETE /api/sites/{id}", s.deleteSite)
 	mux.HandleFunc("GET /api/sites/{id}/status", s.siteStatus)
 	s.reportRoutes(mux)
+	s.metaRoutes(mux)
 	mux.HandleFunc("GET /api/goals", s.listGoals)
 	mux.HandleFunc("POST /api/goals", s.createGoal)
 	mux.HandleFunc("DELETE /api/goals/{id}", s.deleteGoal)
@@ -93,8 +95,7 @@ const maxGoalBody = 4 << 10
 
 func (s *server) listGoals(w http.ResponseWriter, r *http.Request) {
 	site := r.URL.Query().Get("site")
-	if !s.known(site) {
-		http.Error(w, "unknown site", http.StatusBadRequest)
+	if !s.siteOK(w, r, site) {
 		return
 	}
 	goals, err := query.ListGoals(s.db, site)
@@ -112,8 +113,7 @@ func (s *server) createGoal(w http.ResponseWriter, r *http.Request) {
 	if !readJSON(w, r, &in) {
 		return
 	}
-	if !s.known(in.Site) {
-		http.Error(w, "unknown site", http.StatusBadRequest)
+	if !s.siteOK(w, r, in.Site) {
 		return
 	}
 	g, err := query.CreateGoal(s.db, in.Site, query.Goal{Name: in.Name, Kind: in.Kind, Match: in.Match})
@@ -128,8 +128,11 @@ func (s *server) createGoal(w http.ResponseWriter, r *http.Request) {
 func (s *server) deleteGoal(w http.ResponseWriter, r *http.Request) {
 	site := r.URL.Query().Get("site")
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
-	if !s.known(site) || err != nil {
+	if err != nil {
 		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+	if !s.siteOK(w, r, site) {
 		return
 	}
 	if err := query.DeleteGoal(s.db, site, id); err != nil {
@@ -166,12 +169,18 @@ func (s *server) fail(w http.ResponseWriter, r *http.Request, err error) {
 	case errors.Is(err, errSiteScope):
 		http.Error(w, err.Error(), http.StatusForbidden)
 	case errors.Is(err, errBadRequest) || errors.Is(err, query.ErrNeedSite) || errors.Is(err, query.ErrBadDim) || errors.Is(err, query.ErrBadMetric) ||
-		errors.Is(err, query.ErrBadGoal) || errors.Is(err, sites.ErrInvalid):
+		errors.Is(err, query.ErrBadGoal) || errors.Is(err, query.ErrBadFunnel) || errors.Is(err, sites.ErrInvalid) ||
+		errors.Is(err, meta.ErrInvalid):
 		http.Error(w, err.Error(), http.StatusBadRequest)
-	case errors.Is(err, query.ErrGoalNotFound) || errors.Is(err, query.ErrNotFound) || errors.Is(err, sites.ErrNotFound):
+	case errors.Is(err, query.ErrGoalNotFound) || errors.Is(err, query.ErrNotFound) || errors.Is(err, sites.ErrNotFound) ||
+		errors.Is(err, meta.ErrNotFound):
 		http.Error(w, err.Error(), http.StatusNotFound)
+	case errors.Is(err, meta.ErrGone):
+		http.Error(w, err.Error(), http.StatusGone)
 	case errors.Is(err, sites.ErrExists):
 		http.Error(w, err.Error(), http.StatusConflict)
+	case errors.Is(err, query.ErrNotImplemented):
+		http.Error(w, "not implemented yet", http.StatusNotImplemented)
 	default:
 		log.Printf("api %s: %v", r.URL.Path, err)
 		http.Error(w, "internal error", http.StatusInternalServerError)
