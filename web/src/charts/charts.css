@@ -2,7 +2,7 @@
 
 .tc { position: relative; outline: none; border-radius: var(--radius-control); }
 .tc:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
-.tc svg { display: block; width: 100%; overflow: visible; }
+.tc svg:not(.lucide) { display: block; width: 100%; overflow: visible; }
 .tc .grid line { stroke: var(--border); stroke-width: 1; }
 .tc .ax text { fill: var(--subtle); font: 11px var(--font-sans); font-variant-numeric: tabular-nums; }
 .tc .line { fill: none; stroke: var(--series, var(--chart-1)); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
@@ -33,7 +33,7 @@
 
 /* The floating card: 272px, raised, 16px beside the hairline. Opacity fades; position never animates. */
 .ctip {
-  position: absolute; left: 0; top: 0; z-index: var(--z-tooltip); width: max-content; min-width: 280px; max-width: 380px; padding: 10px 12px;
+  position: absolute; left: 0; top: 0; z-index: var(--z-tooltip); width: max-content; min-width: 280px; max-width: 440px; padding: 10px 12px;
   border-radius: var(--radius-popover); background: var(--raised); color: var(--fg); box-shadow: var(--elevation-pop);
   pointer-events: none; font-size: var(--text-caption); line-height: var(--leading-caption);
   opacity: 1; transition: opacity 120ms var(--ease-out);
@@ -49,8 +49,8 @@
 .ctip .tt-r.on .tt-l { color: var(--fg); }
 .ctip .tt-v { font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; }
 .ctip .tt-r.plain .tt-v { font-weight: 500; }
-.ctip .tt-pv { display: flex; justify-content: flex-end; min-width: 0; }
-.ctip .tt-pv .delta { width: auto; }
+.ctip .tt-pv { display: flex; justify-content: flex-end; }
+.ctip .tt-pv .delta { flex: none; width: max-content; }
 .ctip .tt-prev { color: var(--subtle); text-align: right; font-variant-numeric: tabular-nums; }
 .ctip .tt-sh { color: var(--subtle); text-align: right; font-variant-numeric: tabular-nums; }
 .ctip .tt-h { margin: 8px 0 2px; padding-top: 8px; border-top: 1px solid var(--border); color: var(--subtle); font-size: 12px; font-weight: 500; }
