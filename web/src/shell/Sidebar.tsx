@@ -146,7 +146,7 @@ export function Sidebar() {
           {demo && (
             <div className="bridge">
               <b>Demo · sample data</b>
-              <p>{mode === 'fixtures' ? 'Recorded from the demo seed. Live is simulated.' : 'Fictional sites. Every number comes from the demo seed.'}</p>
+              <p>Fictional sites, 180 days, India time. Live is simulated.</p>
               <a href="https://github.com/karanjot786/trail" target="_blank" rel="noopener noreferrer">
                 Self-host Trail
                 <ExternalLink size={12} aria-hidden="true" />
