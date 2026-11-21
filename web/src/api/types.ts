@@ -84,6 +84,8 @@ export interface JourneySession {
   sessionId: string; start: number; source: string; steps: Step[]
   visit: number; durationMs: number; country: string; city: string; device: string; goals: GoalHit[]
   agent: string                         // AI agent id, '' for people
+  via: AgentVia | ''                    // how the agent was recognised, '' for people
+  verified: boolean                     // via is ip, relay or sig
 }
 
 export interface Campaign { source: string; medium: string; campaign: string; term: string; content: string; visitors: number; sessions: number; bounce: number; convRate: number | null; revenueMinor: number }

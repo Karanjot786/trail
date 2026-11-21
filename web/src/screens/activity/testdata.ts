@@ -22,9 +22,9 @@ const ev = (ts: number, name: string) => ({ ts, type: 'event' as const, path: '/
 
 export function journey(): JourneySession[] {
   return [
-    { sessionId: 'a', start: IST(2, 10), source: 'Google', visit: 1, durationMs: 120_000, country: 'IN', city: 'Pune', device: 'Desktop', agent: '', steps: [pv(IST(2, 10), '/'), pv(IST(2, 10, 1), '/pricing')], goals: [{ id: 2, name: 'Pricing', ts: IST(2, 10, 1) }] },
-    { sessionId: 'b', start: IST(9, 11), source: '', visit: 2, durationMs: 60_000, country: 'IN', city: 'Pune', device: 'Desktop', agent: '', steps: [pv(IST(9, 11), '/docs')], goals: [] },
-    { sessionId: 'c', start: IST(19, 18), source: 'Google', visit: 3, durationMs: 90_000, country: 'IN', city: 'Pune', device: 'Desktop', agent: '', steps: [pv(IST(19, 18), '/signup'), ev(IST(19, 18, 1), 'Signup')], goals: [{ id: 7, name: 'Signup', ts: IST(19, 18, 1) }] },
+    { sessionId: 'a', start: IST(2, 10), source: 'Google', visit: 1, durationMs: 120_000, country: 'IN', city: 'Pune', device: 'Desktop', agent: '', via: '', verified: false, steps: [pv(IST(2, 10), '/'), pv(IST(2, 10, 1), '/pricing')], goals: [{ id: 2, name: 'Pricing', ts: IST(2, 10, 1) }] },
+    { sessionId: 'b', start: IST(9, 11), source: '', visit: 2, durationMs: 60_000, country: 'IN', city: 'Pune', device: 'Desktop', agent: '', via: '', verified: false, steps: [pv(IST(9, 11), '/docs')], goals: [] },
+    { sessionId: 'c', start: IST(19, 18), source: 'Google', visit: 3, durationMs: 90_000, country: 'IN', city: 'Pune', device: 'Desktop', agent: '', via: '', verified: false, steps: [pv(IST(19, 18), '/signup'), ev(IST(19, 18, 1), 'Signup')], goals: [{ id: 7, name: 'Signup', ts: IST(19, 18, 1) }] },
   ]
 }
 

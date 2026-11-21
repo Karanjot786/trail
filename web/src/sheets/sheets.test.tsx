@@ -106,6 +106,19 @@ describe('JourneySheet: AI agents and location accuracy (plan F-3, F-6)', () => 
     const dlg = screen.getByRole('dialog')
     expect(within(dlg).getByRole('heading', { name: /^Visit 2.*AI agent.*Claude agent/ })).toBeTruthy()
     expect(within(dlg).getAllByText('AI agent')).toHaveLength(1)
+    expect(within(dlg).getByText('Claimed')).toBeTruthy()
+    expect(dlg.querySelector('[data-tip="User agent only; not verified"]')).toBeTruthy()
+  })
+
+  it('a verified agent session says how it was recognised', async () => {
+    state.journey = journey().map((x, i) => (i === 1 ? { ...x, agent: 'claude-agent', via: 'ip' as const, verified: true } : x))
+    visit('/activity/visitors?site=demo&v=p9')
+    render(<JourneySheet />)
+    await flush()
+    const dlg = screen.getByRole('dialog')
+    expect(within(dlg).getByText('Verified')).toBeTruthy()
+    expect(within(dlg).queryByText('Claimed')).toBeNull()
+    expect(dlg.querySelector('[data-tip="IP in Anthropic’s published list"]')).toBeTruthy()
   })
 
   it('a person’s sessions carry no agent tag', async () => {
@@ -113,6 +126,7 @@ describe('JourneySheet: AI agents and location accuracy (plan F-3, F-6)', () => 
     render(<JourneySheet />)
     await flush()
     expect(within(screen.getByRole('dialog')).queryByText('AI agent')).toBeNull()
+    expect(within(screen.getByRole('dialog')).queryByText(/^(Verified|Claimed)$/)).toBeNull()
   })
 
   it('a city reads as a rough estimate; a country alone does not', async () => {

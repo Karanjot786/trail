@@ -278,7 +278,7 @@ func Journey(db *sql.DB, site, person string, goals []Goal) ([]JourneySession, e
 	q := `WITH idm AS (SELECT anon_id, user_id FROM identity_map WHERE site_id=? AND rowid IN
   (SELECT min(rowid) FROM identity_map WHERE site_id=? GROUP BY anon_id))
 SELECT e.session_id, e.ts, e.type, e.path, e.name, e.engaged_ms, e.scroll_pct, e.props, ` + sourceNameExpr + `,
-  e.country, e.city, e.device, e.agent
+  e.country, e.city, e.device, e.agent, e.agent_via
 FROM events e LEFT JOIN idm USING(anon_id)
 WHERE e.site_id=? AND ` + journeyCond + ` AND COALESCE(idm.user_id, e.anon_id)=?
 ORDER BY e.ts, e.id`
@@ -287,11 +287,12 @@ ORDER BY e.ts, e.id`
 	bySession := map[string]int{}
 	lastPV := map[string]int{} // session → index of its latest pageview step
 	hit := map[string]map[int64]bool{}
+	via := map[string]int{} // session → best viaRank seen
 	err := forRows(db, q, []any{site, site, site, person}, func(r *sql.Rows) error {
-		var sid, props, src, country, city, device, agent string
+		var sid, props, src, country, city, device, agent, agentVia string
 		var s Step
 		if err := r.Scan(&sid, &s.TS, &s.Type, &s.Path, &s.Name, &s.EngagedMs, &s.ScrollPct, &props, &src,
-			&country, &city, &device, &agent); err != nil {
+			&country, &city, &device, &agent, &agentVia); err != nil {
 			return err
 		}
 		i, ok := bySession[sid]
@@ -305,6 +306,11 @@ ORDER BY e.ts, e.id`
 		sess := &out[i]
 		sess.DurationMs = s.TS - sess.Start
 		sess.Agent = max(sess.Agent, agent)
+		if agent != "" {
+			via[sid] = max(via[sid], viaRank[agentVia], 1)
+			sess.Via = viaByRank[via[sid]]
+			sess.Verified = via[sid] >= viaRank["ip"]
+		}
 		for _, g := range goals {
 			if !hit[sid][g.ID] && goalHit(g, s) {
 				hit[sid][g.ID] = true

@@ -507,7 +507,9 @@ export const journeySession = {
       "ts": 1
     }
   ],
-  "agent": "x"
+  "agent": "x",
+  "via": "sig",
+  "verified": true
 } satisfies JourneySession
 
 export const campaign = {

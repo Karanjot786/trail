@@ -11,6 +11,9 @@ export const AGENT_NAMES: Record<string, string> = {
   'chatgpt-agent': 'ChatGPT agent',
 }
 export const agentName = (id: string) => AGENT_NAMES[id] ?? id
+/** Operators, for the "IP in {provider}'s published list" tooltip where the payload has no provider. */
+const AGENT_PROVIDERS: Record<string, string> = { 'claude-agent': 'Anthropic', 'google-agent': 'Google', 'chatgpt-agent': 'OpenAI' }
+export const agentProvider = (id: string): string | undefined => AGENT_PROVIDERS[id]
 
 export const verified = (via: AgentVia) => via === 'sig' || via === 'relay' || via === 'ip'
 

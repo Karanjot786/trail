@@ -38,6 +38,7 @@ var goldenRoutes = map[string]string{
 	"live":              "/api/live?site=demo&limit=5",
 	"visitors":          "/api/visitors?site=demo&range=30d&limit=3",
 	"sessions":          "/api/sessions?site=demo&range=30d&limit=3",
+	"journey":           "/api/journey?site=demo&range=30d&person=9c3902d15103a5023d1417951c078a8b", // an AI agent verified by IP list
 	"campaigns":         "/api/campaigns?site=demo&range=30d",
 	"ai-referrals":      "/api/ai-referrals?site=demo&range=30d",
 	"events":            "/api/events?site=demo&range=30d",

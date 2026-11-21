@@ -15,7 +15,7 @@ import { Button } from '../ui/button'
 import { Avatar } from '../ui/avatar'
 import { Sheet } from '../ui/dialog'
 import { Badge, Chip, Kbd } from '../ui/small'
-import { agentName } from '../screens/crawlers/AgentBadge'
+import { AgentBadge, agentName, agentProvider } from '../screens/crawlers/AgentBadge'
 import { EmptyState, ErrorState, Skeleton } from '../ui/states'
 import '../screens/activity/activity.css'
 
@@ -303,6 +303,7 @@ function Visit({ s, i, gap, out, tz, current }: { s: JourneySession; i: number; 
             <span className="inline-flex items-center gap-1.5">
               <Badge tone="blue">AI agent</Badge>
               <span className="w">{agentName(s.agent)}</span>
+              <AgentBadge via={s.via || 'ua'} provider={agentProvider(s.agent)} />
             </span>
           )}
           <span className="w">{dayTime(s.start, tz)}</span>

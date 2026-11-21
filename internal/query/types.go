@@ -342,7 +342,9 @@ type JourneySession struct {
 	City       string    `json:"city"`
 	Device     string    `json:"device"`
 	Goals      []GoalHit `json:"goals"`
-	Agent      string    `json:"agent"` // AI agent id, "" for people
+	Agent      string    `json:"agent"`    // AI agent id, "" for people
+	Via        string    `json:"via"`      // how the agent was recognised: ua | ip | relay | sig ("" for people)
+	Verified   bool      `json:"verified"` // via is ip, relay or sig (not the user agent alone)
 }
 
 // Session is the v2 name of JourneySession.
