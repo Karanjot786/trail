@@ -170,7 +170,7 @@ func TestToolsListed(t *testing.T) {
 	want := map[string]bool{}
 	for _, n := range strings.Fields(`list_sites get_stats get_series get_breakdown list_visitors get_sessions get_journey
 		goal_report get_goal get_campaigns get_ai_referrals list_events get_event list_funnels get_funnel get_funnel_dropoff
-		get_revenue get_heatmap get_live what_changed get_crawlers list_notes add_note`) {
+		get_revenue get_heatmap get_live what_changed get_crawlers get_ai_visibility get_agents list_notes add_note`) {
 		want[n] = true
 	}
 	if len(res.Tools) != len(want) {
@@ -392,5 +392,89 @@ func TestNewRangeKeys(t *testing.T) {
 	}
 	if res := callTool(t, h, "get_breakdown", map[string]any{"site": "s", "dim": "channel", "range": "7d"}); res.IsError {
 		t.Errorf("channel dim: %+v", res.Content)
+	}
+}
+
+// addAgents adds two AI agent sessions to site s (one verified) inside the last 24 h.
+func addAgents(t *testing.T, db *sql.DB) {
+	t.Helper()
+	ts := fixedNow.UnixMilli() - 2*3600_000
+	for i, via := range []string{"sig", "ua"} {
+		sid := "ag" + via
+		if _, err := db.Exec(`INSERT INTO events(site_id, ts, type, anon_id, session_id, path, env, is_bot, agent, agent_via)
+VALUES('s',?,'pageview',?,?,'/pricing','production',1,'chatgpt-agent',?)`, ts+int64(i), sid, sid, via); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+// toolEquals calls name and checks its structured result equals want's JSON.
+func toolEquals(t *testing.T, h http.Handler, name string, args map[string]any, want any) {
+	t.Helper()
+	res := callTool(t, h, name, args)
+	if res.IsError {
+		t.Fatalf("%s isError: %+v", name, res.Content)
+	}
+	b, _ := json.Marshal(want)
+	var got, exp any
+	_ = json.Unmarshal(res.StructuredContent, &got)
+	_ = json.Unmarshal(b, &exp)
+	gb, _ := json.Marshal(got)
+	eb, _ := json.Marshal(exp)
+	if string(gb) != string(eb) {
+		t.Fatalf("%s:\n got %s\nwant %s", name, gb, eb)
+	}
+}
+
+func mcpParams(t *testing.T, key string) query.Params {
+	t.Helper()
+	w, err := query.ResolveWindow(key, "prev", fixedNow, time.UTC, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return query.Params{Site: "s", Env: "production", TZ: time.UTC, Now: fixedNow, From: w.From, To: w.To, Win: w,
+		Filters: map[string]string{}, Limit: 100}
+}
+
+func TestGetAgentsTool(t *testing.T) {
+	h, db := setup(t)
+	addAgents(t, db)
+	want, err := query.Agents(db, mcpParams(t, "7d"))
+	if err != nil || want.Sessions != 2 || want.VerifiedSessions != 1 {
+		t.Fatalf("query %+v %v", want, err)
+	}
+	toolEquals(t, h, "get_agents", map[string]any{"site": "s", "range": "7d"}, want)
+}
+
+func TestGetAIVisibilityTool(t *testing.T) {
+	h, db := setup(t)
+	want, err := query.AIVisibility(db, mcpParams(t, "30d"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	toolEquals(t, h, "get_ai_visibility", map[string]any{"site": "s"}, want)
+}
+
+func TestScopeActorAll(t *testing.T) {
+	h, db := setup(t)
+	addAgents(t, db)
+	stats := func(args map[string]any) query.StatsResult {
+		res := callTool(t, h, "get_stats", args)
+		if res.IsError {
+			t.Fatalf("isError %+v", res.Content)
+		}
+		var st query.StatsResult
+		if err := json.Unmarshal(res.StructuredContent, &st); err != nil {
+			t.Fatal(err)
+		}
+		return st
+	}
+	human := stats(map[string]any{"site": "s", "range": "7d"})
+	all := stats(map[string]any{"site": "s", "range": "7d", "actor": "all"})
+	if human.AgentSessions != 2 || all.Sessions-human.Sessions != human.AgentSessions {
+		t.Fatalf("human %d sessions (%d agent), all %d", human.Sessions, human.AgentSessions, all.Sessions)
+	}
+	if res := callTool(t, h, "get_stats", map[string]any{"site": "s", "actor": "bot"}); !res.IsError {
+		t.Fatal("actor=bot accepted")
 	}
 }

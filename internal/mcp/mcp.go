@@ -51,6 +51,7 @@ type Scope struct {
 	TZ      string            `json:"tz,omitempty" jsonschema:"IANA time zone for day boundaries, e.g. Europe/Berlin (default: the server's)"`
 	Env     string            `json:"env,omitempty" jsonschema:"production (default), preview, development or all"`
 	Filters map[string]string `json:"filters,omitempty" jsonschema:"dimension to exact value, e.g. {\"country\":\"IN\"}"`
+	Actor   string            `json:"actor,omitempty" jsonschema:"human (default) or all: count AI browsing agents as visitors"`
 }
 
 type (
@@ -202,8 +203,14 @@ func New(db *sql.DB, reg *sites.Registry, tz *time.Location) http.Handler {
 		func(p query.Params, _ Scope) (any, error) { return query.Live(s.db, p) })
 	report(srv, s, "what_changed", "The few biggest changes against the comparison period (busy days, sources gained or lost, rate changes). A good first call after list_sites.",
 		func(p query.Params, _ Scope) (any, error) { return query.Changes(s.db, p) })
-	report(srv, s, "get_crawlers", "AI crawler requests from server logs, by category, provider, crawler and page.",
+	report(srv, s, "get_crawlers", "AI crawler requests from server logs, by category, provider, crawler and page. "+
+		"Includes the verified share where crawlers publish IP lists.",
 		func(p query.Params, _ Scope) (any, error) { return query.Crawlers(s.db, p) })
+	report(srv, s, "get_ai_visibility", "The AI visibility funnel: crawled, fetched for an answer, cited (no public source), "+
+		"visited from AI assistants and converted, by provider and page.",
+		func(p query.Params, _ Scope) (any, error) { return query.AIVisibility(s.db, p) })
+	report(srv, s, "get_agents", "AI browsing agents that ran the site's script: sessions, verified or claimed, pages and latest sessions.",
+		func(p query.Params, _ Scope) (any, error) { return query.Agents(s.db, p) })
 	report(srv, s, "list_notes", "Chart notes (deploys, campaigns, press) in the range.",
 		func(p query.Params, _ Scope) (any, error) { return meta.ListNotes(s.db, p.Site, p.From, p.To) })
 
@@ -327,6 +334,12 @@ func (s *server) params(ctx context.Context, in Scope) (query.Params, error) {
 	case "production", "preview", "development", "all":
 	default:
 		return p, fmt.Errorf("bad env %q", in.Env)
+	}
+	switch in.Actor {
+	case "", query.ActorHuman, query.ActorAll:
+		p.Actor = in.Actor
+	default:
+		return p, fmt.Errorf("bad actor %q: want human or all", in.Actor)
 	}
 	if p.Filters == nil {
 		p.Filters = map[string]string{}
