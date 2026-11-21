@@ -201,99 +201,264 @@ WHERE cur=(SELECT cur FROM pc GROUP BY cur ORDER BY count(*) DESC, cur LIMIT 1)`
 	return t, nil
 }
 
-// Series returns metric (visitors|pageviews|bounce) bucketed by hour for
-// ranges of 48 h or less, otherwise by day, in p.TZ.
-func Series(db *sql.DB, p Params, metric string) (SeriesResult, error) {
-	switch metric {
-	case "visitors", "pageviews", "bounce":
-	default:
+// sessSrc is one row per session in ev (from base) with the session's landing pageview:
+// start, source name, channel, AI source, entry path and UTM tags. SQLite takes the bare
+// columns of a min() aggregate from the row holding the minimum, i.e. the landing pageview.
+var sessSrc = `SELECT session_id, person, min(ts) AS start, ` + sourceNameExpr + ` AS source, ` + channelExpr + ` AS channel,
+  ` + aiSourceExpr + ` AS ai, path AS entry, country, device, utm_source, utm_medium, utm_campaign, utm_term, utm_content
+FROM ev WHERE type='pageview' GROUP BY session_id`
+
+var seriesMetrics = map[string]bool{
+	"visitors": true, "pageviews": true, "sessions": true, "duration": true,
+	"bounce": true, "conversion": true, "revenue": true,
+}
+
+// buckets is a series' bucket grid: sorted bucket starts, the last bucket that has begun, and
+// the window end. Bucket i covers [starts[i], starts[i+1]).
+type buckets struct {
+	starts []int64
+	last   int
+}
+
+func (b buckets) index(ms int64) (int, bool) {
+	i := sort.Search(len(b.starts), func(i int) bool { return b.starts[i] > ms }) - 1
+	return i, i >= 0
+}
+
+// legacyBuckets is the v2 grid for requests without a resolved window: hours for spans
+// of 48 h or less (starting at From's hour), otherwise days.
+func legacyBuckets(p Params, loc *time.Location) (buckets, string) {
+	bucket := "day"
+	trunc := func(t time.Time) time.Time { return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, loc) }
+	next := func(t time.Time) time.Time { return t.AddDate(0, 0, 1) }
+	if p.To-p.From <= int64(48*time.Hour/time.Millisecond) {
+		bucket = "hour"
+		trunc = func(t time.Time) time.Time { return time.Date(t.Year(), t.Month(), t.Day(), t.Hour(), 0, 0, 0, loc) }
+		next = func(t time.Time) time.Time { return t.Add(time.Hour) }
+	}
+	b := buckets{starts: []int64{}}
+	for t := trunc(time.UnixMilli(p.From).In(loc)); t.UnixMilli() <= p.To; t = next(t) {
+		b.starts = append(b.starts, t.UnixMilli())
+	}
+	b.last = len(b.starts) - 1
+	return b, bucket
+}
+
+// Series returns metric for every bucket of p.Win (hours of a one-day window, otherwise days,
+// in p.TZ), and Prev for the same bucket offsets of the comparison window. Buckets that have
+// not begun are nil. With extras, Extras[i] holds bucket i's top 3 sources, goal conversions
+// and revenue. Requests without a resolved window (Win.Key == "") use the v2 grid.
+func Series(db *sql.DB, p Params, metric string, extras bool) (SeriesResult, error) {
+	if !seriesMetrics[metric] {
 		return SeriesResult{}, fmt.Errorf("metric %q: %w", metric, ErrBadMetric)
 	}
 	loc := p.TZ
 	if loc == nil {
 		loc = time.UTC
 	}
-	res := SeriesResult{Metric: metric, Bucket: "day", Points: []Point{}, Prev: []Point{}}
-	trunc := func(ms int64) time.Time {
-		t := time.UnixMilli(ms).In(loc)
-		return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, loc)
-	}
-	next := func(t time.Time) time.Time { return t.AddDate(0, 0, 1) }
-	if p.To-p.From <= int64(48*time.Hour/time.Millisecond) {
-		res.Bucket = "hour"
-		trunc = func(ms int64) time.Time {
-			t := time.UnixMilli(ms).In(loc)
-			return time.Date(t.Year(), t.Month(), t.Day(), t.Hour(), 0, 0, 0, loc)
-		}
-		next = func(t time.Time) time.Time { return t.Add(time.Hour) }
-	}
-	index := map[int64]int{}
-	for t := trunc(p.From); t.UnixMilli() <= p.To; t = next(t) {
-		index[t.UnixMilli()] = len(res.Points)
-		res.Points = append(res.Points, Point{T: t.UnixMilli()})
-	}
-	vals := make([]float64, len(res.Points))
-	bucketOf := func(ms int64) (int, bool) {
-		i, ok := index[trunc(ms).UnixMilli()]
-		return i, ok
-	}
-
-	cte, args, err := base(p)
+	res := SeriesResult{Window: p.Win, Metric: metric, Points: []Point{}, Prev: []Point{}}
+	goal, err := convGoal(db, p.Site, p.Conv)
 	if err != nil {
 		return res, err
 	}
-	switch metric {
-	case "pageviews":
-		err = scanTS(db, cte+`SELECT ts FROM ev WHERE type='pageview'`, args, func(ts int64) {
-			if i, ok := bucketOf(ts); ok {
-				vals[i]++
-			}
-		})
-	case "visitors":
-		seen := make([]map[string]bool, len(res.Points))
-		err = forRows(db, cte+`SELECT ts, person FROM ev`, args, func(r *sql.Rows) error {
-			var ts int64
-			var person string
-			if err := r.Scan(&ts, &person); err != nil {
-				return err
-			}
-			if i, ok := bucketOf(ts); ok {
-				if seen[i] == nil {
-					seen[i] = map[string]bool{}
-				}
-				seen[i][person] = true
-			}
-			return nil
-		})
-		for i, s := range seen {
-			vals[i] = float64(len(s))
-		}
-	case "bounce":
-		sessions := make([]int, len(res.Points))
-		engaged := make([]int, len(res.Points))
-		err = forRows(db, cte+`SELECT start, `+engagedExpr+` FROM (`+sessionAgg+`)`, args, func(r *sql.Rows) error {
-			var start int64
-			var eng int
-			if err := r.Scan(&start, &eng); err != nil {
-				return err
-			}
-			if i, ok := bucketOf(start); ok {
-				sessions[i]++
-				engaged[i] += eng
-			}
-			return nil
-		})
-		for i := range res.Points {
-			vals[i] = bounce(sessions[i], engaged[i])
+	var cur buckets
+	if p.Win.Key == "" {
+		cur, res.Bucket = legacyBuckets(p, loc)
+	} else {
+		res.Bucket = p.Win.Bucket
+		cur = buckets{starts: BucketStarts(p.Win, loc), last: p.Win.LastBucket}
+	}
+	if res.Points, err = seriesPoints(db, p, metric, cur, goal); err != nil {
+		return res, err
+	}
+	if pp, ok := p.Prev(); ok {
+		pb := buckets{starts: bucketStarts(pp.From, pp.To, res.Bucket, loc)}
+		pb.last, _ = pb.index(pp.To)
+		if res.Prev, err = seriesPoints(db, pp, metric, pb, goal); err != nil {
+			return res, err
 		}
 	}
-	if err != nil {
-		return res, fmt.Errorf("series %s: %w", metric, err)
-	}
-	for i := range res.Points {
-		res.Points[i].V = &vals[i]
+	if extras {
+		if res.Extras, err = seriesExtras(db, p, cur, goal); err != nil {
+			return res, err
+		}
 	}
 	return res, nil
+}
+
+// seriesPoints computes metric per bucket of b over p's rows; buckets after b.last are nil.
+func seriesPoints(db *sql.DB, p Params, metric string, b buckets, goal *Goal) ([]Point, error) {
+	n := len(b.starts)
+	vals := make([]float64, n)
+	cte, args, err := base(p)
+	if err != nil {
+		return nil, err
+	}
+	// perBucket runs q (first column ts) and calls fn with the bucket of each row.
+	perBucket := func(q string, qargs []any, dest func() []any, fn func(i int)) error {
+		return forRows(db, q, qargs, func(r *sql.Rows) error {
+			var ts int64
+			if err := r.Scan(append([]any{&ts}, dest()...)...); err != nil {
+				return err
+			}
+			if i, ok := b.index(ts); ok && i < n {
+				fn(i)
+			}
+			return nil
+		})
+	}
+	distinct := func(q string, qargs []any) ([]map[string]bool, error) {
+		sets := make([]map[string]bool, n)
+		var person string
+		err := perBucket(q, qargs, func() []any { return []any{&person} }, func(i int) {
+			if sets[i] == nil {
+				sets[i] = map[string]bool{}
+			}
+			sets[i][person] = true
+		})
+		return sets, err
+	}
+	switch metric {
+	case "pageviews":
+		err = perBucket(cte+`SELECT ts FROM ev WHERE type='pageview'`, args, func() []any { return nil }, func(i int) { vals[i]++ })
+	case "visitors":
+		var sets []map[string]bool
+		sets, err = distinct(cte+`SELECT ts, person FROM ev`, args)
+		for i, s := range sets {
+			vals[i] = float64(len(s))
+		}
+	case "sessions", "duration", "bounce":
+		sessions, engaged := make([]int, n), make([]int, n)
+		durs := make([]float64, n)
+		var eng int
+		var dur float64
+		err = perBucket(cte+`SELECT start, `+engagedExpr+`, dur FROM (`+sessionAgg+`)`, args,
+			func() []any { return []any{&eng, &dur} },
+			func(i int) { sessions[i]++; engaged[i] += eng; durs[i] += dur })
+		for i := range vals {
+			switch metric {
+			case "sessions":
+				vals[i] = float64(sessions[i])
+			case "duration":
+				if sessions[i] > 0 {
+					vals[i] = durs[i] / float64(sessions[i])
+				}
+			default:
+				vals[i] = bounce(sessions[i], engaged[i])
+			}
+		}
+	case "conversion":
+		if goal == nil {
+			break
+		}
+		bp, _ := withoutGoalFilter(p)
+		bcte, bargs, berr := base(bp)
+		if berr != nil {
+			return nil, berr
+		}
+		baseSets, err1 := distinct(bcte+`SELECT ts, person FROM ev`, bargs)
+		if err1 != nil {
+			err = err1
+			break
+		}
+		where, gargs := goalWhere(*goal)
+		var convSets []map[string]bool
+		convSets, err = distinct(cte+`SELECT ts, person FROM ev WHERE `+where, append(args, gargs...))
+		for i := range vals {
+			if len(baseSets[i]) > 0 {
+				vals[i] = float64(len(convSets[i])) / float64(len(baseSets[i]))
+			}
+		}
+	case "revenue":
+		var amt int64
+		err = perBucket(cte+revenueRows, args, func() []any { return []any{&amt} }, func(i int) { vals[i] += float64(amt) })
+	}
+	if err != nil {
+		return nil, fmt.Errorf("series %s: %w", metric, err)
+	}
+	pts := make([]Point, n)
+	for i := range pts {
+		pts[i].T = b.starts[i]
+		if i <= b.last {
+			pts[i].V = &vals[i]
+		}
+	}
+	return pts, nil
+}
+
+// revenueRows lists (ts, amount in minor units) of the purchases in ev that are in the
+// period's main currency (the most common one); it follows base()'s CTE.
+const revenueRows = `, pc AS (SELECT ts, ` + currencyExpr + ` AS cur, ` + amountMinorExpr + ` AS amt FROM ev WHERE ` + purchaseWhere + `)
+SELECT ts, amt FROM pc WHERE cur=(SELECT cur FROM pc GROUP BY cur ORDER BY count(*) DESC, cur LIMIT 1)`
+
+// seriesExtras fills each bucket's top 3 sources by visitors, goal conversions and revenue.
+func seriesExtras(db *sql.DB, p Params, b buckets, goal *Goal) ([]BucketExtra, error) {
+	n := len(b.starts)
+	out := make([]BucketExtra, n)
+	src := make([]map[string]map[string]bool, n)
+	for i := range out {
+		out[i] = BucketExtra{T: b.starts[i], TopSources: []TopSource{}}
+	}
+	cte, args, err := base(p)
+	if err != nil {
+		return nil, err
+	}
+	err = forRows(db, cte+`SELECT start, source, person FROM (`+sessSrc+`)`, args, func(r *sql.Rows) error {
+		var ts int64
+		var s, person string
+		if err := r.Scan(&ts, &s, &person); err != nil {
+			return err
+		}
+		if i, ok := b.index(ts); ok {
+			if src[i] == nil {
+				src[i] = map[string]map[string]bool{}
+			}
+			if src[i][s] == nil {
+				src[i][s] = map[string]bool{}
+			}
+			src[i][s][person] = true
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("series sources: %w", err)
+	}
+	for i, m := range src {
+		for k, people := range m {
+			out[i].TopSources = append(out[i].TopSources, TopSource{Key: k, Visitors: len(people)})
+		}
+		sort.Slice(out[i].TopSources, func(a, c int) bool {
+			x, y := out[i].TopSources[a], out[i].TopSources[c]
+			return x.Visitors > y.Visitors || x.Visitors == y.Visitors && x.Key < y.Key
+		})
+		if len(out[i].TopSources) > 3 {
+			out[i].TopSources = out[i].TopSources[:3]
+		}
+	}
+	if goal != nil {
+		where, gargs := goalWhere(*goal)
+		if err := scanTS(db, cte+`SELECT ts FROM ev WHERE `+where, append(args, gargs...), func(ts int64) {
+			if i, ok := b.index(ts); ok {
+				out[i].Conversions++
+			}
+		}); err != nil {
+			return nil, fmt.Errorf("series conversions: %w", err)
+		}
+	}
+	err = forRows(db, cte+revenueRows, args, func(r *sql.Rows) error {
+		var ts, amt int64
+		if err := r.Scan(&ts, &amt); err != nil {
+			return err
+		}
+		if i, ok := b.index(ts); ok {
+			out[i].RevenueMinor += amt
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("series revenue: %w", err)
+	}
+	return out, nil
 }
 
 // Breakdown returns the top values of dim by visitors. q filters keys by

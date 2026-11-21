@@ -98,7 +98,7 @@ func New(db *sql.DB, reg *sites.Registry, tz *time.Location) http.Handler {
 			if err != nil {
 				return nil, nil, err
 			}
-			return wrap(query.Series(s.db, p, in.Metric))
+			return wrap(query.Series(s.db, p, in.Metric, false))
 		})
 	sdk.AddTool(srv, add("get_breakdown", "Top values of one dimension (paths, referrers, countries, devices, events...) by visitors."),
 		func(_ context.Context, _ *sdk.CallToolRequest, in breakdownIn) (*sdk.CallToolResult, any, error) {

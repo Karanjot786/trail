@@ -3,8 +3,10 @@ package query
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"math"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -220,7 +222,7 @@ func TestEmptyRange(t *testing.T) {
 	}
 	noNull(t, s)
 	for _, m := range []string{"visitors", "pageviews", "bounce"} {
-		sr, err := Series(db, p, m)
+		sr, err := Series(db, p, m, false)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -266,7 +268,7 @@ func TestPrevPeriod(t *testing.T) {
 
 func TestSeriesBucketHourVsDay(t *testing.T) {
 	db := fixture(t, pv("A", "sa", "/", t0), pv("B", "sb", "/", t0+2*day/24))
-	h, err := Series(db, params(t0-day, t0), "pageviews")
+	h, err := Series(db, params(t0-day, t0), "pageviews", false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -276,7 +278,7 @@ func TestSeriesBucketHourVsDay(t *testing.T) {
 	if last := h.Points[len(h.Points)-1]; last.T != t0 || last.V == nil || *last.V != 1 {
 		t.Fatalf("last hour point = %+v", last)
 	}
-	d, err := Series(db, params(t0-7*day, t0+3*hour), "visitors")
+	d, err := Series(db, params(t0-7*day, t0+3*hour), "visitors", false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -362,5 +364,137 @@ func TestSourceFilterKeepsSession(t *testing.T) {
 	s := mustStats(t, db, p)
 	if s.Visitors != 1 || s.Pageviews != 2 || s.Bounce != 0 {
 		t.Fatalf("got %+v, want 1 visitor, 2 pageviews, bounce 0", s)
+	}
+}
+
+// winParams resolves rk at winNow (2026-11-20 10:05 IST) into Params for site "s".
+func winParams(t *testing.T, rk, cmp string) Params {
+	t.Helper()
+	w, err := ResolveWindow(rk, cmp, winNow, ist, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return Params{Site: "s", Env: "all", From: w.From, To: w.To, Win: w, TZ: ist, Now: winNow}
+}
+
+func mustSeries(t *testing.T, db *sql.DB, p Params, metric string, extras bool) SeriesResult {
+	t.Helper()
+	s, err := Series(db, p, metric, extras)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return s
+}
+
+func TestSeriesFutureBucketsNull(t *testing.T) {
+	db := fixture(t, pv("A", "sa", "/", at(2026, 11, 20, 10, 1)), pv("B", "sb", "/", at(2026, 11, 19, 15, 0)))
+	s := mustSeries(t, db, winParams(t, "today", "prev"), "visitors", false)
+	if len(s.Points) != 24 || s.Bucket != "hour" || s.Window.Key != "today" {
+		t.Fatalf("%d points, bucket %s", len(s.Points), s.Bucket)
+	}
+	if s.Points[10].V == nil || *s.Points[10].V != 1 {
+		t.Fatalf("point 10 = %+v", s.Points[10])
+	}
+	for i := 11; i < 24; i++ {
+		if s.Points[i].V != nil {
+			t.Fatalf("point %d not null", i)
+		}
+	}
+	// Yesterday's 15:00 is after the same-hours cut-off: it is not counted and not drawn.
+	if len(s.Prev) != 24 || s.Prev[10].V == nil || s.Prev[15].V != nil {
+		t.Fatalf("prev = %+v", s.Prev)
+	}
+}
+
+func TestSeriesPrevSameOffset(t *testing.T) {
+	db := fixture(t, pv("A", "sa", "/", at(2026, 9, 22, 12, 0)), pv("B", "sb", "/", at(2026, 11, 20, 9, 0)))
+	s := mustSeries(t, db, winParams(t, "30d", "prev"), "pageviews", false)
+	if len(s.Points) != 30 || len(s.Prev) != 30 || s.Prev[0].T != at(2026, 9, 22, 0, 0) {
+		t.Fatalf("len %d/%d prev0 %d", len(s.Points), len(s.Prev), s.Prev[0].T)
+	}
+	if *s.Prev[0].V != 1 || *s.Points[29].V != 1 {
+		t.Fatalf("prev0 %v last %v", *s.Prev[0].V, *s.Points[29].V)
+	}
+	none := mustSeries(t, db, winParams(t, "30d", "none"), "pageviews", false)
+	if len(none.Prev) != 0 || none.Prev == nil {
+		t.Fatalf("cmp=none prev = %+v", none.Prev)
+	}
+}
+
+func TestSeriesMetrics(t *testing.T) {
+	d := at(2026, 11, 18, 9, 0)
+	db := fixture(t,
+		pv("A", "s1", "/", d), pv("A", "s1", "/docs", d+60000), // 60 s, engaged
+		pv("B", "s2", "/", d), custom("B", "s2", "Signup", d+1000), // 1 s, engaged by event
+		pv("C", "s3", "/", d), // bounce
+	)
+	goalOf(t, db, "Signup", "event", "Signup")
+	p := winParams(t, "7d", "prev")
+	i := 4 // Nov 18
+	check := func(metric string, want float64) {
+		t.Helper()
+		s := mustSeries(t, db, p, metric, false)
+		if got := s.Points[i].V; got == nil || math.Abs(*got-want) > 1e-9 {
+			t.Errorf("%s = %v, want %v", metric, got, want)
+		}
+	}
+	check("sessions", 3)
+	check("duration", (60000.0+1000)/3)
+	check("bounce", 1.0/3)
+	check("conversion", 1.0/3)
+	check("visitors", 3)
+	check("pageviews", 4)
+}
+
+func TestSeriesRevenueBuckets(t *testing.T) {
+	db := fixture(t,
+		purchase("A", "s1", at(2026, 11, 18, 9, 0), 19, ""),
+		purchase("B", "s2", at(2026, 11, 18, 11, 0), 49, "USD"),
+		purchase("C", "s3", at(2026, 11, 19, 9, 0), 10, "EUR"),
+		purchase("D", "s4", at(2026, 11, 20, 9, 0), 19, "USD"),
+	)
+	s := mustSeries(t, db, winParams(t, "7d", "prev"), "revenue", false)
+	if *s.Points[4].V != 6800 || *s.Points[5].V != 0 || *s.Points[6].V != 1900 {
+		t.Fatalf("revenue = %v %v %v", *s.Points[4].V, *s.Points[5].V, *s.Points[6].V)
+	}
+}
+
+func TestSeriesExtrasTop3(t *testing.T) {
+	d := at(2026, 11, 18, 9, 0)
+	var evs []store.Event
+	add := func(ref string, n int) {
+		for k := 0; k < n; k++ {
+			e := pv(ref+strconv.Itoa(k), ref+"s"+strconv.Itoa(k), "/", d)
+			e.RefHost = ref
+			evs = append(evs, e)
+		}
+	}
+	add("google.com", 3)
+	add("bing.com", 2)
+	add("github.com", 2)
+	add("x.com", 1)
+	evs = append(evs, purchase("google.com0", "google.coms0", d+1, 19, ""))
+	db := fixture(t, evs...)
+	s := mustSeries(t, db, winParams(t, "7d", "prev"), "visitors", true)
+	if len(s.Extras) != 7 {
+		t.Fatalf("%d extras", len(s.Extras))
+	}
+	e := s.Extras[4]
+	want := []TopSource{{"Google", 3}, {"Bing", 2}, {"GitHub", 2}}
+	if len(e.TopSources) != 3 || e.TopSources[0] != want[0] || e.TopSources[1] != want[1] || e.TopSources[2] != want[2] {
+		t.Fatalf("top = %+v", e.TopSources)
+	}
+	if e.RevenueMinor != 1900 || e.T != s.Points[4].T || s.Extras[0].TopSources == nil {
+		t.Fatalf("extra = %+v", e)
+	}
+	if no := mustSeries(t, db, winParams(t, "7d", "prev"), "visitors", false); no.Extras != nil {
+		t.Fatal("extras without asking")
+	}
+}
+
+func TestSeriesBadMetric(t *testing.T) {
+	db := fixture(t)
+	if _, err := Series(db, winParams(t, "7d", "prev"), "password", false); !errors.Is(err, ErrBadMetric) {
+		t.Fatalf("err = %v", err)
 	}
 }

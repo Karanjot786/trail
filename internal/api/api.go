@@ -42,7 +42,7 @@ func New(db *sql.DB, reg *sites.Registry, tz *time.Location) http.Handler {
 		return query.Stats(s.db, p)
 	}))
 	mux.HandleFunc("GET /api/series", s.handle(func(p query.Params, r *http.Request) (any, error) {
-		return query.Series(s.db, p, r.URL.Query().Get("metric"))
+		return query.Series(s.db, p, r.URL.Query().Get("metric"), r.URL.Query().Get("extras") == "1")
 	}))
 	mux.HandleFunc("GET /api/breakdown", s.handle(func(p query.Params, r *http.Request) (any, error) {
 		q := r.URL.Query()
