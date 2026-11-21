@@ -32,6 +32,7 @@ test.describe('signed proxy geo', () => {
   let tokenId = ''
   let token = ''
   test.beforeEach(async ({ request }) => {
+    aiGate()
     const res = await request.post('/api/tokens', { data: { name: `e2e-proxy-${Date.now()}`, scope: 'crawl', site: 'docs' } })
     expect(res.status()).toBe(201)
     const j = await res.json()
