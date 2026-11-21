@@ -1,10 +1,13 @@
 package agents
 
 import (
+	"context"
 	"crypto/ed25519"
 	"encoding/base64"
+	"net/http"
 	"os"
 	"testing"
+	"time"
 )
 
 func TestJWKThumbprint(t *testing.T) {
@@ -54,5 +57,57 @@ func TestParseJWKSLiveCopies(t *testing.T) {
 		if name == "openai-keys.json" && keys[0].kid != keys[0].thumb {
 			t.Errorf("openai kid %s is not its thumbprint %s", keys[0].kid, keys[0].thumb)
 		}
+	}
+}
+
+func TestDirectoryKeySource(t *testing.T) {
+	pub := testPriv.Public().(ed25519.PublicKey)
+	x := base64.RawURLEncoding.EncodeToString(pub)
+	jwks := `{"keys":[{"kty":"OKP","crv":"Ed25519","x":"` + x + `","kid":"short"},` +
+		`{"kty":"OKP","crv":"Ed25519","x":"11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo","kid":"old","exp":1000}]}`
+	srv, n := listServer(t, func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte(jwks)) })
+	clock := testNow
+	d := testDir(srv, map[string]string{"openai-keys": srv.URL}, func() time.Time { return clock })
+	l := d.byName["openai-keys"]
+	if _, ok := d.Key("https://chatgpt.com", "short"); ok {
+		t.Fatal("key before any fetch")
+	}
+	if len(l.kick) != 1 {
+		t.Fatal("a miss did not schedule a refresh")
+	}
+	<-l.kick
+	if err := d.refresh(context.Background(), l); err != nil {
+		t.Fatal(err)
+	}
+	thumb := thumbprint(map[string]string{"kty": "OKP", "crv": "Ed25519", "x": x})
+	for _, id := range []string{"short", thumb} {
+		if k, ok := d.Key("https://chatgpt.com", id); !ok || !k.Equal(pub) {
+			t.Errorf("Key(%s) missing", id)
+		}
+	}
+	if _, ok := d.Key("https://chatgpt.com", "old"); ok {
+		t.Error("expired key returned")
+	}
+	// Misses kick at most once per 10 minutes per origin.
+	d.Key("https://chatgpt.com", "nope")
+	d.Key("https://chatgpt.com", "nope2")
+	if len(l.kick) != 0 {
+		t.Error("kicked again within 10 minutes")
+	}
+	clock = clock.Add(11 * time.Minute)
+	d.Key("https://chatgpt.com", "nope")
+	if len(l.kick) != 1 {
+		t.Error("no kick after 10 minutes")
+	}
+	if _, ok := d.Key("https://evil.example", "short"); ok {
+		t.Error("unlisted origin returned a key")
+	}
+	if n.Load() != 1 {
+		t.Errorf("%d fetches, want 1 (Key never fetches inline)", n.Load())
+	}
+	// End to end: a signature made with this key verifies through the directory.
+	s := signWBA(wbaReq{origin: "https://chatgpt.com", authority: "shop.example", keyid: thumb})
+	if a, err := Verify(s, "shop.example", d, testNow); err != nil || a.ID != "chatgpt-agent" {
+		t.Errorf("Verify through directory: %q %v", a.ID, err)
 	}
 }

@@ -102,10 +102,11 @@ func TestDirectoryStartFetches(t *testing.T) {
 
 func TestDirectoryDisabledNeverFetches(t *testing.T) {
 	srv, n := listServer(t, func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte(prefixDoc)) })
-	d := NewDirectory(DirOptions{Client: srv.Client(), Disabled: true, URLs: map[string]string{"google-agents": srv.URL}})
+	d := NewDirectory(DirOptions{Client: srv.Client(), Disabled: true, URLs: map[string]string{"google-agents": srv.URL, "openai-keys": srv.URL}})
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	d.Start(ctx)
+	d.Key("https://chatgpt.com", "k")
 	time.Sleep(50 * time.Millisecond)
 	if n.Load() != 0 {
 		t.Fatalf("%d requests while disabled", n.Load())

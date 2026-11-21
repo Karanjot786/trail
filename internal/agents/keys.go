@@ -3,6 +3,7 @@ package agents
 import (
 	"crypto/ed25519"
 	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -80,4 +81,57 @@ func thumbprint(k map[string]string) string {
 	b.WriteByte('}')
 	sum := sha256.Sum256([]byte(b.String()))
 	return base64.RawURLEncoding.EncodeToString(sum[:])
+}
+
+// Key implements KeySource from the cached key directories. It never fetches
+// inline: a miss for an allowlisted origin schedules a background refresh, at
+// most once per 10 minutes per origin, and returns false at once.
+func (d *Directory) Key(origin, keyid string) (ed25519.PublicKey, bool) {
+	l := d.keyList(origin)
+	if l == nil || keyid == "" {
+		return nil, false
+	}
+	now := d.o.Now().Unix()
+	if st := l.good.Load(); st != nil {
+		for _, k := range st.keys {
+			idMatch := subtle.ConstantTimeCompare([]byte(k.kid), []byte(keyid)) == 1 ||
+				subtle.ConstantTimeCompare([]byte(k.thumb), []byte(keyid)) == 1
+			live := (k.nbf == 0 || now >= k.nbf) && (k.exp == 0 || now < k.exp)
+			if idMatch && live {
+				return k.pub, true
+			}
+		}
+	}
+	d.kickKeys(origin)
+	return nil, false
+}
+
+func (d *Directory) keyList(origin string) *list {
+	for _, l := range d.lists {
+		if l.spec.format == fmtJWKS && l.spec.origin != "" && l.spec.origin == origin {
+			return l
+		}
+	}
+	return nil
+}
+
+// kickKeys asks the origin's key directory loop for a refresh, rate limited.
+func (d *Directory) kickKeys(origin string) {
+	l := d.keyList(origin)
+	if l == nil || d.o.Disabled {
+		return
+	}
+	now := d.o.Now()
+	d.kickMu.Lock()
+	last, seen := d.lastKick[origin]
+	if seen && now.Sub(last) < keyKickEvery {
+		d.kickMu.Unlock()
+		return
+	}
+	d.lastKick[origin] = now
+	d.kickMu.Unlock()
+	select {
+	case l.kick <- struct{}{}:
+	default:
+	}
 }
