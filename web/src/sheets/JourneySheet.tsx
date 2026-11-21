@@ -15,6 +15,7 @@ import { Button } from '../ui/button'
 import { Avatar } from '../ui/avatar'
 import { Sheet } from '../ui/dialog'
 import { Badge, Chip, Kbd } from '../ui/small'
+import { agentName } from '../screens/crawlers/AgentBadge'
 import { EmptyState, ErrorState, Skeleton } from '../ui/states'
 import '../screens/activity/activity.css'
 
@@ -151,6 +152,7 @@ export function Journey({ person, session, row, label }: { person: string; sessi
           {(last.city || last.country) && (
             <span className="inl">
               <CountryCode code={last.country} /> <b>{last.city || last.country}</b>
+              {last.city && <span className="muted"> (rough estimate)</span>}
             </span>
           )}
           {(row?.browser || last.device) && (
@@ -297,6 +299,12 @@ function Visit({ s, i, gap, out, tz, current }: { s: JourneySession; i: number; 
       <section className={`visit${out ? ' out' : ''}`} aria-labelledby={`visit-${s.sessionId}`}>
         <h3 className="visit-h" id={`visit-${s.sessionId}`} tabIndex={-1} data-visit={s.sessionId} aria-current={current || undefined}>
           <span>Visit {n}</span>
+          {s.agent && (
+            <span className="inline-flex items-center gap-1.5">
+              <Badge tone="blue">AI agent</Badge>
+              <span className="w">{agentName(s.agent)}</span>
+            </span>
+          )}
           <span className="w">{dayTime(s.start, tz)}</span>
           <span className="src">{sourceText(s.source).replace(/^Came/, 'came')}</span>
           <span className="w">

@@ -97,6 +97,39 @@ describe('JourneySheet', () => {
   })
 })
 
+describe('JourneySheet: AI agents and location accuracy (plan F-3, F-6)', () => {
+  it('an agent session says "AI agent" and names the agent next to the visit title', async () => {
+    state.journey = journey().map((x, i) => (i === 1 ? { ...x, agent: 'claude-agent' } : x))
+    visit('/activity/visitors?site=demo&v=p9')
+    render(<JourneySheet />)
+    await flush()
+    const dlg = screen.getByRole('dialog')
+    expect(within(dlg).getByRole('heading', { name: /^Visit 2.*AI agent.*Claude agent/ })).toBeTruthy()
+    expect(within(dlg).getAllByText('AI agent')).toHaveLength(1)
+  })
+
+  it('a person’s sessions carry no agent tag', async () => {
+    visit('/activity/visitors?site=demo&v=p9')
+    render(<JourneySheet />)
+    await flush()
+    expect(within(screen.getByRole('dialog')).queryByText('AI agent')).toBeNull()
+  })
+
+  it('a city reads as a rough estimate; a country alone does not', async () => {
+    visit('/activity/visitors?site=demo&v=p9')
+    render(<JourneySheet />)
+    await flush()
+    expect(within(screen.getByRole('dialog')).getByText('(rough estimate)')).toBeTruthy()
+    cleanup()
+    invalidate()
+    state.journey = journey().map((x) => ({ ...x, city: '' }))
+    visit('/activity/visitors?site=demo&v=p9')
+    render(<JourneySheet />)
+    await flush()
+    expect(within(screen.getByRole('dialog')).queryByText('(rough estimate)')).toBeNull()
+  })
+})
+
 describe('EventSheet', () => {
   it('an occurrence opens v=person~session and removes evn=', async () => {
     visit('/activity/events?site=demo&evn=Signup')

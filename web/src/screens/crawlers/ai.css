@@ -1,0 +1,72 @@
+/* AI visibility (plan F-1 to F-4): the funnel steps, the unlock card, the server-hook line and agent cells.
+   Built from proto-d .stat-strip, .panel and .notice rules. Tokens only. */
+
+.ai-h2 { margin: 0; font-size: var(--text-label); font-weight: 600; }
+
+/* Funnel: five steps in one strip; each keeps its own unit. The ratio row brackets fetched → visited. */
+.ai-funnel { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.aif-box { border: 1px solid var(--border); border-radius: var(--radius-panel); background: var(--surface); overflow: hidden; min-width: 0; }
+.aif { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.aif-step { position: relative; display: flex; flex-direction: column; gap: 6px; min-width: 0; padding: 14px 16px 12px; border-right: 1px solid var(--border); }
+.aif-step:nth-child(5) { border-right: 0; }
+/* A chevron on each divider: the steps read left to right. */
+.aif-step:not(:nth-child(5))::after { content: ''; position: absolute; top: 22px; right: -5px; width: 8px; height: 8px; border-top: 1px solid var(--border-strong); border-right: 1px solid var(--border-strong); background: var(--surface); transform: rotate(45deg); z-index: 1; }
+.aif-step .k { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: var(--text-small); font-weight: 500; min-width: 0; }
+.aif-step .no { display: inline-grid; place-items: center; width: 18px; height: 18px; flex: none; border-radius: 5px; background: var(--raised); border: 1px solid var(--border); font-size: 11px; font-weight: 600; color: var(--muted); font-variant-numeric: tabular-nums; }
+.aif-step .v { font-size: var(--text-stat); font-weight: 600; line-height: 1.1; letter-spacing: -.02em; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-height: 1.1em; }
+.aif-step .v .word { display: inline-block; font-size: 17px; letter-spacing: -.005em; line-height: 1.6; white-space: normal; color: var(--muted); }
+.aif-step .v a.word { color: var(--fg); text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--border-strong); border-radius: 4px; }
+.aif-step .v a.word:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.aif-step .s { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; color: var(--muted); font-size: var(--text-caption); }
+.aif-step .src { margin-top: auto; padding-top: 4px; color: var(--subtle); font-size: 12px; }
+.aif-step[data-status="no_source"], .aif-step[data-status="not_set_up"] { background: repeating-linear-gradient(135deg, transparent 0 6px, color-mix(in srgb, var(--border) 45%, transparent) 6px 7px); }
+
+/* The bracket runs from the middle of step 2 to the middle of step 4: 30% to 70% of the strip. */
+.aif-ratio { margin: 0; display: flex; align-items: center; gap: 10px; padding: 0 30% 12px; color: var(--muted); font-size: var(--text-caption); font-variant-numeric: tabular-nums; }
+.aif-ratio .br { flex: 1; height: 8px; border: 1px solid var(--border-strong); border-top: 0; }
+.aif-ratio .br:first-child { border-right: 0; border-bottom-left-radius: 4px; }
+.aif-ratio .br:last-child { border-left: 0; border-bottom-right-radius: 4px; }
+.aif-ratio .t { white-space: nowrap; color: var(--fg); font-weight: 500; }
+
+@media (max-width: 960px) {
+  .aif { grid-template-columns: minmax(0, 1fr); }
+  .aif-step { border-right: 0; border-bottom: 1px solid var(--border); flex-direction: row; flex-wrap: wrap; align-items: baseline; column-gap: 12px; padding: 12px 14px; }
+  .aif-step .k { flex: 1 1 100%; }
+  .aif-step .v { font-size: 24px; }
+  .aif-step .src { margin-top: 0; padding-top: 0; flex: 1 1 100%; }
+  .aif-step:not(:nth-child(5))::after { display: none; }
+  .aif-step[data-step="converted"] { border-bottom: 0; }
+  .aif-ratio { padding: 8px 14px; border-top: 1px solid var(--border); background: var(--raised); }
+  .aif-ratio .br { display: none; }
+  .aif-ratio .t { white-space: normal; }
+}
+
+/* The server hook status line, and the unlock card. */
+.ai-hookline { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; font-size: var(--text-small); }
+.ai-status { margin: 0; display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; font-size: var(--text-small); min-height: 20px; }
+.ai-status b { font-weight: 600; }
+.ai-status > span:not(.sdot) { color: var(--muted); }
+
+.ai-unlock { border: 1px solid var(--accent-line); border-radius: var(--radius-panel); background: linear-gradient(180deg, var(--accent-soft), transparent 70%), var(--surface); padding: 16px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.ai-unlock-h h2 { margin: 0 0 4px; font-size: 15px; font-weight: 600; }
+.ai-unlock-h p { margin: 0; color: var(--muted); font-size: var(--text-small); max-width: 70ch; text-wrap: pretty; }
+.ai-unlock-b { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.ai-unlock .codeblock { margin: 0; min-width: 0; }
+.ai-unlock pre code { white-space: pre-wrap; overflow-wrap: anywhere; }
+.ai-unlock-acts { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; font-size: var(--text-small); }
+.ai-err { margin: 0; color: var(--danger); font-size: var(--text-small); }
+.ai-other { border-top: 1px solid var(--border); padding-top: 10px; }
+.ai-other > summary { cursor: pointer; width: fit-content; min-height: 32px; display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: var(--text-small); font-weight: 500; border-radius: var(--radius-control); list-style: none; }
+.ai-other > summary::-webkit-details-marker { display: none; }
+.ai-other > summary::before { content: ''; width: 6px; height: 6px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(-45deg); transition: transform 150ms var(--ease-out); margin: 0 4px 0 2px; }
+.ai-other[open] > summary::before { transform: rotate(45deg); }
+.ai-other > summary:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+@media (hover: hover) and (pointer: fine) { .ai-other > summary:hover { color: var(--fg); } }
+@media (pointer: coarse) { .ai-other > summary { min-height: 44px; } }
+@media (prefers-reduced-motion: reduce) { .ai-other > summary::before { transition: none; } }
+.ai-ways { display: flex; flex-direction: column; gap: 12px; padding-top: 10px; max-width: 760px; }
+
+/* Agents */
+.agent-prov { display: block; color: var(--subtle); font-size: 12px; font-weight: 400; }
+.agent-cell { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.agent-badge { display: inline-flex; }
