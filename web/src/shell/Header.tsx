@@ -65,7 +65,7 @@ export function Header() {
             >
               <StatusDot tone={frozen ? 'off' : 'live'} />
               <b>{lc}</b>{' '}
-              <span>online</span>
+              <span className="lp-word">online</span>
               <span className="sr-only">{frozen ? ', not updating' : ' now'}. Open Live</span>
             </RouteLink>
           </span>

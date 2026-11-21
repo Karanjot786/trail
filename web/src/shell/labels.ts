@@ -30,10 +30,10 @@ const RANGE_LABEL: Record<string, [string, string]> = {
   wtd: ['This week', 'Week'],
   mtd: ['This month', 'Month'],
   lastmonth: ['Last month', 'Last mo.'],
-  '7d': ['Last 7 days', '7d'],
-  '30d': ['Last 30 days', '30d'],
-  '90d': ['Last 90 days', '90d'],
-  '12mo': ['Last 12 months', '12mo'],
+  '7d': ['Last 7 days', '7 days'],
+  '30d': ['Last 30 days', '30 days'],
+  '90d': ['Last 90 days', '90 days'],
+  '12mo': ['Last 12 months', '12 months'],
 }
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 function isoLabel(iso: string): string {

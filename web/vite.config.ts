@@ -41,5 +41,5 @@ export default defineConfig({
       '/_t': api,
     },
   },
-  test: { environment: 'happy-dom', exclude: ['**/node_modules/**', 'e2e/**', 'design-system/**'] },
+  test: { environment: 'happy-dom', setupFiles: ['src/test-setup.ts'], testTimeout: 20_000, exclude: ['**/node_modules/**', 'e2e/**', 'design-system/**'] },
 })

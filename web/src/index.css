@@ -397,6 +397,8 @@ b, strong { font-weight: 600; }
   .range-btn .rs { display: inline; }
   .top .ctrls .btn .lbl-hide { display: none; }
   .top .ctrls .btn .lbl-phone { display: inline; }
+  /* Phones: the pill shows the count only; "online" stays in its name. */
+  .live-pill .lp-word { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .top .ctrls .btn { padding: 0 9px; }
   .top .ctrls .btn > svg:last-child:not(:first-child) { display: none; }
   .fbar { padding: 0 16px 8px; }
