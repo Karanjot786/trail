@@ -79,3 +79,9 @@
 .rr-people button:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 .rr-people .subtle { margin-left: auto; font-size: var(--text-caption); white-space: nowrap; }
 @media (hover: hover) and (pointer: fine) { .rr-people button:hover { background: var(--hover); } }
+
+.seg { display: inline-flex; gap: 2px; padding: 2px; border-radius: var(--radius-control); background: var(--raised); }
+.seg button { height: 26px; padding: 0 10px; border: 0; border-radius: calc(var(--radius-control) - 2px); background: none; color: var(--muted); font: inherit; font-size: var(--text-caption); cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--surface); color: var(--fg); box-shadow: 0 0 0 1px var(--border); }
+.seg button:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+@media (pointer: coarse) { .seg button { min-height: 44px; } }

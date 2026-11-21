@@ -179,3 +179,4 @@
 .scard-delta { position: absolute; right: 16px; top: 62px; }
 @media (max-width: 640px) { .terrain-band .kp { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (prefers-reduced-motion: reduce) { .kpi, .jr, .scard { transition: none; } }
+.ov-empty { margin-top: 12px; }

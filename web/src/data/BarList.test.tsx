@@ -161,7 +161,7 @@ describe('Panel', () => {
     apiMock.breakdown.mockResolvedValue({ rows: Array.from({ length: 12 }, (_, i) => row(`/p${i}`, 10, { views: 30, exits: 3, exitRate: i / 12 })), total: 12 })
     const { findByRole, getByRole, container } = render(<Panel id="pages" title="Pages" tabs={panelTabs('pages')} />)
     await findByRole('button', { name: '/p0' })
-    fireEvent.click(getByRole('radio', { name: 'Loses people most' }))
+    fireEvent.click(getByRole('button', { name: 'Loses people most' }))
     await waitFor(() => expect(container.querySelector('.bl-open')!.textContent).toBe('/p11'))
     expect(container.querySelectorAll('.bl-row')).toHaveLength(7)
     expect(getByRole('button', { name: /Show all 12/ })).toBeTruthy()

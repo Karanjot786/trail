@@ -194,6 +194,15 @@ describe('Overview', () => {
     expect(new URLSearchParams(location.search).getAll('f')).toEqual(['source:source2'])
   })
 
+  it('keeps the KPI strip when nothing matches the filters', async () => {
+    m.stats = { ...m.stats, visitors: 0, pageviews: 0, sessions: 0 }
+    history.replaceState(null, '', '/?site=demo&range=7d&f=country:GB')
+    const r = render(<OverviewScreen />)
+    expect(await r.findByText('No visits match these filters')).toBeTruthy()
+    expect(metrics()).not.toBeNull()
+    expect(metrics().textContent).not.toMatch(/NaN|Infinity|-100%/)
+  })
+
   it('site=all renders one card per site', async () => {
     m.summary = [
       { id: 'demo', domain: 'demo.trail.dev', visitors: 525, prevVisitors: 400, online: 3, spark: [1, 2, 3] },

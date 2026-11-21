@@ -7,7 +7,14 @@
  * 46 What changed wrap   47 phone layout (@phone) 48 signup marks  56 row filter on hover
  * 60 one baseline   61 overlap note          62 low data       65 phone dismiss (@phone)
  * 67 1024 labels    68 keyboard only         71 KPI never truncates  72 heatmap busiest */
-import { expect, num, panel, pointAt, test, titled, gate, type App } from './fixtures'
+import { expect, num, panel, test, titled, gate, type App } from './fixtures'
+
+/** Mouse position of bucket i of n on the main chart: the plot is the chart's hit area (`rect.hit`). */
+async function pointAt(page: import('@playwright/test').Page, i: number, n: number) {
+  const r = await page.getByRole('figure').first().locator('rect.hit').boundingBox()
+  if (!r) throw new Error('no chart plot')
+  return { x: r.x + r.width * (n > 1 ? i / (n - 1) : 0.5), y: r.y + r.height / 2 }
+}
 
 // Playwright records a test's file from the call site, so the wrappers live in each spec rather than in fixtures.ts.
 const chk = (nums: number | number[], title: string, body: (app: App) => Promise<void>, opts: { phone?: boolean } = {}) =>
@@ -34,7 +41,7 @@ chk(3, 'KPI values are Geist 600 with tabular numerals, never Doto; revenue KPI 
 chk(4, 'monospace only for paths: axis, delta and readout labels are Geist', async ({ page, goto }) => {
   await goto('/')
   expect(await font(page.getByTestId('chart-readout'))).toMatch(/^"?Geist"?,/)
-  expect(await font(page.getByRole('region', { name: 'Pages' }).getByRole('button').first())).toMatch(/Mono/)
+  expect(await font(page.getByRole('region', { name: 'Pages' }).getByRole('listitem').first().getByRole('button').first())).toMatch(/Mono/)
 })
 
 chk(5, 'tooltip card: date, 4 metrics with deltas, top 3 referrers, never covers the point', async ({ page, goto, api }) => {
@@ -143,7 +150,7 @@ chk(15, 'heatmap: linear scale, and "Not enough data yet" below the threshold', 
   await goto('/')
   const hm = await api('heatmap')
   const grid = page.getByRole('grid', { name: 'Visitors by weekday and hour' })
-  expect(await grid.getByRole('gridcell').count()).toBe(168)
+  await expect(grid.getByRole('gridcell')).toHaveCount(168)
   expect(hm.cells.flat().length).toBe(168)
   await goto('/?f=country:JP')
   await expect(page.getByText('Not enough data yet')).toBeVisible()
@@ -178,9 +185,9 @@ chk(18, 'freshness line names the zone, "Every visit counted" and links to AI cr
 chk(20, 'compare with a custom period names it in the readout and legend', async ({ page, goto }) => {
   await goto('/')
   await page.getByRole('button', { name: 'Compare with' }).click()
-  await page.getByRole('menuitem', { name: /custom/i }).click()
-  await page.getByLabel(/start|from/i).fill('2026-07-01')
-  await page.getByRole('button', { name: /apply|compare/i }).click()
+  await page.getByRole('menuitemradio', { name: /custom/i }).click()
+  await page.getByRole('dialog').getByLabel(/start|from/i).fill('2026-07-01')
+  await page.getByRole('button', { name: /^(apply|compare)$/i }).click()
   expect(await loc(page)).toContain('cmp=c:2026-07-01')
   await expect(page.getByTestId('chart-legend')).toContainText('Jul 1 – Jul 30')
 })
@@ -211,7 +218,7 @@ chk(30, 'today: small base shows the plain difference, never +700%; future hours
   const k = await page.getByRole('tablist', { name: 'Metrics' }).getByRole('tab').first().innerText()
   expect(k).not.toMatch(/\+\d{3,}%/)
   await expect(page.getByTestId('freshness')).toContainText('same hours yesterday')
-  const s = await api('series', { range: 'today' })
+  const s = await api('series', { range: 'today', metric: 'visitors' })
   const nulls = s.points.filter((p: any) => p.v === null).length
   expect(nulls).toBe(23 - s.window.lastBucket)
 })
@@ -220,6 +227,7 @@ chk(34, 'the tooltip gives a colour key only to the plotted series', async ({ pa
   await goto('/')
   const p = await pointAt(page, 20, 30)
   await page.mouse.move(p.x, p.y)
+  await expect(page.getByTestId('chart-card')).toBeVisible()
   expect(await page.getByTestId('chart-card').locator('[data-key-dot]').count()).toBe(1)
 })
 
@@ -239,7 +247,9 @@ chk(39, 'a row opens its report; filtering is a separate button; the filter bar 
   await src.getByRole('listitem').nth(1).getByRole('button').first().click()
   expect(await loc(page)).toMatch(/dr=source\|/)
   expect(await loc(page)).not.toContain('f=')
+  await expect(page.getByRole('dialog')).toBeVisible()
   await page.keyboard.press('Escape')
+  await expect(page.getByRole('dialog')).toHaveCount(0)
   await src.getByRole('button', { name: /^Filter by/ }).nth(1).click()
   expect(await loc(page)).toContain('f=source:')
   await page.evaluate(() => window.scrollTo(0, 1800))
@@ -340,7 +350,7 @@ chk(67, '1024: labels never collapse, goal rows never overlap', async ({ page, g
 chk(68, 'keyboard only: focus survives a tab switch, heatmap arrows, chip removal', async ({ page, goto }) => {
   await goto('/?f=device:mobile&f=country:IN')
   const pages = panel(page, 'Pages')
-  await pages.getByRole('tab', { name: 'Pages' }).focus()
+  await pages.getByRole('tab', { name: 'Pages', exact: true }).focus()
   await page.keyboard.press('ArrowRight')
   await expect(pages.getByRole('tab', { selected: true })).toBeFocused()
   const filters = page.getByRole('region', { name: 'Filters' })

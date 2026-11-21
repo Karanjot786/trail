@@ -4,10 +4,11 @@
 import { ArrowDown, ArrowUp, Sparkles } from 'lucide-react'
 import { useState } from 'react'
 import { api } from '../../api/client'
-import type { ChangeItem, Changes } from '../../api/types'
+import type { ChangeItem, Changes, Window } from '../../api/types'
 import { useQuery } from '../../api/useQuery'
 import { compare } from '../../lib/compare'
-import { fmtInt, fmtPct } from '../../lib/format'
+import { fmtDay, fmtInt, fmtPct, fmtShortDay } from '../../lib/format'
+import { dayIso } from './metrics'
 import { valueLabel } from '../../shell/labels'
 import { navigate, useUrlState } from '../../state/useUrlState'
 import { Dialog } from '../../ui/dialog'
@@ -92,7 +93,15 @@ export function describeItem(it: ChangeItem, goalName?: string | null): { name: 
   }
 }
 
-export function WhatChanged({ goalName }: { goalName?: string | null }) {
+/** The ISO day of a day item: the API may send "2026-11-12" or a label like "Thu, Nov 12" within the window. */
+export function dayToIso(day: string, w: Pick<Window, 'from' | 'to' | 'tz'> | undefined): string | null {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(day)) return day
+  if (!w) return null
+  for (let t = w.from; t <= w.to + 36e5; t += 864e5) if (fmtDay(t, w.tz) === day || fmtShortDay(t, w.tz) === day) return dayIso(t, w.tz)
+  return null
+}
+
+export function WhatChanged({ goalName, window: w }: { goalName?: string | null; window?: Window }) {
   const s = useUrlState()
   const { q, key } = useApiQuery()
   const r = useQuery<Changes>(`changes|${key}`, async (sig) => api.changes(q, sig), { enabled: !!s.site && s.site !== 'all' })
@@ -100,7 +109,10 @@ export function WhatChanged({ goalName }: { goalName?: string | null }) {
   const items = (r.data?.items ?? []).slice(0, 4)
   if (!items.length) return null
   const act = (it: ChangeItem) => {
-    if (it.kind === 'day') navigate({ range: `d:${it.day}` as never })
+    if (it.kind === 'day') {
+      const iso = dayToIso(it.day, w)
+      if (iso) navigate({ range: `d:${iso}` })
+    }
     else if (it.kind === 'source') navigate({ filters: toggleFilter(s.filters, 'source', it.key) })
     else navigate({ metric: it.metric })
   }

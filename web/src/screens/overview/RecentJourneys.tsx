@@ -40,7 +40,13 @@ export function RecentJourneys({ totalVisitors }: { totalVisitors: number }) {
     <section className="journeys" aria-labelledby="jr-h">
       <div className="jr-h">
         <h2 id="jr-h">
-          Recent journeys{s.filters.length ? <span className="muted"> matching filters</span> : null}
+          Recent journeys
+          {s.filters.length ? (
+            <span className="muted" aria-hidden="true">
+              {' '}
+              with these filters
+            </span>
+          ) : null}
         </h2>
         <a
           className="textbtn"

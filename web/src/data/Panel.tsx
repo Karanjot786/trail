@@ -12,7 +12,7 @@ import { apiQuery } from '../state/url'
 import { navigate, useUrlState } from '../state/useUrlState'
 import { Menu, MenuCheckbox, MenuItem, MenuLabel, MenuSeparator } from '../ui/menu'
 import { EmptyState, ErrorState, Skeleton } from '../ui/states'
-import { Segmented, Tabs } from '../ui/tabs'
+import { Tabs } from '../ui/tabs'
 import { toast } from '../ui/toast'
 import { BarList, type BarRowModel, type ColumnDef } from './BarList'
 import { losesMost, overlapNoteFor, toggleColumn, toRows } from './columns'
@@ -148,15 +148,18 @@ export function Panel({ id, title, tabs, definition }: PanelProps) {
       {(tab.definition ?? definition) && <p className="panel-def">{tab.definition ?? definition}</p>}
       {isExit && (
         <div className="panel-def">
-          <Segmented
-            value={exitSort}
-            onValueChange={(v) => setExitSort(v as 'exits' | 'rate')}
-            ariaLabel="Sort exit pages"
-            items={[
-              { value: 'exits', label: 'Most exits' },
-              { value: 'rate', label: 'Loses people most' },
-            ]}
-          />
+          <div className="seg" role="group" aria-label="Sort exit pages">
+            {(
+              [
+                ['exits', 'Most exits'],
+                ['rate', 'Loses people most'],
+              ] as const
+            ).map(([v, label]) => (
+              <button key={v} type="button" aria-pressed={exitSort === v} onClick={() => setExitSort(v)}>
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
       )}
       <div className="panel-body" role={tabs.length > 1 ? 'tabpanel' : undefined} aria-labelledby={headingId}>

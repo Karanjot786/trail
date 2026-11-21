@@ -43,32 +43,38 @@ export default function OverviewScreen() {
   const metric = metrics.includes(s.metric) ? s.metric : 'visitors'
   const currency = site?.features.currency || 'USD'
   const compareOn = !st.window.basis.none
-  if (st.visitors === 0 && st.pageviews === 0) {
-    return s.filters.length ? (
-      <EmptyState
-        title="No visits match these filters"
-        body="Filters combine with AND, so each one narrows the last. Remove one, clear them all, or look at a longer range."
-        action={
-          <Button size="sm" onClick={clearFilters}>
-            Clear all filters
-          </Button>
-        }
-      />
-    ) : (
-      <EmptyState title="No visits in this range yet" body="Real visits fill this page as they happen. Live shows them within 5 seconds." />
-    )
-  }
+  const empty = st.visitors === 0 && st.pageviews === 0
   return (
     <div className="ov">
       <h2 className="sr-only">Key numbers, {st.window.label}</h2>
-      <WhatChanged goalName={st.conv?.name} />
+      <WhatChanged goalName={st.conv?.name} window={st.window} />
       <KpiStrip stats={st} metrics={metrics} active={metric} currency={currency} compareOn={compareOn} />
-      <div className="ov-top">
-        <MainChart stats={st} metric={metric} metrics={metrics} currency={currency} />
-        <RecentJourneys totalVisitors={st.visitors} />
-      </div>
-      <OverviewPanels ctx={{ goalName: st.conv?.name ?? null, currency }} />
-      <Heatmap />
+      {empty ? (
+        <div className="panel ov-empty">
+          {s.filters.length ? (
+            <EmptyState
+              title="No visits match these filters"
+              body="Filters combine with AND, so each one narrows the last. Remove one, clear them all, or look at a longer range."
+              action={
+                <Button size="sm" onClick={clearFilters}>
+                  Clear all filters
+                </Button>
+              }
+            />
+          ) : (
+            <EmptyState title="No visits in this range yet" body="Real visits fill this page as they happen. Live shows them within 5 seconds." />
+          )}
+        </div>
+      ) : (
+        <>
+          <div className="ov-top">
+            <MainChart stats={st} metric={metric} metrics={metrics} currency={currency} />
+            <RecentJourneys totalVisitors={st.visitors} />
+          </div>
+          <OverviewPanels ctx={{ goalName: st.conv?.name ?? null, currency }} />
+          <Heatmap />
+        </>
+      )}
     </div>
   )
 }
