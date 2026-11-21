@@ -433,7 +433,7 @@ func crawls(db *sql.DB, site string, now time.Time, days int, rng *rand.Rand) er
 	}
 	defer func() { _ = tx.Rollback() }() // no-op after Commit
 	ins, err := tx.Prepare(`INSERT INTO crawl_hits(site_id, hour, bot, path, status, n, last_ts) VALUES(?,?,?,?,?,?,?)
-  ON CONFLICT(site_id, hour, bot, path, status) DO UPDATE SET n=n+excluded.n, last_ts=max(last_ts, excluded.last_ts)`)
+  ON CONFLICT(site_id, hour, bot, path, status, verified) DO UPDATE SET n=n+excluded.n, last_ts=max(last_ts, excluded.last_ts)`)
 	if err != nil {
 		return fmt.Errorf("seed crawls: %w", err)
 	}

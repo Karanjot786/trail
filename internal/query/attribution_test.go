@@ -159,7 +159,7 @@ func TestSiteFeatures(t *testing.T) {
 	if !f.Revenue || f.Crawlers || f.Currency != "EUR" {
 		t.Fatalf("%+v", f)
 	}
-	if _, err := db.Exec(`INSERT INTO crawl_hits VALUES('s', 1, 'GPTBot', '/', 200, 3, 1)`); err != nil {
+	if _, err := db.Exec(`INSERT INTO crawl_hits(site_id, hour, bot, path, status, n, last_ts) VALUES('s', 1, 'GPTBot', '/', 200, 3, 1)`); err != nil {
 		t.Fatal(err)
 	}
 	f, _ = SiteFeatures(db, "s")

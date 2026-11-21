@@ -35,6 +35,8 @@ type server struct {
 
 	startMu sync.Mutex
 	starts  map[string]startCache
+
+	agents AgentHooks // never nil: newServer sets the no-op
 }
 
 type startCache struct {
@@ -73,7 +75,7 @@ func New(db *sql.DB, reg *sites.Registry, tz *time.Location, opts ...Option) htt
 
 func newServer(db *sql.DB, reg *sites.Registry, tz *time.Location, opts ...Option) *server {
 	s := &server{db: db, sites: reg, tz: tz, now: time.Now, starts: map[string]startCache{},
-		fetcher: install.NewSafeFetcher(), checks: checkCache{byID: map[string]cachedCheck{}}}
+		fetcher: install.NewSafeFetcher(), checks: checkCache{byID: map[string]cachedCheck{}}, agents: noAgents{}}
 	for _, o := range opts {
 		o(s)
 	}

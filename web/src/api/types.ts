@@ -22,7 +22,10 @@ export interface Window {
 
 export interface Features { revenue: boolean; crawlers: boolean; currency: string }
 export interface Site { id: string; domain: string; origins: string[]; created: number; lastEventAt: number | null; events24h: number; features: Features }
-export interface SiteStatus { lastEventAt: number | null; events24h: number; rejected24h: number }
+export interface SiteStatus {
+  lastEventAt: number | null; events24h: number; rejected24h: number
+  geo: { source: 'db' | 'vercel' | 'cloudflare' | 'netlify'; share: number } | null // dominant location source over 24 h
+}
 export interface SiteSummary { id: string; domain: string; visitors: number; prevVisitors: number | null; online: number; spark: (number | null)[] }
 
 export interface Totals {
@@ -35,6 +38,7 @@ export interface Stats extends Totals {
   window: Window; prev: Totals | null; online: number
   botRequests: number | null            // null when crawler ingest is not set up
   conv: { goalId: number; name: string } | null
+  agentSessions: number                 // AI agent sessions in range, whatever actor is
 }
 export interface Point { t: number; v: number | null }
 export interface BucketExtra { t: number; topSources: { key: string; visitors: number }[]; conversions: number; revenueMinor: number }
@@ -71,6 +75,7 @@ export interface Person {
 export interface SessionRow {
   sessionId: string; person: string; label: string; start: number; durationMs: number; pages: number; entry: string; exit: string
   source: string; country: string; city: string; device: string; browser: string; os: string; goals: number[]; revenueMinor: number
+  agent: string                         // AI agent id, '' for people
 }
 export type StepType = 'pageview' | 'engage' | 'event' | 'identify' | 'error' | 'outbound' | 'form' | 'vital'
 export interface Step { ts: number; type: StepType; path: string; name: string; engagedMs: number; scrollPct: number; props: Record<string, string | number | boolean> }
@@ -78,6 +83,7 @@ export interface GoalHit { id: number; name: string; ts: number }
 export interface JourneySession {
   sessionId: string; start: number; source: string; steps: Step[]
   visit: number; durationMs: number; country: string; city: string; device: string; goals: GoalHit[]
+  agent: string                         // AI agent id, '' for people
 }
 
 export interface Campaign { source: string; medium: string; campaign: string; term: string; content: string; visitors: number; sessions: number; bounce: number; convRate: number | null; revenueMinor: number }
@@ -139,3 +145,25 @@ export interface SavedView { id: number; name: string; site: string | null; stat
 /** Which IP database answers lookups: the built-in DB-IP Lite Country file, a TRAIL_GEO_DB file, or none. */
 export interface GeoInfo { source: 'embedded-country' | 'custom' | 'none'; build: string }
 export interface Config { version: string; tz: string; demo: boolean; geo: GeoInfo; ingestRps: number; envSites: string[]; envTokens: number; dbFile: string }
+
+// ---- AI visibility, agents and setup (AI agents plan §0.4). Frozen after P0. ----
+export type AgentVia = 'ua' | 'ip' | 'relay' | 'sig'
+export type AIStepKey = 'crawled' | 'fetched' | 'cited' | 'visited' | 'converted'
+export interface AIFunnelStep { key: AIStepKey; unit: 'requests' | 'sessions' | 'people'; value: number | null; prev: number | null; status: 'ok' | 'not_set_up' | 'no_source' | 'no_goal' }
+export interface AIProviderRow { provider: string; crawled: number; fetched: number; visited: number; converted: number | null }
+export interface AIPageRow { path: string; crawled: number; fetched: number; visits: number; conversions: number | null; lastCrawled: number | null }
+export interface AIVisibility { window: Window; steps: AIFunnelStep[]; providers: AIProviderRow[]; pages: AIPageRow[]; conv: { goalId: number; name: string } | null; verifiedShare: number | null }
+export interface AgentRow { agent: string; name: string; provider: string; sessions: number; prev: number | null; pageviews: number; verified: number; lastSeen: number }
+export interface AgentPoint { t: number; verified: number; claimed: number }
+export interface AgentPage { path: string; pageviews: number; sessions: number; topAgent: string }
+export interface AgentSession { sessionId: string; person: string; agent: string; name: string; provider: string; via: AgentVia; start: number; durationMs: number; pages: number; entry: string; goals: number }
+export interface Agents {
+  window: Window; sessions: number; prevSessions: number | null; pageviews: number; verifiedSessions: number; conversions: number
+  conv: { goalId: number; name: string } | null; series: AgentPoint[]; agents: AgentRow[]; pages: AgentPage[]; latest: AgentSession[]
+}
+export interface AIList { name: string; kind: 'ip' | 'keys'; fetchedAt: number | null; entries: number; ok: boolean }
+export interface AISetup {
+  crawls: { state: 'none' | 'receiving' | 'quiet'; lastAt: number | null; last24h: number }
+  agents: { lastAt: number | null; last24h: number }
+  lists: AIList[]
+}

@@ -46,7 +46,7 @@ var idRoutes = regexp.MustCompile(`^(goals/[0-9]+/detail|funnels/[0-9]+/(report|
 func init() {
 	for _, r := range strings.Fields(`sites sites/summary stats series breakdown changes heatmap live visitors sessions
 		journey campaigns ai-referrals events events/detail goals goals/report paths funnels revenue revenue/breakdown
-		crawlers notes views delivery`) {
+		crawlers notes views delivery ai-visibility agents ai-setup`) {
 		routes[r] = true
 	}
 }

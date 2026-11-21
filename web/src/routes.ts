@@ -49,7 +49,17 @@ export const SCREENS: ScreenRoute[] = [
     load: () => import('./screens/conversions/index'),
   },
   { id: 'revenue', label: 'Revenue', path: '/revenue', load: () => import('./screens/revenue/index'), requires: 'revenue' },
-  { id: 'crawlers', label: 'AI crawlers', path: '/crawlers', load: () => import('./screens/crawlers/index') },
+  {
+    id: 'crawlers',
+    label: 'AI visibility',
+    path: '/ai',
+    tabs: [
+      { value: 'funnel', label: 'Funnel' },
+      { value: 'crawlers', label: 'Crawlers' },
+      { value: 'agents', label: 'Agents' },
+    ],
+    load: () => import('./screens/crawlers/index'),
+  },
   {
     id: 'settings',
     label: 'Settings',

@@ -2,7 +2,18 @@
 // Every Go contract type, fully populated, must satisfy its §0.5 TypeScript type: `pnpm build` (tsc) fails on drift.
 
 import type {
+  AIFunnelStep,
+  AIList,
+  AIPageRow,
+  AIProviderRow,
   AIReferral,
+  AISetup,
+  AIVisibility,
+  AgentPage,
+  AgentPoint,
+  AgentRow,
+  AgentSession,
+  Agents,
   ApiToken,
   BucketExtra,
   Campaign,
@@ -104,7 +115,11 @@ export const site = {
 export const siteStatus = {
   "lastEventAt": 1,
   "events24h": 1,
-  "rejected24h": 1
+  "rejected24h": 1,
+  "geo": {
+    "source": "db",
+    "share": 0.5
+  }
 } satisfies SiteStatus
 
 export const siteSummary = {
@@ -187,7 +202,8 @@ export const stats = {
   "conv": {
     "goalId": 1,
     "name": "x"
-  }
+  },
+  "agentSessions": 1
 } satisfies Stats
 
 export const point = {
@@ -436,7 +452,8 @@ export const sessionRow = {
   "goals": [
     1
   ],
-  "revenueMinor": 1
+  "revenueMinor": 1,
+  "agent": "x"
 } satisfies SessionRow
 
 export const step = {
@@ -489,7 +506,8 @@ export const journeySession = {
       "name": "x",
       "ts": 1
     }
-  ]
+  ],
+  "agent": "x"
 } satisfies JourneySession
 
 export const campaign = {
@@ -929,6 +947,232 @@ export const crawlers = {
     }
   ]
 } satisfies Crawlers
+
+export const aiFunnelStep = {
+  "key": "crawled",
+  "unit": "requests",
+  "value": 1,
+  "prev": 1,
+  "status": "ok"
+} satisfies AIFunnelStep
+
+export const aiProviderRow = {
+  "provider": "x",
+  "crawled": 1,
+  "fetched": 1,
+  "visited": 1,
+  "converted": 1
+} satisfies AIProviderRow
+
+export const aiPageRow = {
+  "path": "x",
+  "crawled": 1,
+  "fetched": 1,
+  "visits": 1,
+  "conversions": 1,
+  "lastCrawled": 1
+} satisfies AIPageRow
+
+export const aiVisibility = {
+  "window": {
+    "key": "x",
+    "label": "x",
+    "from": 1,
+    "to": 1,
+    "prevFrom": 1,
+    "prevTo": 1,
+    "bucket": "day",
+    "tz": "x",
+    "elapsed": true,
+    "lastBucket": 1,
+    "clamped": true,
+    "invalid": "x",
+    "basis": {
+      "text": "x",
+      "short": "x",
+      "why": "x",
+      "dates": "x",
+      "custom": true,
+      "none": true
+    }
+  },
+  "steps": [
+    {
+      "key": "crawled",
+      "unit": "requests",
+      "value": 1,
+      "prev": 1,
+      "status": "ok"
+    }
+  ],
+  "providers": [
+    {
+      "provider": "x",
+      "crawled": 1,
+      "fetched": 1,
+      "visited": 1,
+      "converted": 1
+    }
+  ],
+  "pages": [
+    {
+      "path": "x",
+      "crawled": 1,
+      "fetched": 1,
+      "visits": 1,
+      "conversions": 1,
+      "lastCrawled": 1
+    }
+  ],
+  "conv": {
+    "goalId": 1,
+    "name": "x"
+  },
+  "verifiedShare": 0.5
+} satisfies AIVisibility
+
+export const agentRow = {
+  "agent": "x",
+  "name": "x",
+  "provider": "x",
+  "sessions": 1,
+  "prev": 1,
+  "pageviews": 1,
+  "verified": 1,
+  "lastSeen": 1
+} satisfies AgentRow
+
+export const agentPoint = {
+  "t": 1,
+  "verified": 1,
+  "claimed": 1
+} satisfies AgentPoint
+
+export const agentPage = {
+  "path": "x",
+  "pageviews": 1,
+  "sessions": 1,
+  "topAgent": "x"
+} satisfies AgentPage
+
+export const agentSession = {
+  "sessionId": "x",
+  "person": "x",
+  "agent": "x",
+  "name": "x",
+  "provider": "x",
+  "via": "ua",
+  "start": 1,
+  "durationMs": 1,
+  "pages": 1,
+  "entry": "x",
+  "goals": 1
+} satisfies AgentSession
+
+export const agents = {
+  "window": {
+    "key": "x",
+    "label": "x",
+    "from": 1,
+    "to": 1,
+    "prevFrom": 1,
+    "prevTo": 1,
+    "bucket": "day",
+    "tz": "x",
+    "elapsed": true,
+    "lastBucket": 1,
+    "clamped": true,
+    "invalid": "x",
+    "basis": {
+      "text": "x",
+      "short": "x",
+      "why": "x",
+      "dates": "x",
+      "custom": true,
+      "none": true
+    }
+  },
+  "sessions": 1,
+  "prevSessions": 1,
+  "pageviews": 1,
+  "verifiedSessions": 1,
+  "conversions": 1,
+  "conv": {
+    "goalId": 1,
+    "name": "x"
+  },
+  "series": [
+    {
+      "t": 1,
+      "verified": 1,
+      "claimed": 1
+    }
+  ],
+  "agents": [
+    {
+      "agent": "x",
+      "name": "x",
+      "provider": "x",
+      "sessions": 1,
+      "prev": 1,
+      "pageviews": 1,
+      "verified": 1,
+      "lastSeen": 1
+    }
+  ],
+  "pages": [
+    {
+      "path": "x",
+      "pageviews": 1,
+      "sessions": 1,
+      "topAgent": "x"
+    }
+  ],
+  "latest": [
+    {
+      "sessionId": "x",
+      "person": "x",
+      "agent": "x",
+      "name": "x",
+      "provider": "x",
+      "via": "ua",
+      "start": 1,
+      "durationMs": 1,
+      "pages": 1,
+      "entry": "x",
+      "goals": 1
+    }
+  ]
+} satisfies Agents
+
+export const aiList = {
+  "name": "x",
+  "kind": "ip",
+  "fetchedAt": 1,
+  "entries": 1,
+  "ok": true
+} satisfies AIList
+
+export const aiSetup = {
+  "crawls": {
+    "state": "none",
+    "lastAt": 1,
+    "last24h": 1
+  },
+  "agents": {
+    "lastAt": 1,
+    "last24h": 1
+  },
+  "lists": [
+    {
+      "name": "x",
+      "kind": "ip",
+      "fetchedAt": 1,
+      "entries": 1,
+      "ok": true
+    }
+  ]
+} satisfies AISetup
 
 export const checkItem = {
   "id": "page",

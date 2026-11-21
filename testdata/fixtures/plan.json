@@ -7,10 +7,11 @@
   "combos": [
     { "ranges": "all", "cmp": "prev", "filters": [] },
     { "ranges": ["30d"], "cmp": "none", "filters": [] },
-    { "ranges": ["30d"], "cmp": "prev", "filters": [["source:Google"], ["country:IN"], ["device:mobile"], ["channel:AI"], ["event:Signup"]] }
+    { "ranges": ["30d"], "cmp": "prev", "filters": [["source:Google"], ["country:IN"], ["device:mobile"], ["channel:AI"], ["event:Signup"]] },
+    { "ranges": ["30d"], "cmp": "prev", "filters": [], "params": { "actor": "all" }, "routes": ["/stats", "/series", "/breakdown"] }
   ],
   "routes": {
-    "static": ["/sites", "/sites/{site}/status", "/goals", "/funnels", "/views", "/notes"],
+    "static": ["/sites", "/sites/{site}/status", "/goals", "/funnels", "/views", "/notes", "/ai-setup"],
     "perCombo": [
       "/sites/summary",
       "/stats",
@@ -26,7 +27,9 @@
       "/goals/report",
       "/revenue",
       "/revenue/breakdown",
-      "/crawlers"
+      "/crawlers",
+      "/ai-visibility",
+      "/agents"
     ],
     "perDetail": [
       "/journey",
@@ -54,7 +57,7 @@
     "detailCombos": "the 30d/prev combo with no filters, per site",
     "goals": "every goal: /goals/{id}/detail and /paths?goal={id}",
     "funnels": "every funnel: /funnels/{id}/report and /funnels/{id}/dropoff?step={i} for each step",
-    "journeys": { "latestPeople": 15 },
+    "journeys": { "latestPeople": 15, "agentPeople": 10 },
     "events": "every event name from /events: /events/detail?name={name}"
   },
   "live": { "windowMinutes": 30, "streamUncapped": true },

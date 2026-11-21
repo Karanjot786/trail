@@ -1,8 +1,17 @@
 {
   "name": "trail-analytics",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Client SDK for Trail, self-hosted web analytics. Typed track/identify/reset/pageview plus React and Next.js components.",
-  "keywords": ["analytics", "web-analytics", "trail", "self-hosted", "privacy", "nextjs", "react", "tracker"],
+  "keywords": [
+    "analytics",
+    "web-analytics",
+    "trail",
+    "self-hosted",
+    "privacy",
+    "nextjs",
+    "react",
+    "tracker"
+  ],
   "license": "MIT",
   "author": "Karanjot Singh",
   "homepage": "https://github.com/Karanjot786/trail#readme",
@@ -19,20 +28,79 @@
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "import": { "types": "./dist/index.d.ts", "default": "./dist/index.js" },
-      "require": { "types": "./dist/index.d.cts", "default": "./dist/index.cjs" }
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
     },
     "./react": {
-      "import": { "types": "./dist/react/index.d.ts", "default": "./dist/react/index.js" },
-      "require": { "types": "./dist/react/index.d.cts", "default": "./dist/react/index.cjs" }
+      "import": {
+        "types": "./dist/react/index.d.ts",
+        "default": "./dist/react/index.js"
+      },
+      "require": {
+        "types": "./dist/react/index.d.cts",
+        "default": "./dist/react/index.cjs"
+      }
     },
     "./next": {
-      "import": { "types": "./dist/next/index.d.ts", "default": "./dist/next/index.js" },
-      "require": { "types": "./dist/next/index.d.cts", "default": "./dist/next/index.cjs" }
+      "import": {
+        "types": "./dist/next/index.d.ts",
+        "default": "./dist/next/index.js"
+      },
+      "require": {
+        "types": "./dist/next/index.d.cts",
+        "default": "./dist/next/index.cjs"
+      }
+    },
+    "./next/proxy": {
+      "import": {
+        "types": "./dist/next/proxy/index.d.ts",
+        "default": "./dist/next/proxy/index.js"
+      },
+      "require": {
+        "types": "./dist/next/proxy/index.d.cts",
+        "default": "./dist/next/proxy/index.cjs"
+      }
+    },
+    "./astro": {
+      "import": {
+        "types": "./dist/astro/index.d.ts",
+        "default": "./dist/astro/index.js"
+      },
+      "require": {
+        "types": "./dist/astro/index.d.cts",
+        "default": "./dist/astro/index.cjs"
+      }
+    },
+    "./astro/middleware": {
+      "import": {
+        "types": "./dist/astro/middleware.d.ts",
+        "default": "./dist/astro/middleware.js"
+      }
+    },
+    "./crawl": {
+      "import": {
+        "types": "./dist/crawl/index.d.ts",
+        "default": "./dist/crawl/index.js"
+      },
+      "require": {
+        "types": "./dist/crawl/index.d.cts",
+        "default": "./dist/crawl/index.cjs"
+      }
     },
     "./package.json": "./package.json"
   },
-  "files": ["dist"],
+  "bin": {
+    "trail-analytics": "./dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "test": "vitest run",
     "build": "tsup",
@@ -43,10 +111,15 @@
     "react": ">=17"
   },
   "peerDependenciesMeta": {
-    "next": { "optional": true },
-    "react": { "optional": true }
+    "next": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    }
   },
   "devDependencies": {
+    "@types/node": "^20.19.43",
     "@types/react": "^18.3.0",
     "@types/react-dom": "^18.3.0",
     "jsdom": "^25.0.0",

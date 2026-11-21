@@ -58,9 +58,16 @@ type Site struct {
 
 // SiteStatus is the /api/sites/{id}/status payload.
 type SiteStatus struct {
-	LastEventAt *int64 `json:"lastEventAt"`
-	Events24h   int    `json:"events24h"`
-	Rejected24h int    `json:"rejected24h"`
+	LastEventAt *int64     `json:"lastEventAt"`
+	Events24h   int        `json:"events24h"`
+	Rejected24h int        `json:"rejected24h"`
+	Geo         *GeoStatus `json:"geo"` // dominant location source over the last 24 h; nil when there are no events
+}
+
+// GeoStatus is the location source that answered most events in the last 24 h, with its share (0–1).
+type GeoStatus struct {
+	Source string  `json:"source"` // db | vercel | cloudflare | netlify
+	Share  float64 `json:"share"`
 }
 
 // SiteSummary is one row of the All websites screen.
@@ -103,6 +110,8 @@ type StatsResult struct {
 	Online      int      `json:"online"`
 	BotRequests *int     `json:"botRequests"` // nil when crawler ingest is not set up
 	Conv        *ConvRef `json:"conv"`
+	// AgentSessions counts AI agent sessions in the window, whatever the actor parameter says.
+	AgentSessions int `json:"agentSessions"`
 }
 
 // Point is one series bucket: start time (unix ms) and value; V is nil for buckets that have not happened yet.
@@ -311,6 +320,7 @@ type SessionRow struct {
 	OS           string  `json:"os"`
 	Goals        []int64 `json:"goals"`
 	RevenueMinor int64   `json:"revenueMinor"`
+	Agent        string  `json:"agent"` // AI agent id, "" for people
 }
 
 // GoalHit is a goal reached inside a journey session.
@@ -332,6 +342,7 @@ type JourneySession struct {
 	City       string    `json:"city"`
 	Device     string    `json:"device"`
 	Goals      []GoalHit `json:"goals"`
+	Agent      string    `json:"agent"` // AI agent id, "" for people
 }
 
 // Session is the v2 name of JourneySession.
@@ -605,4 +616,130 @@ type CrawlersResult struct {
 	Providers  []CrawlProvider    `json:"providers"`
 	Series     []CrawlPoint       `json:"series"`
 	Pages      []CrawlPage        `json:"pages"`
+}
+
+// ---- AI visibility, agents and setup (AI agents plan §0.3, §0.4). ----
+
+// AIFunnelStep is one step of the AI visibility funnel. Each step keeps its own unit.
+type AIFunnelStep struct {
+	Key    string `json:"key"`    // crawled | fetched | cited | visited | converted
+	Unit   string `json:"unit"`   // requests | sessions | people
+	Value  *int   `json:"value"`  // nil when the step has no data source
+	Prev   *int   `json:"prev"`   // nil without a comparison window or a value
+	Status string `json:"status"` // ok | not_set_up | no_source | no_goal
+}
+
+// AIProviderRow is one AI provider across the funnel steps.
+type AIProviderRow struct {
+	Provider  string `json:"provider"`
+	Crawled   int    `json:"crawled"`
+	Fetched   int    `json:"fetched"`
+	Visited   int    `json:"visited"`
+	Converted *int   `json:"converted"` // nil when the site has no goal
+}
+
+// AIPageRow is one path that AI systems requested or sent visits to.
+type AIPageRow struct {
+	Path        string `json:"path"`
+	Crawled     int    `json:"crawled"`
+	Fetched     int    `json:"fetched"`
+	Visits      int    `json:"visits"`
+	Conversions *int   `json:"conversions"` // nil when the site has no goal
+	LastCrawled *int64 `json:"lastCrawled"` // unix ms; nil when never crawled
+}
+
+// AIVisibilityResult is GET /api/ai-visibility.
+type AIVisibilityResult struct {
+	Window        Window          `json:"window"`
+	Steps         []AIFunnelStep  `json:"steps"`
+	Providers     []AIProviderRow `json:"providers"`
+	Pages         []AIPageRow     `json:"pages"`
+	Conv          *ConvRef        `json:"conv"`
+	VerifiedShare *float64        `json:"verifiedShare"` // among crawlers that publish IP lists; nil when none
+}
+
+// AgentRow is one AI agent in the Agents report.
+type AgentRow struct {
+	Agent     string `json:"agent"`
+	Name      string `json:"name"`
+	Provider  string `json:"provider"`
+	Sessions  int    `json:"sessions"`
+	Prev      *int   `json:"prev"`
+	Pageviews int    `json:"pageviews"`
+	Verified  int    `json:"verified"` // sessions recognised by ip, relay or sig
+	LastSeen  int64  `json:"lastSeen"`
+}
+
+// AgentPoint is one bucket of agent sessions.
+type AgentPoint struct {
+	T        int64 `json:"t"`
+	Verified int   `json:"verified"`
+	Claimed  int   `json:"claimed"`
+}
+
+// AgentPage is one path that agents viewed.
+type AgentPage struct {
+	Path      string `json:"path"`
+	Pageviews int    `json:"pageviews"`
+	Sessions  int    `json:"sessions"`
+	TopAgent  string `json:"topAgent"`
+}
+
+// AgentSession is one recent agent session.
+type AgentSession struct {
+	SessionID  string `json:"sessionId"`
+	Person     string `json:"person"`
+	Agent      string `json:"agent"`
+	Name       string `json:"name"`
+	Provider   string `json:"provider"`
+	Via        string `json:"via"` // ua | ip | relay | sig: the best in the session
+	Start      int64  `json:"start"`
+	DurationMs int64  `json:"durationMs"`
+	Pages      int    `json:"pages"`
+	Entry      string `json:"entry"`
+	Goals      int    `json:"goals"`
+}
+
+// AgentsResult is GET /api/agents.
+type AgentsResult struct {
+	Window           Window         `json:"window"`
+	Sessions         int            `json:"sessions"`
+	PrevSessions     *int           `json:"prevSessions"`
+	Pageviews        int            `json:"pageviews"`
+	VerifiedSessions int            `json:"verifiedSessions"`
+	Conversions      int            `json:"conversions"`
+	Conv             *ConvRef       `json:"conv"`
+	Series           []AgentPoint   `json:"series"`
+	Agents           []AgentRow     `json:"agents"`
+	Pages            []AgentPage    `json:"pages"`
+	Latest           []AgentSession `json:"latest"`
+}
+
+// AIList is one fetched IP list or key directory, for the setup card.
+type AIList struct {
+	Name      string `json:"name"`
+	Kind      string `json:"kind"`      // ip | keys
+	FetchedAt *int64 `json:"fetchedAt"` // unix ms; nil = never
+	Entries   int    `json:"entries"`
+	OK        bool   `json:"ok"`
+}
+
+// AISetupCrawls says whether the server hook or log import is sending crawler requests.
+type AISetupCrawls struct {
+	State   string `json:"state"` // none | receiving | quiet
+	LastAt  *int64 `json:"lastAt"`
+	Last24h int    `json:"last24h"`
+}
+
+// AISetupAgents summarises recent agent sessions.
+type AISetupAgents struct {
+	LastAt  *int64 `json:"lastAt"`
+	Last24h int    `json:"last24h"`
+}
+
+// AISetup is GET /api/ai-setup.
+type AISetup struct {
+	Crawls AISetupCrawls `json:"crawls"`
+	Agents AISetupAgents `json:"agents"`
+	Lists  []AIList      `json:"lists"`
 }

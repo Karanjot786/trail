@@ -17,7 +17,8 @@
     "goals": [
       2
     ],
-    "revenueMinor": 0
+    "revenueMinor": 0,
+    "agent": ""
   },
   {
     "sessionId": "f4000fae084994f5d9aa1ce327b26925",
@@ -35,7 +36,8 @@
     "browser": "Chrome",
     "os": "Android",
     "goals": [],
-    "revenueMinor": 0
+    "revenueMinor": 0,
+    "agent": ""
   },
   {
     "sessionId": "1e7daf60aebb590540a3f1b815eab00f",
@@ -53,6 +55,7 @@
     "browser": "Safari",
     "os": "Mac",
     "goals": [],
-    "revenueMinor": 0
+    "revenueMinor": 0,
+    "agent": ""
   }
 ]

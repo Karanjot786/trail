@@ -92,3 +92,38 @@ describe('screen sub-views (SUBTABS)', () => {
     expect(state.sheet).toBeNull()
   })
 })
+
+describe('AI visibility screen and actor (AI agents plan §0.6)', () => {
+  it('redirects legacy /crawlers to /ai/crawlers under every prefix', () => {
+    const r = parseUrl('/crawlers', '?site=demo')
+    expect(r.state.screen).toBe('crawlers')
+    expect(r.state.tab).toBe('crawlers')
+    expect(r.redirect).toBe('/ai/crawlers?site=demo')
+    expect(parseUrl('/demo/crawlers', '').redirect).toBe('/demo/ai/crawlers')
+    expect(parseUrl('/share/abc/crawlers', '').redirect).toBe('/share/abc/ai/crawlers')
+  })
+  it('defaults /ai to the funnel tab without a redirect', () => {
+    const r = parseUrl('/ai', '')
+    expect(r.state).toMatchObject({ screen: 'crawlers', tab: 'funnel' })
+    expect(r.redirect).toBeNull()
+    expect(serializeUrl(r.state)).toBe('/ai/funnel')
+    expect(parseUrl('/ai/agents', '').state.tab).toBe('agents')
+    expect(parseUrl('/ai/bogus', '').redirect).toBe('/ai/funnel')
+  })
+  it('parses actor=all only', () => {
+    expect(parseUrl('/', '?actor=all').state.actor).toBe('all')
+    expect(parseUrl('/', '?actor=agent').state.actor).toBe('human')
+    expect(parseUrl('/', '').state.actor).toBe('human')
+  })
+  it('writes actor after metric and before f', () => {
+    const s = parseUrl('/', '?site=demo&f=country:IN').state
+    expect(serializeUrl({ ...s, actor: 'all', metric: 'sessions' })).toBe('/?site=demo&metric=sessions&actor=all&f=country%3AIN')
+    expect(serializeUrl({ ...s, actor: 'human' })).toBe('/?site=demo&f=country%3AIN')
+  })
+  it('apiQuery and viewState carry actor only when all', () => {
+    const s = parseUrl('/', '?site=demo').state
+    expect(apiQuery({ ...s, actor: 'all' }, 'UTC').get('actor')).toBe('all')
+    expect(apiQuery(s, 'UTC').has('actor')).toBe(false)
+    expect(viewState({ ...s, actor: 'all' })).toBe('site=demo&actor=all')
+  })
+})

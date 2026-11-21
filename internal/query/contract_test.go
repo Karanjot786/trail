@@ -53,13 +53,17 @@ func TestContractJSONNames(t *testing.T) {
 		v    any
 		want []string
 	}{
-		{query.StatsResult{}, sorted(append([]string{"window", "prev", "online", "botRequests", "conv"}, totals...)...)},
+		{query.StatsResult{}, sorted(append([]string{"window", "prev", "online", "botRequests", "conv", "agentSessions"}, totals...)...)},
 		{query.SeriesResult{}, sorted("window", "metric", "bucket", "points", "prev")},
 		{query.Row{}, sorted("key", "visitors", "pageviews", "total")},
 		{query.ChangeItem{Kind: "day"}, sorted("kind", "day", "cur", "prev", "added", "source", "basis")},
 		{query.ChangeItem{Kind: "source"}, sorted("kind", "key", "cur", "prev", "basis")},
 		{query.ChangeItem{Kind: "rate"}, sorted("kind", "metric", "cur", "prev", "n", "basis")},
 		{query.FunnelReportResult{}, sorted("funnel", "window", "started", "steps", "biggestDrop")},
+		{query.AIVisibilityResult{}, sorted("window", "steps", "providers", "pages", "conv", "verifiedShare")},
+		{query.AgentsResult{}, sorted("window", "sessions", "prevSessions", "pageviews", "verifiedSessions", "conversions", "conv", "series", "agents", "pages", "latest")},
+		{query.AISetup{}, sorted("crawls", "agents", "lists")},
+		{query.SiteStatus{}, sorted("lastEventAt", "events24h", "rejected24h", "geo")},
 		{query.Window{}, sorted("key", "label", "from", "to", "prevFrom", "prevTo", "bucket", "tz", "elapsed", "lastBucket", "clamped", "invalid", "basis")},
 	}
 	for _, c := range cases {
@@ -100,6 +104,15 @@ func TestStubsReportNotImplemented(t *testing.T) {
 	if _, err := query.Revenue(nil, query.Params{}); !errors.Is(err, query.ErrNotImplemented) && err != nil {
 		t.Fatalf("Revenue: %v", err)
 	}
+	if _, err := query.AIVisibility(nil, query.Params{}); !errors.Is(err, query.ErrNotImplemented) && err != nil {
+		t.Fatalf("AIVisibility: %v", err)
+	}
+	if _, err := query.Agents(nil, query.Params{}); !errors.Is(err, query.ErrNotImplemented) && err != nil {
+		t.Fatalf("Agents: %v", err)
+	}
+	if _, err := query.AISetupFor(nil, "s", time.Now()); !errors.Is(err, query.ErrNotImplemented) && err != nil {
+		t.Fatalf("AISetupFor: %v", err)
+	}
 }
 
 // ---- Golden TS: every Go contract type, fully populated, checked by tsc with `satisfies`. ----
@@ -113,6 +126,8 @@ var enums = map[string]any{
 	"CheckItem.ID": "page", "CheckItem.Status": "pass", "CheckItem.Code": "ok", "InstallCheck.State": "waiting",
 	"APIToken.Scope": "read", "WhoAmI.Scope": "read",
 	"ChangeItem.Kind": "day", "ChangeItem.Metric": "bounce",
+	"AIFunnelStep.Key": "crawled", "AIFunnelStep.Unit": "requests", "AIFunnelStep.Status": "ok",
+	"AgentSession.Via": "ua", "AIList.Kind": "ip", "AISetupCrawls.State": "none", "GeoStatus.Source": "db",
 }
 
 var rawType = reflect.TypeOf(json.RawMessage{})
@@ -229,6 +244,17 @@ func goldens() []golden {
 		{"revenue", "Revenue", filled[query.RevenueResult]()},
 		{"revenueRow", "RevenueRow", filled[query.RevenueRow]()},
 		{"crawlers", "Crawlers", filled[query.CrawlersResult]()},
+		{"aiFunnelStep", "AIFunnelStep", filled[query.AIFunnelStep]()},
+		{"aiProviderRow", "AIProviderRow", filled[query.AIProviderRow]()},
+		{"aiPageRow", "AIPageRow", filled[query.AIPageRow]()},
+		{"aiVisibility", "AIVisibility", filled[query.AIVisibilityResult]()},
+		{"agentRow", "AgentRow", filled[query.AgentRow]()},
+		{"agentPoint", "AgentPoint", filled[query.AgentPoint]()},
+		{"agentPage", "AgentPage", filled[query.AgentPage]()},
+		{"agentSession", "AgentSession", filled[query.AgentSession]()},
+		{"agents", "Agents", filled[query.AgentsResult]()},
+		{"aiList", "AIList", filled[query.AIList]()},
+		{"aiSetup", "AISetup", filled[query.AISetup]()},
 		{"checkItem", "CheckItem", filled[install.CheckItem]()},
 		{"installCheck", "InstallCheck", filled[install.InstallCheck]()},
 		{"note", "Note", filled[meta.Note]()},

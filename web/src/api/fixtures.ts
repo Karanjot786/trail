@@ -33,6 +33,7 @@ export function fallbacks(params: URLSearchParams): URLSearchParams[] {
     if (fs[0]) q.append('f', fs[0])
   })
   step((q) => q.delete('f'))
+  step((q) => q.delete('actor'))
   step((q) => {
     if (q.has('cmp')) q.set('cmp', 'prev')
   })

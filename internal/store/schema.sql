@@ -26,6 +26,8 @@ CREATE TABLE IF NOT EXISTS events (
   device TEXT NOT NULL DEFAULT '',
   browser TEXT NOT NULL DEFAULT '',
   os TEXT NOT NULL DEFAULT '',
+  -- 1 = not a person: bots and AI agents. agent<>'' marks the agents among them.
+  -- agent, agent_via, geo_src and retry are added by store.migrate, not here.
   is_bot INTEGER NOT NULL DEFAULT 0,
   env TEXT NOT NULL DEFAULT ''
 );
@@ -87,6 +89,9 @@ CREATE TABLE IF NOT EXISTS api_tokens(id TEXT PRIMARY KEY, name TEXT NOT NULL UN
   scope TEXT NOT NULL CHECK(scope IN ('read','notes','write','crawl')), site_id TEXT, created INTEGER NOT NULL,
   last_used INTEGER, revoked INTEGER);
 
--- AI crawler requests from server logs, aggregated per hour x bot x path x status class.
+-- AI crawler requests from server logs, aggregated per hour x bot x path x status class x verified.
+-- status 0 = unknown (a Next proxy runs before the route). verified = the IP is in the operator's published list.
+-- store.migrate rebuilds tables from older versions that lack verified.
 CREATE TABLE IF NOT EXISTS crawl_hits(site_id TEXT NOT NULL, hour INTEGER NOT NULL, bot TEXT NOT NULL, path TEXT NOT NULL,
-  status INTEGER NOT NULL, n INTEGER NOT NULL, last_ts INTEGER NOT NULL, PRIMARY KEY(site_id, hour, bot, path, status)) WITHOUT ROWID;
+  status INTEGER NOT NULL, verified INTEGER NOT NULL DEFAULT 0, n INTEGER NOT NULL, last_ts INTEGER NOT NULL,
+  PRIMARY KEY(site_id, hour, bot, path, status, verified)) WITHOUT ROWID;

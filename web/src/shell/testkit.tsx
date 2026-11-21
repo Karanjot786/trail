@@ -13,7 +13,7 @@ export function site(id: string, revenue = false): Site {
 export function stats(): Stats {
   return {
     visitors: 525, pageviews: 1450, sessions: 657, durationMs: 151000, bounce: 0.43, conversions: 50, convVisitors: 50, convRate: 0.1,
-    baseVisitors: 525, revenueMinor: 0, purchases: 0, eventPeople: 129, window: win, prev: null, online: 6, botRequests: 8006, conv: null,
+    baseVisitors: 525, revenueMinor: 0, purchases: 0, eventPeople: 129, window: win, prev: null, online: 6, botRequests: 8006, conv: null, agentSessions: 0,
   }
 }
 export function row(key: string, visitors: number): Row {

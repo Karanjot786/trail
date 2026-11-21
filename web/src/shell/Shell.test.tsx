@@ -40,7 +40,7 @@ describe('Shell', () => {
     await flush()
     const nav = await screen.findByRole('navigation', { name: 'Main' })
     const labels = within(nav).getAllByRole('link').map((a) => a.textContent?.replace(/\d+ online$/, '').trim())
-    expect(labels).toEqual(['Overview', 'Live', 'Acquisition', 'Activity', 'Conversions', 'AI crawlers'])
+    expect(labels).toEqual(['Overview', 'Live', 'Acquisition', 'Activity', 'Conversions', 'AI visibility'])
     cleanup()
     invalidate()
     visit('/?site=docs')
