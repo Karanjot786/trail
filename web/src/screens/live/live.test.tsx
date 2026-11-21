@@ -94,7 +94,7 @@ describe('Live', () => {
     visit('/live?site=demo')
     render(<LiveScreen />)
     await screen.findByTestId('live-active')
-    for (const l of ['Visitors now', 'Events, last 5 min', 'Countries now', 'Pages open now']) expect(screen.getAllByText(l).length).toBeGreaterThan(0)
+    for (const l of ['Active visitors', 'Events, last 5 min', 'Countries now', 'Pages open now']) expect(screen.getAllByText(l).length).toBeGreaterThan(0)
     expect(screen.getByTestId('live-stream-copy').textContent).toMatch(/^All 1 event from the last 5 minutes/)
     fireEvent.click(within(screen.getByRole('region', { name: 'Live events' })).getByRole('button', { name: /e2e-test-visit/ }))
     expect(current().sheet).toEqual({ kind: 'journey', person: 'p1', session: 's1' })

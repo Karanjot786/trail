@@ -109,6 +109,9 @@ func TestSeedHasV3Data(t *testing.T) {
 	if q(t, db, "SELECT count(*) FROM crawl_hits WHERE site_id='demo'") == 0 || q(t, db, "SELECT count(*) FROM crawl_hits WHERE site_id='docs'") != 0 {
 		t.Error("crawl hits only on the crawler site")
 	}
+	if bad := q(t, db, "SELECT count(*) FROM crawl_hits WHERE status NOT BETWEEN 2 AND 5"); bad != 0 {
+		t.Errorf("%v crawl hits store a raw status, want the class 2..5 like crawlers.Ingest", bad)
+	}
 	// The spike day has clearly more visitors than the day before it.
 	day := func(n int) float64 {
 		from := seedNow.UnixMilli() - int64(n+1)*dayMs

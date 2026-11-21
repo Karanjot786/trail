@@ -107,7 +107,7 @@ describe('Shell', () => {
     render(<App />)
     await flush()
     const f = await screen.findByTestId('freshness')
-    expect(f.textContent).toContain('Kolkata time')
+    expect(f.textContent).toContain('India time')
     expect(f.textContent).toContain('8,006 bot requests left out')
     expect(f.textContent).toContain('Changes are vs Sep 22 – Oct 21')
   })

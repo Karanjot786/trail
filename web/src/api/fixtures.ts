@@ -111,7 +111,8 @@ export function createFixtureTransport(base = '/demo-data', fetchImpl: typeof fe
           if (Array.isArray(body) && key !== fixtureKey(path, params)) {
             const q = (paging.get('q') ?? '').toLowerCase()
             let rows = q ? body.filter((r) => JSON.stringify(r).toLowerCase().includes(q)) : body
-            headers['x-total-count'] = String(rows.length)
+            // The recorder keeps the first rows of long lists; its x-total-count is the real total.
+            headers['x-total-count'] = !q && res.headers['x-total-count'] ? res.headers['x-total-count'] : String(rows.length)
             const off = Number(paging.get('offset') ?? 0) || 0
             const lim = Number(paging.get('limit') ?? 0) || rows.length
             rows = rows.slice(off, off + lim)

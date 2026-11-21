@@ -425,7 +425,7 @@ func meta(db *sql.DB, sp SiteSpec, now time.Time, days int) error {
 	return nil
 }
 
-// crawls writes AI crawler hits per hour × bot × path × status for the days before now.
+// crawls writes AI crawler hits per hour × bot × path × status class (2..5) for the days before now.
 func crawls(db *sql.DB, site string, now time.Time, days int, rng *rand.Rand) error {
 	tx, err := db.Begin()
 	if err != nil {
@@ -449,9 +449,9 @@ func crawls(db *sql.DB, site string, now time.Time, days int, rng *rand.Rand) er
 				if ts > end {
 					continue
 				}
-				status := 200
+				status := 2 // the status class, as crawlers.Ingest stores it
 				if rng.IntN(100) < 6 {
-					status = 404
+					status = 4
 				}
 				path := crawlPaths[rng.IntN(len(crawlPaths))]
 				if _, err := ins.Exec(site, ts/hourMs*hourMs, b.name, path, status, 1, ts); err != nil {

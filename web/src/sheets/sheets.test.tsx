@@ -55,6 +55,20 @@ describe('JourneySheet', () => {
     expect(document.activeElement).toBe(within(dlg).getByRole('heading', { name: /^Visit 2/ }))
   })
 
+  it('the order toggle lists the newest visit first; the strip and Visit numbers stay', async () => {
+    visit('/activity/visitors?site=demo&v=p9')
+    render(<JourneySheet />)
+    await flush()
+    const dlg = screen.getByRole('dialog')
+    const order = () => within(dlg).getAllByRole('heading', { level: 3 }).filter((h) => h.classList.contains('visit-h')).map((h) => h.textContent?.match(/Visit \d+/)?.[0])
+    expect(order()).toEqual(['Visit 1', 'Visit 2', 'Visit 3'])
+    fireEvent.click(within(dlg).getByRole('button', { name: 'Oldest first' }))
+    expect(within(dlg).getByRole('button', { name: 'Newest first' }).getAttribute('aria-pressed')).toBe('true')
+    expect(order()).toEqual(['Visit 3', 'Visit 2', 'Visit 1'])
+    fireEvent.click(within(dlg).getAllByRole('button', { name: /^Visit \d/ })[0])
+    expect(document.activeElement).toBe(within(dlg).getByRole('heading', { name: /^Visit 1/ }))
+  })
+
   it('two visits on the same day stack into two lanes', async () => {
     state.journey = journey().slice(0, 2).map((s, i) => ({ ...s, start: IST(20, 9 + i * 5), steps: s.steps.map((st) => ({ ...st, ts: IST(20, 9 + i * 5) })), goals: [] }))
     visit('/activity/visitors?site=demo&v=p9')
@@ -91,7 +105,7 @@ describe('EventSheet', () => {
     const dlg = screen.getByRole('dialog')
     expect(within(dlg).getByText('property')).toBeTruthy()
     expect(within(within(dlg).getByRole('region', { name: 'Property plan' })).getByText('free')).toBeTruthy()
-    fireEvent.click(within(dlg).getByRole('button', { name: /^Open the journey of Visitor 3/ }))
+    fireEvent.click(within(dlg).getByRole('button', { name: /^Visitor 3 .*Open the journey$/ }))
     expect(current().sheet).toEqual({ kind: 'journey', person: 'p3', session: 's3' })
     expect(location.search).not.toContain('evn=')
     expect(decodeURIComponent(location.search)).toContain('v=p3~s3')

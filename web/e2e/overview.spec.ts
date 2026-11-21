@@ -162,7 +162,11 @@ chk(16, 'what changed: the day item zooms into that day', async ({ page, goto, a
   const day = ch.items.find((x: any) => x.kind === 'day')
   test_assert(day)
   const wc = page.getByRole('region', { name: 'What changed' })
-  await wc.getByRole('button', { name: new RegExp(String(day.day).replace(/^\d+-0?/, '')) }).first().click().catch(() => wc.getByRole('link').first().click())
+  // The API sends the day as ISO; the item names it "Nov 10".
+  const [, m, d] = String(day.day).split('-').map(Number)
+  const label = `${['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][m - 1]} ${d}`
+  await wc.getByRole('button', { name: new RegExp(`Biggest jump.*${label}`) }).click()
+  expect(await loc(page)).toContain(`range=d:${day.day}`)
   expect(await loc(page)).toMatch(/range=d:\d{4}-\d{2}-\d{2}/)
 })
 
@@ -182,14 +186,18 @@ chk(18, 'freshness line names the zone, "Every visit counted" and links to AI cr
   expect(await loc(page)).toContain('/crawlers')
 })
 
-chk(20, 'compare with a custom period names it in the readout and legend', async ({ page, goto }) => {
+chk(20, 'compare with a custom period names it in the readout and legend', async ({ page, goto, api }) => {
   await goto('/')
+  // A start inside the seeded data (the server moves an earlier start up to the first event).
+  const start = new Date(Date.now() - 50 * 864e5).toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
   await page.getByRole('button', { name: 'Compare with' }).click()
   await page.getByRole('menuitemradio', { name: /custom/i }).click()
-  await page.getByRole('dialog').getByLabel(/start|from/i).fill('2026-07-01')
+  await page.getByRole('dialog').getByLabel(/start|from/i).fill(start)
   await page.getByRole('button', { name: /^(apply|compare)$/i }).click()
-  expect(await loc(page)).toContain('cmp=c:2026-07-01')
-  await expect(page.getByTestId('chart-legend')).toContainText('Jul 1 – Jul 30')
+  expect(await loc(page)).toContain(`cmp=c:${start}`)
+  const w = (await api('series', { range: '30d', cmp: `c:${start}`, metric: 'visitors' })).window
+  expect(w.basis.custom).toBe(true)
+  await expect(page.getByTestId('chart-legend')).toContainText(w.basis.dates)
 })
 
 chk(28, 'the biggest-jump day shows the same delta on the strip, tooltip, day view and phone readout (vs API)', async ({ page, goto, api }) => {
@@ -372,7 +380,8 @@ chk(72, 'heatmap names a busiest hour only when it clearly wins', async ({ page,
   await goto('/')
   const hm = await api('heatmap')
   const hmr = page.getByRole('grid', { name: 'Visitors by weekday and hour' }).locator('xpath=..')
-  if (hm.clear) await expect(hmr).toContainText(hm.busiest.label)
+  const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+  if (hm.clear) await expect(hmr).toContainText(`Busiest hour: ${days[hm.peak.dow]}s, ${String(hm.peak.hour).padStart(2, '0')}:00`)
   else await expect(hmr).not.toContainText(/busiest/i)
 })
 

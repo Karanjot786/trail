@@ -1,7 +1,6 @@
 // Revenue (Task F4-5): reported by your site (Purchase events), credited by FIRST TOUCH, so Acquisition, goals
 // and this screen agree row for row. Purchases are discrete, so the chart is daily bars; a day without
 // purchases reads "No purchases". Hidden, with the one-line setup, until the site sends a Purchase.
-import { useState } from 'react'
 import { api } from '../../api/client'
 import type { Purchase, RevenueRow } from '../../api/types'
 import { BarsChart } from '../../charts/BarsChart'
@@ -10,7 +9,7 @@ import { rowLabel } from '../../data/columns'
 import { bar } from '../../lib/bar'
 import { fmtInt, fmtMoney } from '../../lib/format'
 import { inWindow } from '../../lib/phrases'
-import { navigate } from '../../state/useUrlState'
+import { navigate, useSubTab } from '../../state/useUrlState'
 import { useShowRevenue, useSite } from '../../shell/useSite'
 import { useStats } from '../../shell/useStats'
 import { DeltaPill } from '../../ui/delta-pill'
@@ -42,7 +41,7 @@ const when = (ms: number, tz: string) => {
 }
 
 function Breakdown({ currency, net }: { currency: string; net: number }) {
-  const [dim, setDim] = useState<RDim>('source')
+  const [dim, setDim] = useSubTab<RDim>('rev')
   const r = useReport(`revenue-breakdown:${dim}`, (q, sig) => api.revenueBreakdown(q, dim, { limit: 1000 }, sig))
   const rows: RevenueRow[] = r.data?.rows ?? []
   const max = maxOf(rows, (x) => x.revenueMinor)

@@ -1,7 +1,7 @@
 // State banners (plan F1-5, F1-8): offline, refresh failed (kept above the greyed last good data), stale,
 // the read-only share notice, an expired or revoked share link, and the fixtures preset fallback.
 import { useEffect, useSyncExternalStore } from 'react'
-import { Clock, Eye, Info, Link2Off, TriangleAlert, WifiOff } from 'lucide-react'
+import { Clock, Eye, Info, TriangleAlert, WifiOff } from 'lucide-react'
 import { onGone } from '../api/useQuery'
 import { useUrlState } from '../state/useUrlState'
 import { Button } from '../ui/button'
@@ -57,16 +57,8 @@ export function Banners() {
   }, [failed])
 
   const items = []
-  if (isGone && isShare)
-    items.push(
-      <div key="gone" className="notice" data-tone="bad" role="alert">
-        <Link2Off size={14} aria-hidden="true" />
-        <span>
-          <b>This link has expired or was revoked.</b> Ask the person who shared it for a new one.
-        </span>
-      </div>,
-    )
-  else if (isShare)
+  // A gone share link says so once, as the page's empty state (Shell); no banner repeats it.
+  if (isShare && !isGone)
     items.push(
       <div key="share" className="notice" role="status">
         <Eye size={14} aria-hidden="true" />
@@ -94,7 +86,8 @@ export function Banners() {
       <div key="fail" className="notice" data-tone="bad" role="alert">
         <TriangleAlert size={14} aria-hidden="true" />
         <span>
-          <b>Couldn’t refresh.</b> Showing the numbers from {stats.updatedAt ? hhmm(stats.updatedAt) : 'earlier'}, greyed until they update.
+          <b>Refresh failed.</b> These numbers are from {stats.updatedAt ? hhmm(stats.updatedAt) : 'earlier'} and may be out of date; they stay greyed until Trail can refresh. Nothing is lost:
+          events are still being recorded.
         </span>
         <span className="spacer" />
         <Button size="sm" onClick={() => stats.refetch()}>

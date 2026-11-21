@@ -105,10 +105,10 @@ export function Sidebar() {
         <div className="side-scroll">
           <SiteSwitcher />
           {!share && (
-            <button type="button" className="search-trigger" onClick={(e) => setUi({ palette: { scope: '', instant: e.detail === 0 } })} aria-label="Search or jump to…" aria-keyshortcuts="Meta+K Control+K">
+            <button type="button" className="search-trigger" onClick={(e) => setUi({ palette: { scope: '', instant: e.detail === 0 } })} aria-keyshortcuts="Meta+K Control+K">
               <Search size={16} aria-hidden="true" />
               <span className="clabel">Search or jump to…</span>
-              <span className="clabel">
+              <span className="clabel" aria-hidden="true">
                 <Kbd>{`${MOD} K`}</Kbd>
               </span>
             </button>

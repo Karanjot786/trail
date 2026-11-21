@@ -27,11 +27,13 @@ chk(22, 'Revenue is its own screen, hidden with an explanation when the site nev
 
 chk(32, 'revenue is drawn as bars; a $0 day reads "no purchases", not a red -100%', async ({ page, goto, api }) => {
   await goto('/revenue')
-  await expect(page.getByRole('figure').first().locator('rect').first()).toBeVisible()
+  // Bars, not a line: the plotted marks of the first chart are bar rects (defs and the hit area are not marks).
+  await expect(page.getByRole('figure').first().locator('rect.vbar').first()).toBeVisible()
+  expect(await page.getByRole('figure').first().locator('path.line:not(.partial)').count()).toBe(0)
   const s = await api('series', { metric: 'revenue', range: '30d' })
   const zero = s.points.find((p: any) => p.v === 0)
   if (zero) {
-    const d = new Date(zero.t).toISOString().slice(0, 10)
+    const d = new Date(zero.t).toLocaleDateString('en-CA', { timeZone: s.window.tz }) // the bucket's day in the site zone
     await goto(`/?range=d:${d}`)
     const k = await app_kpi(page)
     expect(k).toMatch(/no purchases/)
@@ -63,7 +65,9 @@ chk(36, 'a goal has a Sources tab (converted, rate, revenue); goal filters never
   expect(head).toMatch(/Conversion rate/)
   expect(head).toMatch(/Revenue/)
   await goto(`/?f=goal:${goals[0].name}`)
-  expect(await page.getByRole('tablist', { name: 'Metrics' }).getByRole('tab', { name: /rate/ }).innerText()).not.toMatch(/\b100%/)
+  const rates = page.getByRole('tablist', { name: 'Metrics' }).getByRole('tab', { name: /rate/ })
+  expect(await rates.count()).toBeGreaterThan(0)
+  for (const t of await rates.allInnerTexts()) expect(t).not.toMatch(/\b100%/)
 })
 
 chk(53, 'funnel: one meaning for "left after step N"; the summary agrees with the biggest drop', async ({ page, goto, api }) => {

@@ -49,7 +49,10 @@ export function reportError(e: unknown): void {
 /** Drops cached entries (all, or those whose key starts with `prefix`), e.g. after a write or a login. */
 export function invalidate(prefix = ''): void {
   for (const k of [...cache.keys()]) if (k.startsWith(prefix)) cache.delete(k)
+  // Mounted hooks on those keys fetch again, so a write shows up without a reload.
+  for (const f of [...mounted]) f(prefix)
 }
+const mounted = new Set<(prefix: string) => void>()
 
 const online = () => (typeof navigator === 'undefined' ? true : navigator.onLine !== false)
 
@@ -119,6 +122,15 @@ export function useQuery<T>(key: string, fn: (signal: AbortSignal) => Promise<T>
     else rerender()
     return () => ctl.current?.abort()
   }, [key, enabled, staleMs, run])
+
+  useEffect(() => {
+    if (!enabled) return
+    const f = (prefix: string) => {
+      if (key.startsWith(prefix)) run()
+    }
+    mounted.add(f)
+    return () => void mounted.delete(f)
+  }, [key, enabled, run])
 
   useEffect(() => {
     if (!enabled || !pollMs) return

@@ -207,7 +207,6 @@ export function TimeChart(o: TimeChartProps) {
       >
         <defs>
           <pattern id={`${id}p`} width="7" height="7" patternUnits="userSpaceOnUse">
-            <rect width="7" height="7" fill="none" />
             <circle cx="3.5" cy="3.5" r="1.15" fill={o.color} />
           </pattern>
           <linearGradient id={`${id}g`} x1="0" x2="0" y1="0" y2="1">

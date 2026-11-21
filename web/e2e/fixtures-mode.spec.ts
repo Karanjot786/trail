@@ -45,7 +45,11 @@ test('Live numbers change between two polls', async ({ page }) => {
 })
 
 test('a write says "The demo is read-only"', async ({ page }) => {
+  // Settings explains up front that the demo makes no links or tokens; a write from the shell is answered.
   await page.goto('/settings/sharing')
-  await page.getByRole('button', { name: /create|new|share/i }).first().click()
-  await expect(page.getByText('The demo is read-only')).toBeVisible()
+  await expect(page.getByRole('main')).toContainText('The demo is read-only')
+  await page.goto('/?f=device:mobile')
+  await page.getByRole('button', { name: 'Save the current view' }).click()
+  await page.getByRole('button', { name: 'Pin to sidebar' }).click()
+  await expect(page.getByText('The demo is read-only').first()).toBeVisible()
 })

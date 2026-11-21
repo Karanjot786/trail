@@ -15,7 +15,7 @@ const check = (title: string, body: (app: App) => Promise<void>, opts: { phone?:
   })
 
 async function newShare(page: import('@playwright/test').Page, body: Record<string, unknown> = {}) {
-  const res = await page.request.post('/api/shares', { data: { site: 'demo', label: 'e2e', state: 'range=30d', hideRevenue: false, ...body } })
+  const res = await page.request.post('/api/shares', { data: { site: 'demo', label: 'e2e', state: 'range=30d', hideRevenue: false, ttl: '7d', ...body } })
   expect(res.status()).toBeLessThan(300)
   const s = await res.json()
   expect(s.url, 'share url on create').toBeTruthy()
@@ -44,7 +44,8 @@ check('hr=1 hides Revenue in the share view', async ({ page, goto }) => {
   await page.request.delete(`/api/shares/${s.id}`)
 })
 
-check('a revoked share answers 410 and the open page says so, with no login form', async ({ page, goto }) => {
+check('a revoked share answers 410 and the open page says so, with no login form', async (app) => {
+  const { page, goto } = app
   const s = await newShare(page)
   await goto(s.path)
   await expect(page.getByRole('tablist', { name: 'Metrics' })).toBeVisible()
@@ -54,4 +55,5 @@ check('a revoked share answers 410 and the open page says so, with no login form
   await page.reload()
   await expect(page.getByText('This link has expired or was revoked')).toBeVisible()
   await expect(page.getByLabel(/password/i)).toHaveCount(0)
+  app.errors.length = 0 // the 410s are the expected network answer
 })

@@ -86,6 +86,7 @@ type Totals struct {
 	BaseVisitors int     `json:"baseVisitors"`
 	RevenueMinor int64   `json:"revenueMinor"`
 	Purchases    int     `json:"purchases"`
+	EventPeople  int     `json:"eventPeople"` // people who sent at least one custom or outbound event
 }
 
 // ConvRef names the goal behind the conversion columns.
@@ -156,7 +157,7 @@ type Row struct {
 // ChangeItem is one What changed item. Kind is day | source | rate; MarshalJSON emits only that kind's fields.
 type ChangeItem struct {
 	Kind   string  `json:"kind"`
-	Day    string  `json:"day,omitempty"`
+	Day    string  `json:"day,omitempty"` // ISO YYYY-MM-DD in the site zone; the UI builds the label
 	Key    string  `json:"key,omitempty"`
 	Metric string  `json:"metric,omitempty"` // bounce | conversion
 	Cur    float64 `json:"cur"`
@@ -276,7 +277,8 @@ type Person struct {
 	Identified bool   `json:"identified"`
 	FirstSeen  int64  `json:"firstSeen"`
 	LastSeen   int64  `json:"lastSeen"`
-	Visits     int    `json:"visits"`
+	Visits     int    `json:"visits"`      // sessions in the range
+	VisitsAll  int    `json:"visitsTotal"` // every session ever, as many as the journey lists
 	Pages      int    `json:"pages"`
 	DurationMs int64  `json:"durationMs"`
 	Country    string `json:"country"`

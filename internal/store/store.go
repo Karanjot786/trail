@@ -44,6 +44,7 @@ type Store struct {
 	mu      sync.Mutex // serialises Flush and guards closed
 	closed  bool
 	dropped atomic.Int64
+	every   time.Duration // the timer flush interval (flushEvery; tests raise it)
 }
 
 // Open opens (or creates) the database at path, enabling WAL and a 5 s busy timeout.
@@ -65,6 +66,7 @@ func Open(path string) (*Store, error) {
 		db:    db,
 		queue: make(chan Event, queueCap),
 		kick:  make(chan struct{}, 1),
+		every: flushEvery,
 	}, nil
 }
 
@@ -114,7 +116,7 @@ func (s *Store) Enqueue(e Event) {
 // 500 events are waiting, until ctx is cancelled.
 func (s *Store) Start(ctx context.Context) {
 	go func() {
-		t := time.NewTicker(flushEvery)
+		t := time.NewTicker(s.every)
 		defer t.Stop()
 		for {
 			select {

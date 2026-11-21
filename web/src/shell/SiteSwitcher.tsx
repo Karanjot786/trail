@@ -33,15 +33,15 @@ export function SiteSwitcher() {
       className="switcher"
       data-static={share ? '' : undefined}
       disabled={!!share}
-      aria-label={share ? undefined : `Switch site. Current: ${name}`}
     >
       <span className="mark">
         <Mark />
       </span>
       <span className="clabel">
         <span className="who">
-          <b>{name}</b>
+          <b>{name}</b>{' '}
           <span>{sub}</span>
+          {!share && <span className="sr-only">. Switch site</span>}
         </span>
       </span>
       <span className="clabel chev">

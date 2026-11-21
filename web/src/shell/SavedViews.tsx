@@ -146,10 +146,10 @@ function SaveViewForm({ onDone }: { onDone: () => void }) {
   const where = `${s.site === 'all' ? 'All websites' : (site?.domain ?? s.site)} · ${rangeLabel(s.range)[0].toLowerCase()}`
   return (
     <form className="save-view" onSubmit={submit}>
-      <label htmlFor="vname">
+      <div className="sv-h">
         <b>Save this view</b>
-        <span>{where}</span>
-      </label>
+        <span id="vwhere">{where}</span>
+      </div>
       {s.filters.length ? (
         <ul className="sv-what" aria-label="Filters in this view">
           {s.filters.map((f) => (
@@ -161,7 +161,7 @@ function SaveViewForm({ onDone }: { onDone: () => void }) {
       ) : (
         <p className="sv-none">No filters are on, so this saves only the range and site.</p>
       )}
-      <input ref={input} className="input" id="vname" value={name} maxLength={40} autoComplete="off" required onChange={(e) => setName(e.target.value)} />
+      <input ref={input} className="input" id="vname" aria-label="View name" aria-describedby="vwhere" value={name} maxLength={40} autoComplete="off" required onChange={(e) => setName(e.target.value)} />
       <div className="acts">
         <Button size="sm" variant="ghost" onClick={onDone}>
           Cancel

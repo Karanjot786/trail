@@ -4,7 +4,6 @@ package query
 
 import (
 	"database/sql"
-	"sort"
 	"sync"
 	"testing"
 	"time"
@@ -66,21 +65,11 @@ func TestPerfConversions(t *testing.T) {
 				run  func() error
 			}{"RevenueBreakdown(" + dim + ")", func() error { _, err := RevenueBreakdown(db, p, dim); return err }})
 		}
+		pc := make([]perfCase, 0, len(cases))
 		for _, c := range cases {
-			var runs []time.Duration
-			for range 5 {
-				start := time.Now()
-				if err := c.run(); err != nil {
-					t.Fatalf("%s %s: %v", w.name, c.name, err)
-				}
-				runs = append(runs, time.Since(start))
-			}
-			sort.Slice(runs, func(i, j int) bool { return runs[i] < runs[j] })
-			med := runs[2]
-			t.Logf("%-4s %-28s median %6.1f ms", w.name, c.name, float64(med.Microseconds())/1000)
-			if med > 150*time.Millisecond {
-				t.Errorf("%s %s: median %v over 150 ms", w.name, c.name, med)
-			}
+			pc = append(pc, perfCase{w.name + " " + c.name, c.run})
 		}
+		perfRun(t, pc)
+
 	}
 }

@@ -21,6 +21,13 @@ export function isoDay(iso: string): string {
   const [, m, d] = iso.split('-').map(Number)
   return m && d ? `${MON[m - 1]} ${d}` : iso
 }
+/** The visible basis, short like the prototype: "prev. 30 days"; the accessible name keeps the full one. */
+export function shortBasis(b: string): string {
+  const m = /\(the previous (\d+) days\)$/.exec(b)
+  if (m) return `prev. ${m[1]} days`
+  const p = /\((the [^)]+)\)$/.exec(b)
+  return p ? p[1] : b.replace(/^vs /, '')
+}
 const RATE_LABEL = { bounce: 'Bounce rate', conversion: 'Goal rate' } as const
 
 function Arrow({ up }: { up: boolean | null }) {
@@ -67,7 +74,7 @@ export function describeItem(it: ChangeItem, goalName?: string | null): { name: 
             <Arrow up={up} />
             {txt}
           </span>
-          <span className="wc-s">{it.basis}</span>
+          <span className="wc-s">{shortBasis(it.basis)}</span>
         </>
       ),
     }
@@ -86,7 +93,7 @@ export function describeItem(it: ChangeItem, goalName?: string | null): { name: 
           {d.text}
         </span>
         <span className="wc-s">
-          {fmtPct(it.prev)} → {fmtPct(it.cur)}, {it.basis}
+          {fmtPct(it.prev)} → {fmtPct(it.cur)}, {shortBasis(it.basis)}
         </span>
       </>
     ),

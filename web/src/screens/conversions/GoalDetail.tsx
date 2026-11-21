@@ -11,7 +11,7 @@ import { rowLabel } from '../../data/columns'
 import type { TableColumn } from '../../data/DataTable'
 import { fmtInt, fmtMoney, fmtPct } from '../../lib/format'
 import { inWindow } from '../../lib/phrases'
-import { navigate } from '../../state/useUrlState'
+import { navigate, useSubTab } from '../../state/useUrlState'
 import { RouteLink } from '../../shell/RouteLink'
 import { useShowRevenue, useSite } from '../../shell/useSite'
 import { useStats } from '../../shell/useStats'
@@ -102,7 +102,7 @@ export function GoalDetail({ id, share }: { id: number; share: boolean }) {
   const stats = useStats()
   const revenue = useShowRevenue()
   const { site } = useSite()
-  const [tab, setTab] = useState<GTab>('overview')
+  const [tab, setTab] = useSubTab<GTab>('goal')
   const [editing, setEditing] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const s = d.s

@@ -16,7 +16,25 @@ import { StatusDot } from '../../ui/small'
 import { EmptyState, ErrorState, Skeleton } from '../../ui/states'
 import { Segmented } from '../../ui/tabs'
 import { CountryCode, hm, sourceText, useAq } from '../activity/shared'
+import { Globe } from './Globe'
 import './live.css'
+
+const regions = (() => {
+  try {
+    return new Intl.DisplayNames(['en'], { type: 'region' })
+  } catch {
+    return null
+  }
+})()
+/** "IN" → "India" (the code is shown beside it). */
+function countryName(code: string): string {
+  if (!code) return 'Unknown'
+  try {
+    return regions?.of(code) ?? code
+  } catch {
+    return code
+  }
+}
 
 export const POLL_MS = 5000
 const STREAM_CAP = 50
@@ -78,10 +96,10 @@ export default function LiveScreen() {
   return (
     <div className={`live${frozen ? ' live-off' : ''}`}>
       <div className="live-top">
-        <section className="live-hero" aria-label="Visitors now">
+        <section className="live-hero" aria-label="Active visitors">
           <span className="k">
             <StatusDot tone={off ? 'off' : 'live'} />
-            Visitors now
+            Active visitors
           </span>
           <span className="v" data-testid="live-active">
             {fmtInt(d.active)}
@@ -89,21 +107,7 @@ export default function LiveScreen() {
           <span className="upd" data-testid="live-updated">
             in the last 5 minutes · {off ? `as of ${asOf}, not updating` : paused ? `paused, as of ${asOf}` : 'updated just now'}
           </span>
-          <div className="plane" aria-hidden="true" />
-          <div className="live-stats">
-            <div>
-              <span className="sk2">Events, last 5 min</span>
-              <span className="sv">{fmtInt(d.events5m)}</span>
-            </div>
-            <div>
-              <span className="sk2">Countries now</span>
-              <span className="sv">{fmtInt(d.countries.length)}</span>
-            </div>
-            <div>
-              <span className="sk2">Pages open now</span>
-              <span className="sv">{fmtInt(d.pages.length)}</span>
-            </div>
-          </div>
+          <Globe points={d.countries.map((c) => ({ code: c.key, n: c.count }))} frozen={frozen} />
         </section>
 
         <section className="panel live-side" aria-label={SIDE_LABEL[side]}>
@@ -124,13 +128,27 @@ export default function LiveScreen() {
               Active now
             </span>
           </div>
+          <div className="live-stats">
+            <div>
+              <span className="sk2">Events, last 5 min</span>
+              <span className="sv">{fmtInt(d.events5m)}</span>
+            </div>
+            <div>
+              <span className="sk2">Countries now</span>
+              <span className="sv">{fmtInt(d.countries.length)}</span>
+            </div>
+            <div>
+              <span className="sk2">Pages open now</span>
+              <span className="sv">{fmtInt(d.pages.length)}</span>
+            </div>
+          </div>
           {list.length ? (
             <ul className="live-rows">
               {list.map((x) => (
                 <li key={x.key}>
                   <span className="lab">
                     {side === 'country' && <CountryCode code={x.key} />}
-                    <span className={`name${side === 'page' ? ' mono' : ''}`}>{side === 'source' ? sourceText(x.key).replace(/^Came from /, '') : x.key || 'Unknown'}</span>
+                    <span className={`name${side === 'page' ? ' mono' : ''}`}>{side === 'source' ? sourceText(x.key).replace(/^Came from /, '') : side === 'country' ? countryName(x.key) : x.key || 'Unknown'}</span>
                   </span>
                   <span className="track" aria-hidden="true">
                     <i data-bar="" style={{ transform: `scaleX(${bar(x.count, max)})` }} />
@@ -150,7 +168,7 @@ export default function LiveScreen() {
       </div>
 
       <div className="sec-h">
-        <h2 style={{ margin: 0, fontSize: 'var(--text-body-strong)' }}>Live events</h2>
+        <h2>Live events</h2>
         <p data-testid="live-stream-copy">
           {streamCopy(d.stream.length, d.streamTotal)} from the last 5 minutes, newest first. Select one to open the visitor’s journey.
         </p>
@@ -193,31 +211,31 @@ export default function LiveScreen() {
                   <button
                     type="button"
                     className={`ev-row${newKeys.has(k) ? ' new' : ''}`}
-                    aria-label={`${e.label}, ${isPv ? e.path : e.name}, ${rel(e.ts, d.asOf)}. Open the journey`}
                     onClick={() => navigate({ sheet: { kind: 'journey', person: e.person, session: e.sessionId } })}
                   >
                     <Avatar seed={e.person} size={28} />
                     <span className="who2">
-                      <b data-testid="journey-label">{e.label}</b>
+                      <b data-testid="journey-label">{e.label}</b>{' '}
                       <span>{[e.city, e.country].filter(Boolean).join(', ')}</span>
-                    </span>
+                    </span>{' '}
                     <span className="what">
                       {isPv ? (
                         <>
-                          <b className="mono">{e.path}</b>
+                          <b className="mono">{e.path}</b>{' '}
                           <span>Page view</span>
                         </>
                       ) : (
                         <>
                           <b>
                             <Zap aria-hidden="true" size={12} /> {e.name}
-                          </b>
+                          </b>{' '}
                           <span>{e.path ? `on ${e.path}` : 'Custom event'}</span>
                         </>
                       )}
-                    </span>
-                    <span className="ctx">{sourceText(e.source)}</span>
+                    </span>{' '}
+                    <span className="ctx">{sourceText(e.source)}</span>{' '}
                     <span className="when">{rel(e.ts, d.asOf)}</span>
+                    <span className="sr-only">. Open the journey</span>
                   </button>
                 </li>
               )

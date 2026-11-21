@@ -14,6 +14,8 @@ it('loads DataTable lazily behind a skeleton fallback', async () => {
     />,
   )
   expect(container.querySelector('[aria-busy="true"]')).not.toBeNull()
-  expect(await screen.findByRole('table', {}, { timeout: 5000 })).toBeTruthy()
+  // The lazy chunk's first import transforms @tanstack/react-table: slow on a loaded machine, so the wait is
+  // generous; what matters is the skeleton first, then the table.
+  expect(await screen.findByRole('table', {}, { timeout: 25_000 })).toBeTruthy()
   expect(screen.getByText('Ada')).toBeTruthy()
-})
+}, 30_000)

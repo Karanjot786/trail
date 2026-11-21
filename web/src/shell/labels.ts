@@ -27,13 +27,13 @@ export const RANGE_GROUPS: { label: string; keys: RangeKey[] }[] = [
 const RANGE_LABEL: Record<string, [string, string]> = {
   today: ['Today', 'Today'],
   yesterday: ['Yesterday', 'Yest.'],
-  wtd: ['Week to date', 'WTD'],
-  mtd: ['Month to date', 'MTD'],
+  wtd: ['This week', 'Week'],
+  mtd: ['This month', 'Month'],
   lastmonth: ['Last month', 'Last mo.'],
-  '7d': ['Last 7 days', '7d'],
-  '30d': ['Last 30 days', '30d'],
-  '90d': ['Last 90 days', '90d'],
-  '12mo': ['Last 12 months', '12mo'],
+  '7d': ['Last 7 days', '7 days'],
+  '30d': ['Last 30 days', '30 days'],
+  '90d': ['Last 90 days', '90 days'],
+  '12mo': ['Last 12 months', '12 months'],
 }
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 function isoLabel(iso: string): string {
@@ -58,6 +58,8 @@ export function rangeLabel(r: RangeKey): [string, string] {
 
 /** "Asia/Kolkata" → "Kolkata". */
 export function tzCity(tz: string): string {
+  // One zone, two names (browsers still report the old one); the prototype says "India time".
+  if (tz === 'Asia/Kolkata' || tz === 'Asia/Calcutta') return 'India'
   const last = tz.split('/').pop() ?? tz
   return last.replace(/_/g, ' ')
 }

@@ -1,5 +1,5 @@
 // CompareMenu (plan F1-5): Previous period, Custom period…, No comparison. The basis text comes from the server window.
-import { useState, type FormEvent } from 'react'
+import { useRef, useState, type FormEvent } from 'react'
 import { ChevronDown, GitCompareArrows } from 'lucide-react'
 import { Popover as PP } from 'radix-ui'
 import type { CmpKey } from '../api/types'
@@ -14,6 +14,15 @@ export function CompareMenu() {
   const s = useUrlState()
   const stats = useStats()
   const [custom, setCustom] = useState(false)
+  // The custom form opens only once the menu has closed: opening it from the item's onSelect lets the menu's
+  // focus return and the popover's focus move fight each other, which locked the page.
+  const wantCustom = useRef(false)
+  const afterMenu = (e: Event) => {
+    if (!wantCustom.current) return
+    wantCustom.current = false
+    e.preventDefault()
+    setCustom(true)
+  }
   useLayer(custom, () => setCustom(false))
   const basis = stats.data?.window?.basis?.text ? stats.data.window.basis : undefined
   const mode = s.cmp === 'none' ? 'none' : s.cmp.startsWith('c:') ? 'custom' : 'prev'
@@ -29,12 +38,12 @@ export function CompareMenu() {
   }
 
   const button = (
-    <button type="button" className="btn" aria-label="Compare with" aria-pressed={mode !== 'none'} title={basis && mode !== 'none' ? basis.text : undefined}>
+    <button type="button" className="btn" aria-pressed={mode !== 'none'} title={basis && mode !== 'none' ? basis.text : undefined}>
       <GitCompareArrows size={14} aria-hidden="true" />
-      <span className="lbl-hide" aria-hidden="true">
-        {label}
-      </span>
-      <span className="sr-only">{mode === 'none' ? ': off' : basis ? `: ${basis.text}` : ''}</span>
+      {/* The name starts with the visible label; on phones the label is hidden and lbl-phone names the button. */}
+      <span className="lbl-hide">{label}</span>
+      <span className="sr-only lbl-phone">Compare</span>
+      <span className="sr-only">{mode === 'none' ? ' with: off' : `, compare with${basis ? `: ${basis.text}` : ''}`}</span>
       <ChevronDown size={14} aria-hidden="true" />
     </button>
   )
@@ -42,13 +51,13 @@ export function CompareMenu() {
     <PP.Root open={custom} onOpenChange={setCustom}>
       <PP.Anchor asChild>
         <span style={{ display: 'inline-flex' }}>
-          <Menu trigger={button} label="Compare with" align="end" minWidth={300}>
+          <Menu trigger={button} label="Compare with" align="end" minWidth={300} onCloseAutoFocus={afterMenu}>
             <MenuLabel>Compare with</MenuLabel>
             <MenuRadioGroup value={mode} onValueChange={(v) => (v === 'custom' ? undefined : navigate({ cmp: v as CmpKey }))}>
               <MenuRadio value="prev" end={mode === 'prev' && basis && !basis.none ? basis.dates : undefined}>
                 Previous period
               </MenuRadio>
-              <MenuRadio value="custom" end={mode === 'custom' && basis ? basis.dates : undefined} onSelect={() => setTimeout(() => setCustom(true), 0)}>
+              <MenuRadio value="custom" end={mode === 'custom' && basis ? basis.dates : undefined} onSelect={() => (wantCustom.current = true)}>
                 Custom period…
               </MenuRadio>
               <MenuRadio value="none">No comparison</MenuRadio>
