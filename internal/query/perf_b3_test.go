@@ -4,85 +4,34 @@ package query
 
 import (
 	"database/sql"
-	"math/rand/v2"
-	"path/filepath"
 	"sort"
 	"sync"
 	"testing"
 	"time"
-
-	"trail/internal/seed"
-	"trail/internal/store"
 )
 
-// b3Perf is the 60-day / 1,800-person demo seed plus purchases, goals, a funnel and crawler hits.
-// It is built once and shared; swap it for B1's perfDB fixture once that lands.
+// b3Perf tops up B1's shared perfDB (60 days / 1,800 persons; site demo has revenue, crawler
+// hits, the goals Signup (id 1) and Pricing (id 2) and the funnel "Docs to signup" (id 1)) with
+// more purchases, so the revenue reports work on a realistic number of sales.
 var b3Perf struct {
 	once sync.Once
-	db   *sql.DB
-	now  time.Time
 	err  error
 }
 
 func b3PerfDB(t *testing.T) (*sql.DB, time.Time) {
 	t.Helper()
 	b3Perf.once.Do(func() {
-		st, err := store.Open(filepath.Join(t.TempDir(), "perf.db"))
-		if err != nil {
-			b3Perf.err = err
-			return
-		}
-		now := time.Date(2026, 11, 20, 10, 5, 0, 0, ist)
-		if err := seed.Seed(st, []string{"demo"}, 60, 1800, now, rand.New(rand.NewPCG(42, 42))); err != nil {
-			b3Perf.err = err
-			return
-		}
-		db := st.DB()
-		stmts := []string{
-			// About a third of signups buy, at 19 or 49 USD.
-			`INSERT INTO events(site_id, ts, type, anon_id, session_id, user_id, host, path, route, name, props, country, device, browser, os, env)
+		// About a third of signups buy, at 19 or 49 USD.
+		_, b3Perf.err = perfDB.Exec(`INSERT INTO events(site_id, ts, type, anon_id, session_id, user_id, host, path, route, name, props, country, device, browser, os, env)
 			 SELECT site_id, ts+60000, 'event', anon_id, session_id, user_id, host, path, route, 'Purchase',
 			   CASE WHEN id%2=0 THEN '{"amount":49,"currency":"USD","plan":"pro"}' ELSE '{"amount":19,"currency":"USD","plan":"starter"}' END,
-			   country, device, browser, os, env FROM events WHERE name='Signup' AND id%3=0`,
-			`INSERT INTO goals(site_id, name, kind, match, created) VALUES('demo','Signup','event','Signup',0),('demo','Pricing','page','/pricing',0)`,
-			`INSERT INTO funnels(site_id, name, window_ms, steps, created) VALUES('demo','Docs to signup',604800000,
-			 '[{"kind":"page","match":"/docs*","label":"Docs"},{"kind":"page","match":"/pricing","label":"Pricing"},{"kind":"page","match":"/signup","label":"Signup page"},{"kind":"event","match":"Signup","label":"Signed up"}]',0)`,
-		}
-		for _, s := range stmts {
-			if _, err := db.Exec(s); err != nil {
-				b3Perf.err = err
-				return
-			}
-		}
-		tx, err := db.Begin()
-		if err != nil {
-			b3Perf.err = err
-			return
-		}
-		bots := []string{"GPTBot", "ClaudeBot", "PerplexityBot", "OAI-SearchBot", "ChatGPT-User"}
-		paths := []string{"/", "/docs", "/pricing", "/blog/42"}
-		start := now.Add(-60 * 24 * time.Hour).Truncate(time.Hour)
-		for h := start; h.Before(now); h = h.Add(time.Hour) {
-			for i, b := range bots {
-				for j, pth := range paths {
-					if (h.Hour()+i+j)%3 != 0 {
-						continue
-					}
-					if _, err := tx.Exec(`INSERT INTO crawl_hits(site_id, hour, bot, path, status, n, last_ts) VALUES('demo',?,?,?,200,?,?)`,
-						h.UnixMilli(), b, pth, 1+(i+j)%4, h.UnixMilli()+60000); err != nil {
-						b3Perf.err = err
-						return
-					}
-				}
-			}
-		}
-		b3Perf.err = tx.Commit()
-		b3Perf.db, b3Perf.now = db, now
+			   country, device, browser, os, env FROM events WHERE site_id='demo' AND name='Signup' AND id%3=0 AND ts+60000<=?`,
+			perfNow.UnixMilli())
 	})
 	if b3Perf.err != nil {
 		t.Fatal(b3Perf.err)
 	}
-	return b3Perf.db, b3Perf.now
+	return perfDB, perfNow
 }
 
 func TestPerfConversions(t *testing.T) {

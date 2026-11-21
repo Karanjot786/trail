@@ -138,3 +138,45 @@ func TestPerfDemo(t *testing.T) {
 	)
 	perfRun(t, cases)
 }
+
+// TestFirstTouchAgreesWithSessionTouches: B1's FirstTouch CTE (Acquisition columns) and B3's
+// sessionTouches/firstTouch (Revenue, goal detail) credit every person to the same session.
+func TestFirstTouchAgreesWithSessionTouches(t *testing.T) {
+	p := perfParams(t, "30d")
+	cte, args, err := base(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ft, ftArgs := FirstTouch(perfDB, p, "SELECT DISTINCT person FROM ev", nil)
+	type row struct{ source, channel, campaign, entry, country, device string }
+	mine := map[string]row{}
+	var persons []string
+	err = forRows(perfDB, cte+", "+ft+` SELECT person, source, channel, campaign, entry, country, device FROM ft`,
+		append(args, ftArgs...), func(r *sql.Rows) error {
+			var person string
+			var x row
+			if err := r.Scan(&person, &x.source, &x.channel, &x.campaign, &x.entry, &x.country, &x.device); err != nil {
+				return err
+			}
+			mine[person] = x
+			persons = append(persons, person)
+			return nil
+		})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(persons) < 100 {
+		t.Fatalf("only %d persons", len(persons))
+	}
+	touches, err := sessionTouches(perfDB, p, persons)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, person := range persons {
+		th := firstTouch(touches[person])
+		theirs := row{th.source, th.channel, th.campaign, th.entry, th.country, th.device}
+		if mine[person] != theirs {
+			t.Errorf("%s: FirstTouch %+v, sessionTouches %+v", person, mine[person], theirs)
+		}
+	}
+}
