@@ -87,6 +87,7 @@ func (s *server) routes() http.Handler {
 	s.reportRoutes(mux)
 	s.metaRoutes(mux)
 	s.tokenRoutes(mux)
+	mux.HandleFunc("POST /api/crawls", s.postCrawls)
 	mux.HandleFunc("GET /api/goals", s.listGoals)
 	mux.HandleFunc("POST /api/goals", s.createGoal)
 	mux.HandleFunc("DELETE /api/goals/{id}", s.deleteGoal)

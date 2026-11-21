@@ -2,6 +2,7 @@
 //
 //	trail [serve]  run the server (default)
 //	trail seed     fill TRAIL_DB with fake data
+//	trail crawlers import --site ID [--format combined|caddy] [--since auto|RFC3339] [--url URL --token T] FILE|-
 package main
 
 import (
@@ -46,8 +47,10 @@ func main() {
 		err = runServe()
 	case "seed":
 		err = runSeed()
+	case "crawlers":
+		err = runCrawlers(os.Args[2:], os.Stdin, os.Stdout)
 	default:
-		fmt.Fprintln(os.Stderr, "usage: trail [serve|seed]")
+		fmt.Fprintln(os.Stderr, "usage: trail [serve|seed|crawlers import]")
 		os.Exit(2)
 	}
 	if err != nil {
