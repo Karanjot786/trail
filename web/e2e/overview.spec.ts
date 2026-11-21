@@ -372,7 +372,8 @@ chk(72, 'heatmap names a busiest hour only when it clearly wins', async ({ page,
   await goto('/')
   const hm = await api('heatmap')
   const hmr = page.getByRole('grid', { name: 'Visitors by weekday and hour' }).locator('xpath=..')
-  if (hm.clear) await expect(hmr).toContainText(hm.busiest.label)
+  const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+  if (hm.clear) await expect(hmr).toContainText(`Busiest hour: ${days[hm.peak.dow]}s, ${String(hm.peak.hour).padStart(2, '0')}:00`)
   else await expect(hmr).not.toContainText(/busiest/i)
 })
 

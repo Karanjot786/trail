@@ -25,7 +25,8 @@ chk(2, 'sidebar: the IA in order, Views region, Settings at the bottom', async (
   await goto('/')
   const nav = page.getByRole('navigation', { name: 'Main' })
   const labels = await nav.getByRole('link').allInnerTexts()
-  expect(labels.map((l) => l.trim()).slice(0, 7)).toEqual(['Overview', 'Live', 'Acquisition', 'Activity', 'Conversions', 'Revenue', 'AI crawlers'])
+  // The first line is the item's name; Live also carries its online count.
+  expect(labels.map((l) => l.trim().split('\n')[0].trim()).slice(0, 7)).toEqual(['Overview', 'Live', 'Acquisition', 'Activity', 'Conversions', 'Revenue', 'AI crawlers'])
   await expect(page.getByRole('region', { name: 'Views' })).toBeVisible()
   await expect(nav.getByRole('link', { name: 'Settings' })).toBeVisible()
 })

@@ -21,7 +21,7 @@ check('a fresh site: every screen renders an empty state with no NaN, Infinity o
       expect(text, path).not.toMatch(/NaN|Infinity|-100%|undefined|\[object/)
       expect(text.trim().length, `${path} is blank`).toBeGreaterThan(10)
     }
-    for (const r of ['stats', 'series', 'breakdown?dim=path', 'changes', 'heatmap', 'live', 'visitors', 'sessions', 'campaigns', 'ai-referrals', 'events', 'goals/report', 'revenue', 'crawlers']) {
+    for (const r of ['stats', 'series?metric=visitors', 'breakdown?dim=path', 'changes', 'heatmap', 'live', 'visitors', 'sessions', 'campaigns', 'ai-referrals', 'events', 'goals/report', 'revenue', 'crawlers']) {
       const [p, q = ''] = r.split('?')
       const a = await page.request.get(`/api/${p}?site=fresh&range=30d&tz=Asia/Kolkata&${q}`)
       expect(a.status(), r).toBe(200)

@@ -18,7 +18,8 @@ const cases: [string, RegExp][] = [
 for (const [path, msg] of cases) {
   check(`stale link ${path} shows a calm state with a way back`, async (app) => {
     await app.goto(path)
-    await expect(app.page.getByRole('main')).toContainText(msg)
+    // A stale sheet link (v=, fd=) answers inside its sheet, which hides the page behind it from assistive tech.
+    await expect(app.page.locator('main, [role=dialog]').filter({ hasText: msg }).first()).toBeVisible()
     await expect(app.page.getByRole('link', { name: /back|overview|all/i }).or(app.page.getByRole('button', { name: /back|close/i })).first()).toBeVisible()
     app.errors.length = 0 // the 404 on the stale id is the expected network answer
   })

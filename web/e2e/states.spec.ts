@@ -16,7 +16,7 @@ chk(50, 'an API failure shows "Refresh failed" over the stale numbers; Retry rec
   let fail = true
   await page.route('**/api/stats*', (r) => (fail ? r.fulfill({ status: 500, body: 'boom' }) : r.continue()))
   await page.getByRole('button', { name: 'Date range' }).click()
-  await page.getByRole('menuitem', { name: 'Last 7 days' }).click()
+  await page.getByRole('menuitemradio', { name: 'Last 7 days' }).click()
   await expect(page.getByText(/Refresh failed/)).toBeVisible()
   await expect(page.getByRole('tablist', { name: 'Metrics' })).toBeVisible()
   fail = false

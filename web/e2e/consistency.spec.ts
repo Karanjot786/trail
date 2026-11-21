@@ -26,10 +26,10 @@ chk(33, 'one bar rule: the top row of every list is a full bar (value / max); no
 chk(63, 'small totals agree: events overview = catalogue, bot requests on the freshness line = Crawlers, exit pages count', async ({ page, goto, api }) => {
   const stats = await api('stats')
   await goto('/')
-  if (stats.botRequests !== null) await expect(page.getByTestId('freshness')).toContainText(String(stats.botRequests))
+  if (stats.botRequests !== null) await expect(page.getByTestId('freshness')).toContainText(stats.botRequests.toLocaleString('en-US'))
   const events = await api('events')
   await goto('/activity/events')
-  await expect(page.getByRole('main')).toContainText(String(events.length))
+  await expect(page.getByRole('main')).toContainText(events.length.toLocaleString('en-US'))
   const cr = await api('crawlers')
   await goto('/crawlers')
   if (cr.configured) await expect(page.getByRole('main')).toContainText(cr.total.toLocaleString('en-US'))
