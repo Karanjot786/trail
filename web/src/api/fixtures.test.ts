@@ -72,6 +72,16 @@ describe('fixtures transport', () => {
     ])
   })
 
+  it('actor=all falls back after the filters and before cmp', () => {
+    const steps = fallbacks(q('site=demo&range=7d&actor=all&f=country:IN')).map((p) => p.toString())
+    expect(steps).toEqual([
+      'site=demo&range=7d&actor=all&f=country%3AIN',
+      'site=demo&range=7d&actor=all',
+      'site=demo&range=7d',
+      'site=demo&range=30d',
+    ])
+  })
+
   it('the keys in keys.json round-trip through fixtureKey', () => {
     // The recorder writes its keys into index.json (the "keys.json" of §0.13). Use it when present,
     // and always check a sample shaped like the plan.

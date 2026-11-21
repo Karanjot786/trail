@@ -4,7 +4,7 @@ import { SCREEN_TABS } from './state/url'
 
 describe('route registry', () => {
   it('lists the screens in IA order', () => {
-    expect(SCREENS.map((s) => s.label)).toEqual(['Overview', 'Live', 'Acquisition', 'Activity', 'Conversions', 'Revenue', 'AI crawlers', 'Settings'])
+    expect(SCREENS.map((s) => s.label)).toEqual(['Overview', 'Live', 'Acquisition', 'Activity', 'Conversions', 'Revenue', 'AI visibility', 'Settings'])
   })
   it('loads a default component for every screen', async () => {
     for (const s of SCREENS) {

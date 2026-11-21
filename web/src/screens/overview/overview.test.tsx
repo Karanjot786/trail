@@ -42,7 +42,7 @@ import { metricDefs } from './metrics'
 
 function setup() {
   m.sites = [site('demo', true), site('docs', false)]
-  m.stats = { ...totals, window: win, prev: prevTotals, online: 3, botRequests: 10, conv: { goalId: 1, name: 'Signup' } }
+  m.stats = { ...totals, window: win, prev: prevTotals, online: 3, botRequests: 10, conv: { goalId: 1, name: 'Signup' }, agentSessions: 0 }
   m.heatmap = {
     from: 0, to: 1, weeks: 4, cells: Array.from({ length: 7 }, () => Array.from({ length: 24 }, (_, h) => h % 4)), max: 3, total: 400, status: 'ok', threshold: 150,
     peak: { dow: 0, hour: 3, value: 3 }, clear: false, busiest: { label: 'Weekday nights', fromHour: 0, toHour: 4, dows: [0, 1, 2, 3, 4] },

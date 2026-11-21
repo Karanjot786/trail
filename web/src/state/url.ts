@@ -19,6 +19,7 @@ export interface UrlState {
   cmp: CmpKey // cmp= (default prev)
   env: Env // env= (default production)
   metric: Metric // metric= (default visitors)
+  actor: 'human' | 'all' // actor=all counts AI agents as visitors (default human, omitted)
   filters: Filter[] // f=dim:value, repeated, URL order kept
   panels: Record<string, string> // p.<panel>=<tab>, e.g. p.pages=exit; also the SUBTABS keys (p.goal=sources)
   sheet: Sheet | null
@@ -33,7 +34,7 @@ export const SCREEN_TABS: Record<ScreenId, readonly string[]> = {
   activity: ['visitors', 'sessions', 'events', 'paths'],
   conversions: ['goals', 'funnels'],
   revenue: [],
-  crawlers: [],
+  crawlers: ['funnel', 'crawlers', 'agents'],
   settings: ['sites', 'install', 'assistants', 'tokens', 'sharing', 'data', 'config'],
 }
 /** Path segment per screen; the overview is the root. */
@@ -44,7 +45,7 @@ export const SCREEN_PATH: Record<ScreenId, string> = {
   activity: 'activity',
   conversions: 'conversions',
   revenue: 'revenue',
-  crawlers: 'crawlers',
+  crawlers: 'ai', // the AI visibility screen keeps the id crawlers; legacy /crawlers redirects to /ai/crawlers
   settings: 'settings',
 }
 /** Overview panel ids and their tabs, default tab first. */
@@ -84,7 +85,7 @@ export const DEFAULTS = { range: '30d', cmp: 'prev', env: 'production', metric: 
 export function defaultState(): UrlState {
   return {
     prefix: '', screen: 'overview', tab: '', id: null, site: '',
-    range: DEFAULTS.range, cmp: DEFAULTS.cmp, env: DEFAULTS.env, metric: DEFAULTS.metric,
+    range: DEFAULTS.range, cmp: DEFAULTS.cmp, env: DEFAULTS.env, metric: DEFAULTS.metric, actor: 'human',
     filters: [], panels: {}, sheet: null, hideRevenue: false,
   }
 }
@@ -136,6 +137,10 @@ export function parseUrl(pathname: string, search: string): { state: UrlState; r
   let segs = rest.split('/').filter(Boolean)
 
   // Legacy paths and views.
+  if (segs[0] === 'crawlers') {
+    legacy = true
+    segs = ['ai', 'crawlers', ...segs.slice(1)]
+  }
   if (segs[0] === 'people') {
     legacy = true
     segs = ['activity', ...segs.slice(1).map((x) => (x === 'visits' ? 'sessions' : x))]
@@ -186,6 +191,7 @@ export function parseUrl(pathname: string, search: string): { state: UrlState; r
   if (env && (ENVS as readonly string[]).includes(env)) s.env = env as Env
   const metric = q.get('metric')
   if (metric && (METRICS as readonly string[]).includes(metric)) s.metric = metric as Metric
+  if (q.get('actor') === 'all') s.actor = 'all'
 
   const seen = new Set<string>()
   for (const raw of q.getAll('f')) {
@@ -228,6 +234,7 @@ function viewParams(s: UrlState): URLSearchParams {
   if (s.cmp !== DEFAULTS.cmp) q.set('cmp', s.cmp)
   if (s.env !== DEFAULTS.env) q.set('env', s.env)
   if (s.metric !== DEFAULTS.metric) q.set('metric', s.metric)
+  if (s.actor === 'all') q.set('actor', 'all')
   for (const f of s.filters) q.append('f', `${f.dim}:${f.value}`)
   for (const panel of Object.keys(s.panels).sort()) {
     if (s.panels[panel] !== (PANELS[panel] ?? SUBTABS[panel])?.[0]) q.set(`p.${panel}`, s.panels[panel])
@@ -256,7 +263,7 @@ function sheetParams(q: URLSearchParams, sheet: Sheet | null) {
   }
 }
 
-/** path + '?' + query; defaults omitted; stable key order (site, range, cmp, env, metric, f, p.*, sheet, hr). */
+/** path + '?' + query; defaults omitted; stable key order (site, range, cmp, env, metric, actor, f, p.*, sheet, hr). */
 export function serializeUrl(s: UrlState): string {
   const q = viewParams(s)
   sheetParams(q, s.sheet)
@@ -270,9 +277,10 @@ export function viewState(s: UrlState): string {
   return viewParams(s).toString()
 }
 
-/** site, range, cmp, env, tz, f… for /api calls. */
+/** site, range, cmp, env, tz, actor (only when all), f… for /api calls. */
 export function apiQuery(s: UrlState, tz: string): URLSearchParams {
   const q = new URLSearchParams({ site: s.site, range: s.range, cmp: s.cmp, env: s.env, tz })
+  if (s.actor === 'all') q.set('actor', 'all')
   for (const f of s.filters) q.append('f', `${f.dim}:${f.value}`)
   return q
 }

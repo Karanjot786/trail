@@ -2,7 +2,7 @@
 // It goes only through getTransport() (§0.13), so no caller knows whether data is live or recorded.
 // Report reads take the caller's query (`apiQuery(state, tz)`), add route params to a copy, and never mutate it.
 import type {
-  AIReferral, ApiToken, Campaign, Changes, Config, Crawlers, DropoffPerson, EventDetail, EventRow, Funnel,
+  Agents, AIReferral, AISetup, AIVisibility, ApiToken, Campaign, Changes, Config, Crawlers, DropoffPerson, EventDetail, EventRow, Funnel,
   FunnelReport, FunnelStep, Goal, GoalDetail, GoalRow, Heatmap, InstallCheck, JourneySession, Live, Metric,
   NewToken, Note, PathsReport, Person, Revenue, RevenueRow, Row, SavedView, Series, SessionRow, Share, ShareMeta,
   Site, SiteStatus, SiteSummary, Stats, TokenScope, WhoAmI, Dim,
@@ -153,6 +153,11 @@ export const api = {
   revenueBreakdown: (q: URLSearchParams, dim: 'source' | 'channel' | 'campaign' | 'entry' | 'country' | 'device', opts: ListOpts = {}, signal?: AbortSignal) =>
     list<RevenueRow>('/revenue/breakdown', withParams(q, { dim, ...listParams(opts) }), signal),
   crawlers: (q: URLSearchParams, signal?: AbortSignal) => get<Crawlers>('/crawlers', q, signal),
+
+  // AI visibility (AI agents plan §0.4, §0.5)
+  aiVisibility: (q: URLSearchParams, signal?: AbortSignal) => get<AIVisibility>('/ai-visibility', q, signal),
+  agents: (q: URLSearchParams, signal?: AbortSignal) => get<Agents>('/agents', q, signal),
+  aiSetup: (siteId: string, signal?: AbortSignal) => get<AISetup>('/ai-setup', site(siteId), signal),
 
   // Saved views, shares, tokens
   views: (siteId?: string, signal?: AbortSignal) => get<SavedView[]>('/views', siteId ? site(siteId) : new URLSearchParams(), signal),

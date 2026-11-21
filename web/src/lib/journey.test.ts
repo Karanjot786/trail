@@ -9,7 +9,7 @@ const ist = (y: number, mo: number, d: number, h: number, mi = 0) => Date.UTC(y,
 
 const step = (s: Partial<Step>): Step => ({ ts: 0, type: 'pageview', path: '/', name: '', engagedMs: 0, scrollPct: 0, props: {}, ...s })
 const sess = (start: number, goals: JourneySession['goals'] = [], visit = 0): JourneySession => ({
-  sessionId: `s${start}`, start, source: '', steps: [], visit, durationMs: 0, country: '', city: '', device: '', goals,
+  sessionId: `s${start}`, start, source: '', steps: [], visit, durationMs: 0, country: '', city: '', device: '', goals, agent: '',
 })
 
 describe('tz days', () => {

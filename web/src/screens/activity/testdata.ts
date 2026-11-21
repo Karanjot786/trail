@@ -14,7 +14,7 @@ export function person(i: number, extra: Partial<Person> = {}): Person {
 export function sessionRow(i: number): SessionRow {
   return {
     sessionId: `s${i}`, person: `p${i}`, label: `Visitor ${i}`, start: IST(20, 9, i), durationMs: 30_000 + i * 1000, pages: 4, entry: '/', exit: '/pricing',
-    source: 'Google', country: 'IN', city: 'Pune', device: 'Desktop', browser: 'Chrome', os: 'macOS', goals: [], revenueMinor: 0,
+    source: 'Google', country: 'IN', city: 'Pune', device: 'Desktop', browser: 'Chrome', os: 'macOS', goals: [], revenueMinor: 0, agent: '',
   }
 }
 const pv = (ts: number, path: string) => ({ ts, type: 'pageview' as const, path, name: '', engagedMs: 20_000, scrollPct: 60, props: {} })
@@ -22,9 +22,9 @@ const ev = (ts: number, name: string) => ({ ts, type: 'event' as const, path: '/
 
 export function journey(): JourneySession[] {
   return [
-    { sessionId: 'a', start: IST(2, 10), source: 'Google', visit: 1, durationMs: 120_000, country: 'IN', city: 'Pune', device: 'Desktop', steps: [pv(IST(2, 10), '/'), pv(IST(2, 10, 1), '/pricing')], goals: [{ id: 2, name: 'Pricing', ts: IST(2, 10, 1) }] },
-    { sessionId: 'b', start: IST(9, 11), source: '', visit: 2, durationMs: 60_000, country: 'IN', city: 'Pune', device: 'Desktop', steps: [pv(IST(9, 11), '/docs')], goals: [] },
-    { sessionId: 'c', start: IST(19, 18), source: 'Google', visit: 3, durationMs: 90_000, country: 'IN', city: 'Pune', device: 'Desktop', steps: [pv(IST(19, 18), '/signup'), ev(IST(19, 18, 1), 'Signup')], goals: [{ id: 7, name: 'Signup', ts: IST(19, 18, 1) }] },
+    { sessionId: 'a', start: IST(2, 10), source: 'Google', visit: 1, durationMs: 120_000, country: 'IN', city: 'Pune', device: 'Desktop', agent: '', steps: [pv(IST(2, 10), '/'), pv(IST(2, 10, 1), '/pricing')], goals: [{ id: 2, name: 'Pricing', ts: IST(2, 10, 1) }] },
+    { sessionId: 'b', start: IST(9, 11), source: '', visit: 2, durationMs: 60_000, country: 'IN', city: 'Pune', device: 'Desktop', agent: '', steps: [pv(IST(9, 11), '/docs')], goals: [] },
+    { sessionId: 'c', start: IST(19, 18), source: 'Google', visit: 3, durationMs: 90_000, country: 'IN', city: 'Pune', device: 'Desktop', agent: '', steps: [pv(IST(19, 18), '/signup'), ev(IST(19, 18, 1), 'Signup')], goals: [{ id: 7, name: 'Signup', ts: IST(19, 18, 1) }] },
   ]
 }
 
