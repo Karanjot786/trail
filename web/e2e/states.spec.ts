@@ -20,7 +20,7 @@ chk(50, 'an API failure shows "Refresh failed" over the stale numbers; Retry rec
   await expect(page.getByText(/Refresh failed/)).toBeVisible()
   await expect(page.getByRole('tablist', { name: 'Metrics' })).toBeVisible()
   fail = false
-  await page.getByRole('button', { name: 'Retry' }).click()
+  await page.getByRole('button', { name: /Retry|Try again/ }).click()
   await expect(page.getByText(/Refresh failed/)).toHaveCount(0)
   app.errors.length = 0
 })

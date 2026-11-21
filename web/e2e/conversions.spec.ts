@@ -33,7 +33,7 @@ chk(32, 'revenue is drawn as bars; a $0 day reads "no purchases", not a red -100
   const s = await api('series', { metric: 'revenue', range: '30d' })
   const zero = s.points.find((p: any) => p.v === 0)
   if (zero) {
-    const d = new Date(zero.t).toISOString().slice(0, 10)
+    const d = new Date(zero.t).toLocaleDateString('en-CA', { timeZone: s.window.tz }) // the bucket's day in the site zone
     await goto(`/?range=d:${d}`)
     const k = await app_kpi(page)
     expect(k).toMatch(/no purchases/)

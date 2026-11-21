@@ -28,7 +28,11 @@ chk(2, 'sidebar: the IA in order, Views region, Settings at the bottom', async (
   // The first line is the item's name; Live also carries its online count.
   expect(labels.map((l) => l.trim().split('\n')[0].trim()).slice(0, 7)).toEqual(['Overview', 'Live', 'Acquisition', 'Activity', 'Conversions', 'Revenue', 'AI crawlers'])
   await expect(page.getByRole('region', { name: 'Views' })).toBeVisible()
-  await expect(nav.getByRole('link', { name: 'Settings' })).toBeVisible()
+  // Settings sits at the bottom of the sidebar, below the Views region.
+  const side = page.getByRole('complementary', { name: 'Sidebar' })
+  await expect(side.getByRole('link', { name: 'Settings' })).toBeVisible()
+  const y = async (l: import('@playwright/test').Locator) => (await l.boundingBox())!.y
+  expect(await y(side.getByRole('link', { name: 'Settings' }))).toBeGreaterThan(await y(page.getByRole('region', { name: 'Views' })))
 })
 
 chk(19, 'saved views: S names the filter set, it appears under Views and survives a reload', async ({ page, goto }) => {
@@ -116,10 +120,16 @@ chk(57, 'S saves the current filters, never the open sheet', async ({ page, goto
   await page.keyboard.press('s')
   const save = page.getByRole('dialog', { name: /save/i })
   await expect(save).toContainText(/Device is mobile/i)
+  // Views are server state shared by parallel tests: name this one and find it by name.
+  await save.getByRole('textbox', { name: /name/i }).fill('Mobile only (57)')
   await page.keyboard.press('Enter')
-  const href = await page.getByRole('region', { name: 'Views' }).getByRole('link').last().getAttribute('href')
+  const link = page.getByRole('region', { name: 'Views' }).getByRole('link', { name: 'Mobile only (57)' })
+  await expect(link).toBeVisible()
+  const href = await link.getAttribute('href')
   expect(decodeURIComponent(href ?? '')).toContain('device:mobile')
   expect(href).not.toContain('dr=')
+  const mine = ((await (await page.request.get('/api/views')).json()) as { id: number; name: string }[]).find((v) => v.name === 'Mobile only (57)')
+  if (mine) await page.request.delete(`/api/views/${mine.id}`)
   await goto('/?dr=source|Google')
   await page.keyboard.press('s')
   await expect(page.getByRole('dialog', { name: /save/i })).toContainText(/No filters are on/)
