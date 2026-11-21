@@ -174,15 +174,40 @@ func TestBotsExcluded(t *testing.T) {
 	}
 }
 
+// contractNullable lists the v3 fields the contract allows to be null (§0.5); every other null is a bug.
+var contractNullable = map[string]bool{"prevFrom": true, "prevTo": true, "botRequests": true, "conv": true}
+
 func noNull(t *testing.T, v any) {
 	t.Helper()
 	b, err := json.Marshal(v)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(string(b), "null") || strings.Contains(string(b), "NaN") {
-		t.Fatalf("json has null/NaN: %s", b)
+	if strings.Contains(string(b), "NaN") {
+		t.Fatalf("json has NaN: %s", b)
 	}
+	var walk func(key string, x any)
+	walk = func(key string, x any) {
+		switch x := x.(type) {
+		case nil:
+			if !contractNullable[key] {
+				t.Fatalf("json has null at %q: %s", key, b)
+			}
+		case map[string]any:
+			for k, e := range x {
+				walk(k, e)
+			}
+		case []any:
+			for _, e := range x {
+				walk(key, e)
+			}
+		}
+	}
+	var g any
+	if err := json.Unmarshal(b, &g); err != nil {
+		t.Fatal(err)
+	}
+	walk("", g)
 }
 
 func TestEmptyRange(t *testing.T) {
@@ -202,7 +227,7 @@ func TestEmptyRange(t *testing.T) {
 			t.Fatalf("%s: no points", m)
 		}
 		for _, pt := range sr.Points {
-			if pt.V != 0 {
+			if pt.V == nil || *pt.V != 0 {
 				t.Fatalf("%s: point %+v", m, pt)
 			}
 		}
@@ -247,7 +272,7 @@ func TestSeriesBucketHourVsDay(t *testing.T) {
 	if h.Bucket != "hour" || len(h.Points) != 25 {
 		t.Fatalf("24h: bucket %s, %d points", h.Bucket, len(h.Points))
 	}
-	if last := h.Points[len(h.Points)-1]; last.T != t0 || last.V != 1 {
+	if last := h.Points[len(h.Points)-1]; last.T != t0 || last.V == nil || *last.V != 1 {
 		t.Fatalf("last hour point = %+v", last)
 	}
 	d, err := Series(db, params(t0-7*day, t0+3*hour), "visitors")
@@ -258,7 +283,7 @@ func TestSeriesBucketHourVsDay(t *testing.T) {
 		t.Fatalf("7d: bucket %s, %d points", d.Bucket, len(d.Points))
 	}
 	midnight := time.Date(2026, 11, 19, 0, 0, 0, 0, ist).UnixMilli()
-	if last := d.Points[7]; last.T != midnight || last.V != 2 {
+	if last := d.Points[7]; last.T != midnight || last.V == nil || *last.V != 2 {
 		t.Fatalf("last day point = %+v", last)
 	}
 }

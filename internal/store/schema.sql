@@ -60,3 +60,33 @@ CREATE TABLE IF NOT EXISTS sites(
   origins TEXT NOT NULL DEFAULT '',
   created INTEGER NOT NULL
 );
+
+-- Dashboard v3 additions (plan §0.7). Report indexes, then the small metadata tables.
+CREATE INDEX IF NOT EXISTS events_site_type_name_ts ON events(site_id, type, name, ts);
+CREATE INDEX IF NOT EXISTS events_site_session_ts ON events(site_id, session_id, ts);
+
+-- Funnels: steps is a JSON array of {kind, match, label}.
+CREATE TABLE IF NOT EXISTS funnels(id INTEGER PRIMARY KEY, site_id TEXT NOT NULL, name TEXT NOT NULL,
+  window_ms INTEGER NOT NULL, steps TEXT NOT NULL, created INTEGER NOT NULL, UNIQUE(site_id, name));
+
+-- Chart notes (annotations).
+CREATE TABLE IF NOT EXISTS notes(id INTEGER PRIMARY KEY, site_id TEXT NOT NULL, ts INTEGER NOT NULL, label TEXT NOT NULL,
+  kind TEXT NOT NULL DEFAULT 'other' CHECK(kind IN ('deploy','campaign','press','other')), created INTEGER NOT NULL);
+CREATE INDEX IF NOT EXISTS notes_site_ts ON notes(site_id, ts);
+
+-- Saved views: state is a URL query string; site_id NULL means all sites.
+CREATE TABLE IF NOT EXISTS views(id INTEGER PRIMARY KEY, name TEXT NOT NULL, site_id TEXT, state TEXT NOT NULL, created INTEGER NOT NULL);
+
+-- Read-only share links: hash is SHA-256 of the token, pkey the per-share key for opaque visitor ids.
+CREATE TABLE IF NOT EXISTS shares(id TEXT PRIMARY KEY, site_id TEXT NOT NULL, hash BLOB NOT NULL UNIQUE, pkey BLOB NOT NULL,
+  label TEXT NOT NULL DEFAULT '', state TEXT NOT NULL, hide_revenue INTEGER NOT NULL DEFAULT 0, created INTEGER NOT NULL,
+  expires INTEGER, revoked INTEGER, last_used INTEGER);
+
+-- API tokens created in the UI (env tokens are not stored). hash is SHA-256 of the token.
+CREATE TABLE IF NOT EXISTS api_tokens(id TEXT PRIMARY KEY, name TEXT NOT NULL UNIQUE, prefix TEXT NOT NULL, hash BLOB NOT NULL UNIQUE,
+  scope TEXT NOT NULL CHECK(scope IN ('read','notes','write','crawl')), site_id TEXT, created INTEGER NOT NULL,
+  last_used INTEGER, revoked INTEGER);
+
+-- AI crawler requests from server logs, aggregated per hour x bot x path x status class.
+CREATE TABLE IF NOT EXISTS crawl_hits(site_id TEXT NOT NULL, hour INTEGER NOT NULL, bot TEXT NOT NULL, path TEXT NOT NULL,
+  status INTEGER NOT NULL, n INTEGER NOT NULL, last_ts INTEGER NOT NULL, PRIMARY KEY(site_id, hour, bot, path, status)) WITHOUT ROWID;

@@ -34,14 +34,6 @@ type Step struct {
 	Props     json.RawMessage `json:"props"`
 }
 
-// Session is one visit in a person's journey.
-type Session struct {
-	SessionID string `json:"sessionId"`
-	Start     int64  `json:"start"`
-	Source    string `json:"source"`
-	Steps     []Step `json:"steps"`
-}
-
 // Journey returns every non-bot session of person on site, oldest first.
 // person is a user id or an anon id, resolved through identity_map as in base.
 func Journey(db *sql.DB, site, person string) ([]Session, error) {
