@@ -144,3 +144,6 @@ code.inl { font-family: var(--font-mono); font-size: 12px; padding: 1px 5px; bor
 /* The Receiving badge sits on the row colour (opaque), not a tint over it, so its contrast is the row's:
  * light theme --success on the selected row's --hover is 4.56:1 (plan F5-1, proto R-17). */
 .srow .badge[data-tone="good"] { background: transparent; border-color: color-mix(in srgb, var(--success) 45%, transparent); }
+/* Long one-line snippets wrap inside the card, clear of the copy button. */
+.scard .codeblock .code { white-space: pre-wrap; overflow-wrap: anywhere; padding-right: 48px; }
+.set-field > label.set-check { font-weight: 400; margin: 0; }

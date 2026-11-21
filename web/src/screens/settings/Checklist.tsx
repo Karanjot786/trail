@@ -44,7 +44,7 @@ export function Checklist({ check, busy, onRerun, note }: { check: InstallCheck 
                       <span className="sw" data-s={c.status}>
                         {S.word}
                       </span>
-                      {c.code !== 'ok' && (
+                      {c.code !== 'ok' && (c.status === 'fail' || c.status === 'warn') && (
                         <>
                           {' '}
                           <code className="inl">{c.code}</code>

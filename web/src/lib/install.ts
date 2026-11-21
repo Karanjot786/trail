@@ -99,13 +99,28 @@ export interface InstallStatus {
   code: ReasonCode | null
 }
 
+/** Why a site is blocked, in a few words, per reason code. */
+export const REASON: Record<ReasonCode, string> = {
+  ok: 'see the checks below',
+  fetch_failed: 'the page did not load',
+  script_missing: 'no Trail snippet on the page',
+  wrong_site_id: 'the snippet has another site ID',
+  wrong_host: 'the snippet points at another Trail server',
+  csp_blocked: 'your Content Security Policy blocks Trail',
+  origin_not_allowed: 'this origin is not allowed',
+  no_events: 'no events yet',
+  events_preview_only: 'only preview events so far',
+  bot_filtered: 'the visits were filtered out as bots',
+  retries_high: 'many events need retries',
+}
+
 /** The one-line install state, read from the same response as the checklist. */
 export function installStatus(c: InstallCheck | undefined): InstallStatus {
   if (!c) return { tone: 'wait', title: 'Checking the install', code: null }
   if (c.state === 'receiving') return { tone: 'ok', title: 'Receiving data', code: null }
   if (c.state === 'blocked') {
     const bad = c.checks.find((x) => x.status === 'fail')
-    return { tone: 'bad', title: `Blocked: ${bad ? bad.label : 'see the checks below'}`, code: bad?.code ?? null }
+    return { tone: 'bad', title: `Blocked: ${REASON[bad?.code ?? 'ok'] ?? bad?.label}`, code: bad?.code ?? null }
   }
   return { tone: 'wait', title: 'Waiting for first event', code: null }
 }

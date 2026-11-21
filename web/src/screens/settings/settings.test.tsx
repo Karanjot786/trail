@@ -155,7 +155,7 @@ describe('Install', () => {
     visit('/settings/install?site=docs')
     render(<SettingsScreen />)
     await flush()
-    expect(screen.getByTestId('install-state').textContent).toContain('Blocked: csp check')
+    expect(screen.getByTestId('install-state').textContent).toContain('Blocked: your Content Security Policy blocks Trail')
     const list = screen.getByRole('list', { name: 'Install checks' })
     expect(within(list).getAllByRole('listitem')).toHaveLength(3)
     expect(within(list).getByText('csp_blocked')).toBeTruthy()

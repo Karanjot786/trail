@@ -36,7 +36,7 @@ describe('installStatus', () => {
     expect(installStatus(chk('waiting', [])).title).toBe('Waiting for first event')
     expect(installStatus(chk('receiving', [], 5)).title).toBe('Receiving data')
     const b = installStatus(chk('blocked', [item('page', 'pass'), item('csp', 'fail', 'csp_blocked', 'Content Security Policy allows Trail')]))
-    expect(b.title).toBe('Blocked: Content Security Policy allows Trail')
+    expect(b.title).toBe('Blocked: your Content Security Policy blocks Trail')
     expect(b.code).toBe('csp_blocked')
     expect(b.tone).toBe('bad')
   })
