@@ -46,15 +46,16 @@ func TestEnqueueFlush(t *testing.T) {
 
 func TestBatchAt500(t *testing.T) {
 	s := openTest(t)
+	// Push the timer flush out of reach, so only the 500-event trigger can write the rows.
+	s.every = time.Hour
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	s.Start(ctx)
 	for range 500 {
 		s.Enqueue(ev("pageview"))
 	}
-	// The 1 s timer must not be what flushes: poll well under it.
-	// (50 ms per the plan; the race detector makes 500 inserts slower than that.)
-	deadline := time.Now().Add(500 * time.Millisecond)
+	// A generous deadline for slow or loaded machines; the timer cannot fire within it.
+	deadline := time.Now().Add(30 * time.Second)
 	n := 0
 	for time.Now().Before(deadline) {
 		if n = count(t, s, "SELECT count(*) FROM events"); n == 500 {
@@ -62,7 +63,7 @@ func TestBatchAt500(t *testing.T) {
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
-	t.Fatalf("got %d rows within 500ms, want 500", n)
+	t.Fatalf("got %d rows, want the batch of 500 flushed without the timer", n)
 }
 
 func TestIdentifyWritesMap(t *testing.T) {
