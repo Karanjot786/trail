@@ -244,7 +244,8 @@ chk(38, 'exit pages show an exit rate and a "loses people most" sort', async ({ 
   const pg = panel(page, 'Pages')
   await expect(pg).toContainText('Exit rate')
   await pg.getByRole('button', { name: /loses people most/i }).click()
-  const rates = (await pg.getByTestId('exit-rate').allInnerTexts()).map(num)
+  // Read through a CSS locator: evaluating all matches under the role-scoped panel segfaults Firefox's page (Playwright's build).
+  const rates = (await page.locator('[data-testid=exit-rate]').allInnerTexts()).map(num)
   expect(rates.length).toBeGreaterThan(2)
   expect(rates.every((r, i) => i === 0 || r <= rates[i - 1])).toBe(true)
 })

@@ -56,7 +56,8 @@ for (const theme of ['dark', 'light'] as const) {
       })
       await app.goto('/ai/agents')
       await page.getByRole('table', { name: 'Latest agent sessions' }).getByRole('row').nth(1).click()
-      await expect(page.getByRole('dialog').getByRole('heading', { name: /AI agent/ })).toBeVisible()
+      // CSS locators, not getByRole with a name: see the Firefox note on the command palette test.
+      await expect(page.locator('[role=dialog] h3', { hasText: 'AI agent' }).first()).toBeVisible()
       expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([])
       await page.keyboard.press('Escape')
       const made = page.waitForResponse((r) => r.url().includes('/api/tokens') && r.request().method() === 'POST' && r.status() === 201)
@@ -77,11 +78,13 @@ for (const theme of ['dark', 'light'] as const) {
       // Opened from the sidebar's search button. Opened with Ctrl+K under Playwright, axe-core 4.14's run never
       // returns in Firefox (the palette itself stays responsive; CommandPalette.test covers the shortcut).
       await app.page.getByRole('button', { name: /Search or jump to/ }).click()
-      await expect(app.page.getByRole('dialog', { name: 'Command palette' })).toBeVisible()
+      // Firefox (Playwright's build) segfaults the page (a null read in XUL) when axe runs after a getByRole query with
+      // an accessible name on this dialog; CSS locators avoid that and check the same element.
+      await expect(app.page.locator('[role=dialog][aria-label="Command palette"]')).toBeVisible()
       expect((await new AxeBuilder({ page: app.page }).analyze()).violations).toEqual([])
       await app.page.keyboard.press('Escape')
       await app.page.keyboard.press('Shift+?')
-      await expect(app.page.getByRole('dialog', { name: 'Keyboard shortcuts' })).toBeVisible()
+      await expect(app.page.locator('[role=dialog]', { hasText: 'Keyboard shortcuts' })).toBeVisible()
       expect((await new AxeBuilder({ page: app.page }).analyze()).violations).toEqual([])
     })
 
