@@ -6,12 +6,18 @@ import { Clock } from 'lucide-react'
 import { api } from '../../api/client'
 import type { Heatmap as HeatmapData } from '../../api/types'
 import { useQuery } from '../../api/useQuery'
-import { HeatmapGrid, HeatmapLegend } from '../../charts/HeatmapGrid'
+import { HeatmapGrid, HeatmapLegend, WEEKDAYS } from '../../charts/HeatmapGrid'
 import { fmtInt } from '../../lib/format'
 import { tzCity, viewerTz } from '../../shell/labels'
 import { navigate, useUrlState } from '../../state/useUrlState'
 import { ErrorState, Skeleton } from '../../ui/states'
 import { useApiQuery } from './useOverviewData'
+
+const hh = (h: number) => `${String(h % 24).padStart(2, '0')}:00`
+/** "Tuesdays, 20:00–21:00": the clear peak, named by the UI (the API sends busiest only when no hour wins). */
+export function peakLabel(p: { dow: number; hour: number }): string {
+  return `${WEEKDAYS[p.dow]}s, ${hh(p.hour)}–${hh(p.hour + 1)}`
+}
 
 export function Heatmap() {
   const s = useUrlState()
@@ -55,11 +61,22 @@ export function Heatmap() {
           </div>
         ) : (
           <>
-            {hm.busiest && (
-              <div className="heat-callout" data-clear={hm.clear ? '1' : '0'}>
+            {hm.clear && hm.peak ? (
+              <div className="heat-callout" data-clear="1">
                 <Clock size={16} aria-hidden="true" />
-                <span>{hm.clear ? <b>{hm.busiest.label} is the busiest hour.</b> : <><b>{hm.busiest.label}.</b> No single hour stands out.</>}</span>
+                <span>
+                  Busiest hour: <b>{peakLabel(hm.peak)}</b>.
+                </span>
               </div>
+            ) : (
+              hm.busiest && (
+                <div className="heat-callout" data-clear="0">
+                  <Clock size={16} aria-hidden="true" />
+                  <span>
+                    <b>{hm.busiest.label}.</b> No single hour stands out.
+                  </span>
+                </div>
+              )
             )}
             <HeatmapGrid cells={hm.cells} max={hm.max} peak={hm.peak} clear={hm.clear} selected={selected} onPick={pick} />
             <div className="heat-foot">

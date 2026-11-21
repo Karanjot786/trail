@@ -83,7 +83,7 @@ export default function Visitors() {
         </span>
       ),
     },
-    { id: 'visits', header: 'Visits', sortDescFirst: true, meta: { align: 'r' }, accessorFn: (p) => p.visits, cell: (p) => fmtInt(p.visits) },
+    { id: 'visits', header: 'Visits', sortDescFirst: true, meta: { align: 'r' }, accessorFn: (p) => p.visits, cell: (p) => <VisitsCell p={p} /> },
     { id: 'pages', header: 'Pages', sortDescFirst: true, meta: { align: 'r', hideSm: true }, accessorFn: (p) => p.pages, cell: (p) => fmtInt(p.pages) },
     { id: 'time', header: 'Time', sortDescFirst: true, meta: { align: 'r', hideSm: true }, accessorFn: (p) => p.durationMs, cell: (p) => fmtDur(p.durationMs) },
     { id: 'last', header: 'Last active', sortDescFirst: true, meta: { align: 'r' }, accessorFn: (p) => p.lastSeen, cell: (p) => <span className="muted">{rel(p.lastSeen)}</span> },
@@ -128,5 +128,15 @@ export default function Visitors() {
         }
       />
     </>
+  )
+}
+
+/** "3 in range · 4 total": the range count, and the journey's count when it has more. */
+function VisitsCell({ p }: { p: Person }) {
+  if (!(p.visitsTotal > p.visits)) return <>{fmtInt(p.visits)}</>
+  return (
+    <span title={`${p.visits} ${p.visits === 1 ? 'visit' : 'visits'} in the selected range, ${p.visitsTotal} in total`}>
+      {fmtInt(p.visits)} in range <span className="muted">· {fmtInt(p.visitsTotal)} total</span>
+    </span>
   )
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { JourneySession, Step } from '../api/types'
-import { dayIndex, foldSteps, gapText, goalBadge, goalMatches, rel, spanDays, stripLayout, tzOffset, visitsPhrase } from './journey'
+import { dayIndex, foldSteps, gapText, goalBadge, goalMatches, rel, spanDays, stripLayout, tzOffset, visitsPhrase, visitsText } from './journey'
 
 const IST = 'Asia/Kolkata'
 const NY = 'America/New_York'
@@ -96,5 +96,13 @@ describe('foldSteps', () => {
     ])
     expect(out.map((s) => s.type)).toEqual(['pageview', 'pageview', 'event'])
     expect(out[0]).toMatchObject({ engagedMs: 12000, scrollPct: 80 })
+  })
+})
+
+describe('visitsText', () => {
+  it('names the range count and the total only when they differ', () => {
+    expect(visitsText({ visits: 3, visitsTotal: 4 })).toBe('3 visits in range · 4 total')
+    expect(visitsText({ visits: 1, visitsTotal: 1 })).toBe('1 visit')
+    expect(visitsText({ visits: 2 })).toBe('2 visits')
   })
 })

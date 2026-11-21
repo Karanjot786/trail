@@ -4,7 +4,7 @@ import { api } from '../../api/client'
 import type { EventRow, Goal } from '../../api/types'
 import { useQuery } from '../../api/useQuery'
 import type { TableColumn } from '../../data/DataTable'
-import { fmtInt } from '../../lib/format'
+import { fmtInt, fmtPct } from '../../lib/format'
 import { rel } from '../../lib/journey'
 import { inWindow } from '../../lib/phrases'
 import { navigate } from '../../state/useUrlState'
@@ -30,6 +30,7 @@ export default function Events() {
   const rows = res.data?.rows ?? []
   const isGoal = goalNames(goals.data)
   const w = stats.data?.window
+  const st = stats.data
   const occurrences = rows.reduce((a, r) => a + r.count, 0)
 
   const columns: TableColumn<EventRow>[] = [
@@ -71,10 +72,17 @@ export default function Events() {
   return (
     <>
       <StatStrip
-        cols={3}
+        cols={4}
         items={[
           { k: 'Events tracked', v: fmtInt(rows.length), s: `distinct names ${w ? inWindow(w) : ''}`.trim(), testId: 'events-n' },
           { k: 'Occurrences', v: fmtInt(occurrences), s: 'every time one fired' },
+          // People over people: senders out of visitors, never over sessions.
+          {
+            k: 'People who sent one',
+            v: st ? fmtInt(st.eventPeople) : '–',
+            s: st ? `${fmtPct(st.visitors ? st.eventPeople / st.visitors : 0)} of ${fmtInt(st.visitors)} ${st.visitors === 1 ? 'visitor' : 'visitors'}` : '',
+            testId: 'event-people',
+          },
           { k: 'Goals among them', v: fmtInt(rows.filter((r) => isGoal.has(r.name)).length), s: 'events that count as a goal' },
         ]}
       />

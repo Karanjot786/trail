@@ -179,3 +179,9 @@ export function foldSteps(steps: Step[]): Step[] {
 export function sessionEnd(s: JourneySession): number {
   return Math.max(s.start + (s.durationMs || 0), ...s.steps.map((x) => x.ts))
 }
+
+/** A visitor row's visits: "3 visits in range · 4 total" when the journey holds more than the range, else "3 visits". */
+export function visitsText(p: { visits: number; visitsTotal?: number }): string {
+  const n = `${p.visits} ${p.visits === 1 ? 'visit' : 'visits'}`
+  return p.visitsTotal != null && p.visitsTotal > p.visits ? `${n} in range · ${p.visitsTotal} total` : n
+}

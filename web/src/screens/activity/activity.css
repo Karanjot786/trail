@@ -123,6 +123,12 @@
 .steps::before { content: ''; position: absolute; left: -17px; top: 18px; bottom: 18px; width: 2px; background-image: radial-gradient(circle, var(--border-strong) 1.2px, transparent 1.6px); background-size: 2px 7px; }
 .visit::before { content: ''; position: absolute; left: 11px; top: 32px; bottom: 0; width: 2px; background-image: radial-gradient(circle, var(--border-strong) 1.2px, transparent 1.6px); background-size: 2px 7px; }
 .visit:last-of-type::before { display: none; }
+/* Visits outside the selected range: still listed (the journey is the whole history), greyed and labelled. */
+.visit.out .steps, .visit.out .visit-h > span:not(.out-l) { opacity: .55; }
+.visit-h .out-l { font-size: var(--text-caption); font-weight: 500; color: var(--muted); border: 1px dashed var(--border-strong); border-radius: 999px; padding: 1px 8px; }
+.vmark.out { opacity: .55; box-shadow: 0 0 0 1px var(--border); }
+.vmark.out:hover, .vmark.out:focus-visible { opacity: 1; }
+.jtools .btn { gap: 6px; }
 .gap { position: relative; display: flex; align-items: center; gap: 10px; padding: 6px 0 6px 28px; color: var(--muted); font: 12px var(--font-sans); }
 .gap .feet { display: inline-flex; gap: 3px; align-items: center; }
 .gap .feet i { width: 5px; height: 5px; border-radius: 50%; background: var(--subtle); opacity: .7; }

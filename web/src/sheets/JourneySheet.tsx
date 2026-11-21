@@ -1,8 +1,8 @@
 // The journey sheet (plan Task F3-2): one person's visits. A pinned header (who, from where, totals, the goal
 // badge, the visits strip), then the timeline. `[` / `]` (the shell's `trail:visit` event) and strip clicks
 // scroll to and focus a visit; `v=person~session` opens at that session.
-import { useEffect, useMemo, useRef } from 'react'
-import { ArrowUpRight, Flag, LogOut, UserCheck, Zap } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { ArrowDownUp, ArrowUpRight, Flag, LogOut, UserCheck, Zap } from 'lucide-react'
 import { api } from '../api/client'
 import type { JourneySession, SessionRow, Step } from '../api/types'
 import { useQuery } from '../api/useQuery'
@@ -10,6 +10,8 @@ import { fmtDur, fmtInt, fmtShortDay } from '../lib/format'
 import { foldSteps, gapText, goalBadge, goalMatches, hitsAt, sessionEnd, spanDays, stripLayout, visitNo, visitsPhrase } from '../lib/journey'
 import { CountryCode, dayTime, hm, sourceText, useAq } from '../screens/activity/shared'
 import { navigate } from '../state/useUrlState'
+import { useStats } from '../shell/useStats'
+import { Button } from '../ui/button'
 import { Avatar } from '../ui/avatar'
 import { Sheet } from '../ui/dialog'
 import { Badge, Chip, Kbd } from '../ui/small'
@@ -39,10 +41,16 @@ export function Journey({ person, session, row, label }: { person: string; sessi
   const j = useQuery<JourneySession[]>(`journey|${key}|${person}`, async (sig) => api.journey(q, person, sig))
   const sessions = useMemo(() => [...(j.data ?? [])].sort((a, b) => a.start - b.start), [j.data])
   const body = useRef<HTMLDivElement>(null)
+  const [newestFirst, setNewestFirst] = useState(false)
+  // The journey lists every visit; the ones outside the selected range are greyed and labelled, so the
+  // visitor row's "N visits in range" and this list never seem to disagree.
+  const w = useStats().data?.window
+  const inRange = (x: JourneySession) => !w || (x.start <= w.to && sessionEnd(x) >= w.from)
 
   const heads = () => Array.from(body.current?.querySelectorAll<HTMLElement>('.visit-h') ?? [])
-  const focusVisit = (i: number) => {
-    const h = heads()[i]
+  /** Focus visit i (oldest first, as in the strip), whatever order the timeline shows. */
+  const focusVisit = (i: number) => focusHead(heads().find((x) => x.dataset.visit === sessions[i]?.sessionId))
+  const focusHead = (h: HTMLElement | undefined) => {
     if (!h) return
     const reduce = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
     h.scrollIntoView?.({ block: 'start', behavior: reduce ? 'auto' : 'smooth' })
@@ -61,7 +69,7 @@ export function Journey({ person, session, row, label }: { person: string; sessi
         const firstBelow = hs.findIndex((h) => h.getBoundingClientRect().top > top + 2)
         cur = firstBelow < 0 ? hs.length - 1 : firstBelow - 1
       }
-      focusVisit(Math.max(0, Math.min(hs.length - 1, cur + step)))
+      focusHead(hs[Math.max(0, Math.min(hs.length - 1, cur + step))])
     }
     window.addEventListener('trail:visit', onVisit)
     return () => window.removeEventListener('trail:visit', onVisit)
@@ -106,6 +114,8 @@ export function Journey({ person, session, row, label }: { person: string; sessi
   const matches = goalMatches(sessions)
   const badge = goalBadge(sessions)
   const now = Date.now()
+  const outside = sessions.filter((x) => !inRange(x)).length
+  const shown = newestFirst ? [...sessions].reverse() : sessions
   const strip = stripLayout(
     sessions.map((x) => x.start),
     now,
@@ -166,6 +176,7 @@ export function Journey({ person, session, row, label }: { person: string; sessi
             <span className="v" data-span-days={days}>
               {fmtInt(sessions.length)}
               <small>{visitsPhrase(sessions.length, days).replace(/^\S+ visits? ?/, '')}</small>
+              {outside > 0 && <small data-testid="visits-in-range">{fmtInt(sessions.length - outside)} in range</small>}
             </span>
           </div>
           <div>
@@ -202,14 +213,15 @@ export function Journey({ person, session, row, label }: { person: string; sessi
             const n = visitNo(x, m.index)
             const pv = x.steps.filter((st) => st.type === 'pageview').length
             const goal = (x.goals ?? []).length > 0
+            const out = !inRange(x)
             return (
               <button
                 key={x.sessionId}
                 type="button"
-                className={`vmark${goal ? ' goal' : ''}`}
+                className={`vmark${goal ? ' goal' : ''}${out ? ' out' : ''}`}
                 data-anchor={m.anchor}
                 style={{ left: `${m.left.toFixed(2)}%`, ['--lane' as string]: m.lane }}
-                aria-label={`Visit ${n}, ${dayTime(x.start, tz)}, ${pv} ${pv === 1 ? 'page' : 'pages'}${goal ? ', reached a goal' : ''}. Jump to it`}
+                aria-label={`Visit ${n}, ${dayTime(x.start, tz)}, ${pv} ${pv === 1 ? 'page' : 'pages'}${goal ? ', reached a goal' : ''}${out ? ', outside the selected range' : ''}. Jump to it`}
                 onClick={() => focusVisit(m.index)}
               >
                 <span className="vn">{n}</span>
@@ -242,11 +254,18 @@ export function Journey({ person, session, row, label }: { person: string; sessi
         <span className="muted kbds" aria-hidden="true">
           <Kbd>[</Kbd> <Kbd>]</Kbd> visits
         </span>
+        <Button size="sm" aria-pressed={newestFirst} onClick={() => setNewestFirst((v) => !v)}>
+          <ArrowDownUp size={14} aria-hidden="true" />
+          {newestFirst ? 'Newest first' : 'Oldest first'}
+        </Button>
       </div>
 
-      {sessions.map((x, i) => (
-        <Visit key={x.sessionId} s={x} i={i} prev={i > 0 ? sessions[i - 1] : null} tz={tz} current={x.sessionId === session} />
-      ))}
+      {shown.map((x, k) => {
+        const i = sessions.indexOf(x)
+        const before = k > 0 ? shown[k - 1] : null
+        const gap = before == null ? null : newestFirst ? gapText(Math.max(0, before.start - sessionEnd(x)), 'earlier') : gapText(Math.max(0, x.start - sessionEnd(before)))
+        return <Visit key={x.sessionId} s={x} i={i} gap={gap} out={!inRange(x)} tz={tz} current={x.sessionId === session} />
+      })}
       <p className="jnote">
         Everything this person did in the last 180 days, {tz.split('/').pop()?.replace(/_/g, ' ')} time. Time on a page is the gap until the next step; the last page of a visit counts until the
         tab was hidden. Filters do not hide steps here.
@@ -255,7 +274,7 @@ export function Journey({ person, session, row, label }: { person: string; sessi
   )
 }
 
-function Visit({ s, i, prev, tz, current }: { s: JourneySession; i: number; prev: JourneySession | null; tz: string; current: boolean }) {
+function Visit({ s, i, gap, out, tz, current }: { s: JourneySession; i: number; gap: string | null; out: boolean; tz: string; current: boolean }) {
   const steps = foldSteps(s.steps)
   const firstPv = steps.findIndex((x) => x.type === 'pageview')
   const pv = steps.filter((x) => x.type === 'pageview').length
@@ -263,17 +282,17 @@ function Visit({ s, i, prev, tz, current }: { s: JourneySession; i: number; prev
   const n = visitNo(s, i)
   return (
     <>
-      {prev && (
+      {gap && (
         <div className="gap">
           <span className="feet" aria-hidden="true">
             <i />
             <i />
             <i />
           </span>
-          {gapText(Math.max(0, s.start - sessionEnd(prev)))}
+          {gap}
         </div>
       )}
-      <section className="visit" aria-labelledby={`visit-${s.sessionId}`}>
+      <section className={`visit${out ? ' out' : ''}`} aria-labelledby={`visit-${s.sessionId}`}>
         <h3 className="visit-h" id={`visit-${s.sessionId}`} tabIndex={-1} data-visit={s.sessionId} aria-current={current || undefined}>
           <span>Visit {n}</span>
           <span className="w">{dayTime(s.start, tz)}</span>
@@ -281,6 +300,7 @@ function Visit({ s, i, prev, tz, current }: { s: JourneySession; i: number; prev
           <span className="w">
             · {fmtDur(s.durationMs)} · {pv} {pv === 1 ? 'page' : 'pages'}
           </span>
+          {out && <span className="out-l">outside selected range</span>}
         </h3>
         <ol className="steps">
           {steps.map((st, k) => (

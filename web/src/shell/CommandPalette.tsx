@@ -15,6 +15,7 @@ import { Avatar } from '../ui/avatar'
 import { Kbd } from '../ui/small'
 import { useLayer } from '../ui/layers'
 import { fmtInt } from '../lib/format'
+import { visitsText } from '../lib/journey'
 import { DIM_LABEL, MONO_DIMS, RANGE_GROUPS, rangeLabel, valueLabel, viewerTz } from './labels'
 import { NAV_ICON, NAV_KEY, useNavScreens } from './Sidebar'
 import { useSite } from './useSite'
@@ -150,7 +151,7 @@ function Palette({ scope, instant, close }: { scope: '' | 'filter'; instant: boo
         add('Visitors', {
           avatar: p.person,
           label: p.label,
-          sub: `${p.source ? `Came from ${p.source}` : 'Came directly'} · ${p.visits} ${p.visits === 1 ? 'visit' : 'visits'}`,
+          sub: `${p.source ? `Came from ${p.source}` : 'Came directly'} · ${visitsText(p)}`,
           kw: `visitor journey person ${p.city} ${p.country}`,
           run: () => navigate({ screen: s.screen === 'settings' ? 'activity' : s.screen, sheet: { kind: 'journey', person: p.person } }),
         })

@@ -9,6 +9,7 @@ import { BarList } from '../data/BarList'
 import { columnCatalog, toRows } from '../data/columns'
 import { toggleFilter } from '../data/Panel'
 import { fmtDur, fmtInt, fmtPct } from '../lib/format'
+import { visitsText } from '../lib/journey'
 import { DIM_LABEL, valueLabel, viewerTz } from '../shell/labels'
 import { useSite } from '../shell/useSite'
 import { apiQuery } from '../state/url'
@@ -137,7 +138,7 @@ function RowReport({ dim, rowKey }: { dim: Dim; rowKey: string }) {
                   <Avatar seed={p.person} size={20} />
                   <span data-testid="journey-label">{p.label}</span>
                   <span className="subtle">
-                    {p.visits} {p.visits === 1 ? 'visit' : 'visits'} · {valueLabel('source', p.source)}
+                    {visitsText(p)} · {valueLabel('source', p.source)}
                   </span>
                 </button>
               </li>
