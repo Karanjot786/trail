@@ -25,7 +25,7 @@ type limiter struct {
 	mu        sync.Mutex
 	m         map[string]*rate.Limiter
 	lastSweep time.Time
-	max       int // maxLimiters unless a test lowers it
+	max       int           // maxLimiters unless a test lowers it
 	over      *rate.Limiter // shared bucket for new IPs while the map is full
 }
 
