@@ -6,16 +6,7 @@ import (
 	"context"
 	"database/sql"
 	"io"
-	"time"
 )
-
-// ResolveWindow turns range + cmp + tz into a Window (§0.3).
-func ResolveWindow(rangeKey, cmp string, now time.Time, loc *time.Location, dataStart int64) (Window, error) {
-	return Window{}, ErrNotImplemented
-}
-
-// SiteFeatures reports which optional screens a site has data for.
-func SiteFeatures(db *sql.DB, site string) (Features, error) { return Features{}, ErrNotImplemented }
 
 // SitesSummary returns one All websites row per site.
 func SitesSummary(db *sql.DB, p Params, sites []string) ([]SiteSummary, error) {
@@ -46,6 +37,3 @@ func AIReferrals(db *sql.DB, p Params) ([]AIReferral, error) { return nil, ErrNo
 func ExportEvents(ctx context.Context, db *sql.DB, site string, w io.Writer) error {
 	return ErrNotImplemented
 }
-
-// FirstTouch builds the first-touch attribution CTE for persons (B1 Task 2).
-func FirstTouch(db *sql.DB, p Params, persons string, args []any) (string, []any) { return "", args }
