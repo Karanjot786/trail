@@ -95,7 +95,7 @@ func firstTouchCTE(p Params, name, cols, sel, persons string, args []any) (strin
   SELECT COALESCE(m.user_id, f.anon_id) AS person, ` + sel + `,
     row_number() OVER (PARTITION BY COALESCE(m.user_id, f.anon_id) ORDER BY f.ts, f.session_id) AS rn
   FROM events f LEFT JOIN idm m ON m.anon_id=f.anon_id
-  WHERE f.site_id=? AND f.is_bot=0 AND f.type='pageview'` + env + `
+  WHERE f.site_id=? AND ` + actorCond(p, "f") + ` AND f.type='pageview'` + env + `
     AND f.anon_id IN (SELECT anon_id FROM idm WHERE user_id IN (` + persons + `)
       UNION ALL SELECT person FROM (` + persons + `))
 ) WHERE rn=1)

@@ -105,7 +105,7 @@ func base(p Params) (string, []any, error) {
   (SELECT min(rowid) FROM identity_map WHERE site_id=? GROUP BY anon_id)),
 ev AS (SELECT e.*, COALESCE(idm.user_id, e.anon_id) AS person, idm.user_id IS NOT NULL AS ident
   FROM events e LEFT JOIN idm USING(anon_id)
-  WHERE e.site_id=? AND e.ts BETWEEN ? AND ? AND e.is_bot=0`)
+  WHERE e.site_id=? AND e.ts BETWEEN ? AND ? AND ` + actorCond(p, "e"))
 	args := []any{p.Site, p.Site, p.Site, p.From, p.To}
 	if p.Env != "" && p.Env != "all" {
 		sb.WriteString(" AND e.env=?")
@@ -187,7 +187,26 @@ func Stats(db *sql.DB, p Params) (StatsResult, error) {
 	if r.Online, err = online(db, p); err != nil {
 		return r, err
 	}
+	if r.AgentSessions, err = agentSessions(db, p); err != nil {
+		return r, err
+	}
 	return r, nil
+}
+
+// agentSessions counts the AI agent sessions in p's window, whatever p.Actor says: env applies,
+// filters do not (the KPI note says how many sessions the people numbers leave out).
+func agentSessions(db *sql.DB, p Params) (int, error) {
+	q := `SELECT count(DISTINCT session_id) FROM events WHERE site_id=? AND agent<>'' AND ts BETWEEN ? AND ?`
+	args := []any{p.Site, p.From, p.To}
+	if p.Env != "" && p.Env != "all" {
+		q += " AND env=?"
+		args = append(args, p.Env)
+	}
+	var n int
+	if err := db.QueryRow(q, args...).Scan(&n); err != nil {
+		return 0, fmt.Errorf("agent sessions: %w", err)
+	}
+	return n, nil
 }
 
 // now is the query clock: p.Now, or the wall clock when unset.
@@ -202,7 +221,7 @@ func (p Params) now() time.Time {
 func online(db *sql.DB, p Params) (int, error) {
 	nowMs := p.now().UnixMilli()
 	var n int
-	if err := db.QueryRow(`SELECT count(DISTINCT anon_id) FROM events WHERE site_id=? AND ts>=? AND ts<=? AND is_bot=0`,
+	if err := db.QueryRow(`SELECT count(DISTINCT anon_id) FROM events WHERE site_id=? AND ts>=? AND ts<=? AND `+peopleOnly("events"),
 		p.Site, nowMs-onlineWindow.Milliseconds(), nowMs).Scan(&n); err != nil {
 		return 0, fmt.Errorf("online: %w", err)
 	}

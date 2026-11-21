@@ -285,6 +285,12 @@ func (s *server) paramsFor(r *http.Request, allowAll bool) (query.Params, error)
 	default:
 		return p, errors.New("bad env")
 	}
+	switch a := q.Get("actor"); a {
+	case "", query.ActorHuman, query.ActorAll:
+		p.Actor = a
+	default:
+		return p, errors.New("bad actor")
+	}
 	if tz := q.Get("tz"); tz != "" && len(tz) <= 64 {
 		if loc, err := time.LoadLocation(tz); err == nil {
 			p.TZ = loc

@@ -16,6 +16,7 @@ func Live(db *sql.DB, p Params) (LiveResult, error) {
 	now := p.now().UnixMilli()
 	res := LiveResult{AsOf: now, Countries: []KeyCount{}, Sources: []KeyCount{}, Pages: []KeyCount{}, Stream: []LiveEvent{}}
 	lp := p
+	lp.Actor = "" // Live is people only, whatever actor says
 	lp.From, lp.To = now-onlineWindow.Milliseconds(), now
 	cte, args, err := base(lp)
 	if err != nil {

@@ -60,7 +60,7 @@ anons(anon_id) AS (SELECT person FROM who UNION SELECT anon_id FROM idm WHERE us
 sess AS (SELECT COALESCE(idm.user_id, e.anon_id) AS person, e.session_id, min(e.ts) AS ts, e.referrer_host,
     e.utm_source, e.utm_medium, e.utm_campaign, e.path, e.country, e.device
   FROM events e LEFT JOIN idm USING(anon_id)
-  WHERE e.site_id=? AND e.is_bot=0 AND e.type='pageview' AND e.anon_id IN (SELECT anon_id FROM anons)`
+  WHERE e.site_id=? AND ` + actorCond(p, "e") + ` AND e.type='pageview' AND e.anon_id IN (SELECT anon_id FROM anons)`
 	args := []any{p.Site, p.Site, string(who), p.Site}
 	if p.Env != "" && p.Env != "all" {
 		q += " AND e.env=?"
@@ -142,7 +142,7 @@ func siteCurrency(db *sql.DB, p Params, inRange []sale) (string, error) {
 	if best != "" {
 		return best, nil
 	}
-	q := `SELECT ` + currencyExpr + ` FROM events WHERE site_id=? AND is_bot=0 AND ` + purchaseWhere +
+	q := `SELECT ` + currencyExpr + ` FROM events WHERE site_id=? AND ` + peopleOnly("events") + ` AND ` + purchaseWhere +
 		` AND json_valid(props) GROUP BY 1 ORDER BY count(*) DESC, 1 LIMIT 1`
 	err := db.QueryRow(q, p.Site).Scan(&best)
 	switch {

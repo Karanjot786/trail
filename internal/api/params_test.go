@@ -138,3 +138,21 @@ func TestParamsClockAndConv(t *testing.T) {
 		t.Error("bad sort accepted")
 	}
 }
+
+func TestParamsActor(t *testing.T) {
+	s := testServer(t)
+	for q, want := range map[string]string{"": "", "&actor=": "", "&actor=human": "human", "&actor=all": "all"} {
+		p, err := s.params(req("/api/stats?site=s&range=7d" + q))
+		if err != nil || p.Actor != want {
+			t.Fatalf("%q: actor %q err %v", q, p.Actor, err)
+		}
+	}
+	h := s.routes()
+	for _, bad := range []string{"bot", "agent", "ALL"} {
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, req("/api/stats?site=s&range=7d&actor="+bad))
+		if w.Code != http.StatusBadRequest || !strings.Contains(w.Body.String(), "bad actor") {
+			t.Fatalf("actor=%s: %d %s", bad, w.Code, w.Body.String())
+		}
+	}
+}
