@@ -100,7 +100,7 @@ func runCrawlers(args []string, stdin io.Reader, out io.Writer) error {
 			}
 		}
 		emit = func(recs []crawlers.Record) error {
-			_, err := crawlers.Ingest(st.DB(), *site, recs)
+			_, err := crawlers.Ingest(st.DB(), *site, recs, nil) // local import: no list fetch, unverified
 			return err
 		}
 		finish = func() error { return nil }

@@ -104,7 +104,7 @@ func TestIngestAggregatesPerHour(t *testing.T) {
 		{TS: h + 7000, UA: "ClaudeBot", Path: "https://x.dev/abs?q", Status: 200},
 		{TS: h + 8000, UA: "ClaudeBot", Path: "/x", Status: 999},
 	}
-	kept, err := Ingest(db, "s", recs)
+	kept, err := Ingest(db, "s", recs, nil)
 	if err != nil || kept != 6 {
 		t.Fatalf("kept %d %v", kept, err)
 	}
@@ -135,7 +135,7 @@ func TestIngestAggregatesPerHour(t *testing.T) {
 		t.Errorf("absolute target %+v", r)
 	}
 	// A second batch adds to the same keys.
-	if _, err := Ingest(db, "s", recs[:1]); err != nil {
+	if _, err := Ingest(db, "s", recs[:1], nil); err != nil {
 		t.Fatal(err)
 	}
 	var n int
@@ -159,7 +159,7 @@ func TestImportSinceAutoNoDoubleCount(t *testing.T) {
 			t.Fatal(err)
 		}
 		lines, kept, err := Scan(strings.NewReader(log), "combined", since, 1, func(r []Record) error {
-			_, err := Ingest(db, "s", r)
+			_, err := Ingest(db, "s", r, nil)
 			return err
 		})
 		if err != nil {
@@ -215,9 +215,9 @@ func TestCrawlerAdditions(t *testing.T) {
 
 func TestParseCombinedIP(t *testing.T) {
 	for line, want := range map[string]string{
-		`203.0.113.9 - - [20/Nov/2026:10:05:00 +0530] "GET / HTTP/1.1" 200 1 "-" "GPTBot"`:   "203.0.113.9",
-		`2001:db8::1 - - [20/Nov/2026:10:05:00 +0530] "GET / HTTP/1.1" 200 1 "-" "GPTBot"`:   "2001:db8::1",
-		`host.example - - [20/Nov/2026:10:05:00 +0530] "GET / HTTP/1.1" 200 1 "-" "GPTBot"`:  "",
+		`203.0.113.9 - - [20/Nov/2026:10:05:00 +0530] "GET / HTTP/1.1" 200 1 "-" "GPTBot"`:  "203.0.113.9",
+		`2001:db8::1 - - [20/Nov/2026:10:05:00 +0530] "GET / HTTP/1.1" 200 1 "-" "GPTBot"`:  "2001:db8::1",
+		`host.example - - [20/Nov/2026:10:05:00 +0530] "GET / HTTP/1.1" 200 1 "-" "GPTBot"`: "",
 		` 203.0.113.9 - - [20/Nov/2026:10:05:00 +0530] "GET / HTTP/1.1" 200 1 "-" "GPTBot"`: "203.0.113.9",
 	} {
 		r, ok := ParseCombined(line)
@@ -236,5 +236,58 @@ func TestParseCaddyIP(t *testing.T) {
 		if !ok || r.IP != want {
 			t.Errorf("%s → %q %v", line, r.IP, ok)
 		}
+	}
+}
+
+func TestIngestStatusZero(t *testing.T) {
+	db := openDB(t)
+	h := int64(1795633200000)
+	kept, err := Ingest(db, "s", []Record{
+		{TS: h, UA: "GPTBot", Path: "/a", Status: 0},
+		{TS: h, UA: "GPTBot", Path: "/a", Status: 99}, // not a status
+		{TS: h, UA: "GPTBot", Path: "/a", Status: 600},
+	}, nil)
+	if err != nil || kept != 1 {
+		t.Fatalf("kept %d %v", kept, err)
+	}
+	var status, n int
+	if err := db.QueryRow(`SELECT status, n FROM crawl_hits`).Scan(&status, &n); err != nil || status != 0 || n != 1 {
+		t.Errorf("status %d n %d %v", status, n, err)
+	}
+}
+
+func TestIngestVerifiedSplit(t *testing.T) {
+	db := openDB(t)
+	h := int64(1795633200000)
+	var asked []string
+	verify := func(bot, ip string) bool {
+		asked = append(asked, bot+"@"+ip)
+		return ip == "192.0.2.1"
+	}
+	kept, err := Ingest(db, "s", []Record{
+		{TS: h + 1, UA: "GPTBot", Path: "/a", Status: 200, IP: "192.0.2.1"},
+		{TS: h + 2, UA: "GPTBot", Path: "/a", Status: 200, IP: "198.51.100.1"},
+		{TS: h + 3, UA: "GPTBot", Path: "/a", Status: 200},
+		{TS: h + 4, UA: "GPTBot", Path: "/a", Status: 200, IP: "192.0.2.1"},
+	}, verify)
+	if err != nil || kept != 4 {
+		t.Fatalf("kept %d %v", kept, err)
+	}
+	if len(asked) != 3 {
+		t.Errorf("verify called for %v (never without an IP)", asked)
+	}
+	got := map[int]int{}
+	rs, err := db.Query(`SELECT verified, n FROM crawl_hits WHERE bot='GPTBot' AND path='/a' AND status=2`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for rs.Next() {
+		var v, n int
+		_ = rs.Scan(&v, &n)
+		got[v] = n
+	}
+	rs.Close()
+	if len(got) != 2 || got[1] != 2 || got[0] != 2 {
+		t.Errorf("rows by verified %v", got)
 	}
 }

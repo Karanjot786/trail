@@ -8,8 +8,10 @@ import (
 	"fmt"
 	"io"
 	"mime"
+	"net"
 	"net/http"
 
+	"trail/internal/agents"
 	"trail/internal/auth"
 	"trail/internal/crawlers"
 )
@@ -17,11 +19,16 @@ import (
 const (
 	maxCrawlBody  = 1 << 20 // 1 MiB of NDJSON per request
 	maxCrawlLines = 10_000
+	maxCrawlField = 4 << 10 // ip, host, sa, si and sig, each
 )
 
-// postCrawls takes NDJSON request records ({ts, ua, path, status} per line)
-// from a crawl-scoped token bound to a site, and answers 202 {accepted, kept}.
-// The owner (cookie) or an all-sites write token names the site with ?site=.
+// postCrawls takes NDJSON request records from a crawl-scoped token bound to
+// a site, and answers 202 {accepted, kept}. A line is {ts, ua, path, status}
+// plus the optional v2 fields ip, host, sa, si and sig (status 0 = unknown).
+// A line with signature fields is a signed agent navigation seen by the server
+// hook: it goes to the agent relay (never to crawl_hits). Crawler IPs are
+// checked against the operators' published lists. The owner (cookie) or an
+// all-sites write token names the site with ?site=.
 func (s *server) postCrawls(w http.ResponseWriter, r *http.Request) {
 	site := r.URL.Query().Get("site")
 	if t, ok := auth.TokenFrom(r.Context()); ok && t.Site != "" {
@@ -63,7 +70,18 @@ func (s *server) postCrawls(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), status)
 		return
 	}
-	kept, err := crawlers.Ingest(s.db, site, recs)
+	hostOK := func(h string) bool { return s.sites.Allowed(site, hostOnly(h)) }
+	crawls := recs[:0:0]
+	for _, rec := range recs {
+		if rec.SA != "" {
+			sig := agents.Signed{Authority: rec.Host, SignatureAgent: rec.SA, SignatureInput: rec.SI, Signature: rec.Sig}
+			if res := s.agents.RelaySigned(site, rec.IP, rec.UA, sig, hostOK); res.ID != "" {
+				continue
+			}
+		}
+		crawls = append(crawls, rec)
+	}
+	kept, err := crawlers.Ingest(s.db, site, crawls, s.agents.VerifyCrawler)
 	if err != nil {
 		s.fail(w, r, err)
 		return
@@ -74,6 +92,14 @@ func (s *server) postCrawls(w http.ResponseWriter, r *http.Request) {
 		Accepted int `json:"accepted"`
 		Kept     int `json:"kept"`
 	}{len(recs), kept})
+}
+
+// hostOnly drops a port from host ("example.com:443" → "example.com").
+func hostOnly(h string) string {
+	if host, _, err := net.SplitHostPort(h); err == nil {
+		return host
+	}
+	return h
 }
 
 var errTooManyLines = fmt.Errorf("at most %d lines per request", maxCrawlLines)
@@ -96,6 +122,11 @@ func parseNDJSON(body []byte) ([]crawlers.Record, error) {
 		dec.DisallowUnknownFields()
 		if err := dec.Decode(&rec); err != nil {
 			return nil, fmt.Errorf("line %d: want {ts, ua, path, status}", n)
+		}
+		for _, f := range []string{rec.IP, rec.Host, rec.SA, rec.SI, rec.Sig} {
+			if len(f) > maxCrawlField {
+				return nil, fmt.Errorf("line %d: field too long", n)
+			}
 		}
 		recs = append(recs, rec)
 	}
