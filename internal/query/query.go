@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"math"
 	"sort"
 	"strings"
 	"time"
@@ -22,7 +23,7 @@ var dims = map[string]string{
 	"path": "path", "route": "route", "host": "host", "referrer": "referrer_host",
 	"utm_source": "utm_source", "utm_medium": "utm_medium", "utm_campaign": "utm_campaign",
 	"country": "country", "device": "device", "browser": "browser", "os": "os",
-	"event": "name",
+	"event": "name", "goal": "",
 }
 
 const (
@@ -82,6 +83,12 @@ ev AS (SELECT e.*, COALESCE(idm.user_id, e.anon_id) AS person, idm.user_id IS NO
 			return "", nil, fmt.Errorf("filter %q: %w", k, ErrBadDim)
 		}
 		switch k {
+		case "goal":
+			// A goal filter keeps whole sessions that hit the goal (any kind of goal).
+			sb.WriteString(" AND e.session_id IN (SELECT x.session_id FROM events x JOIN goals g ON g.id=? AND g.site_id=x.site_id" +
+				" WHERE x.site_id=? AND x.ts BETWEEN ? AND ? AND " + goalHitCond + ")")
+			args = append(args, p.Filters[k], p.Site, p.From, p.To)
+			continue
 		case "event":
 			// An event filter keeps whole sessions that fired the event.
 			sb.WriteString(" AND e.session_id IN (SELECT session_id FROM events WHERE site_id=? AND type='event' AND name=?)")
@@ -101,30 +108,53 @@ ev AS (SELECT e.*, COALESCE(idm.user_id, e.anon_id) AS person, idm.user_id IS NO
 	return sb.String(), args, nil
 }
 
-// Stats returns visitors, pageviews and bounce for the range and the previous
-// equal-length range, plus visitors online in the last five minutes.
+// Stats returns every headline number for the window and its comparison period, plus
+// visitors online in the five minutes before p.Now.
 func Stats(db *sql.DB, p Params) (StatsResult, error) {
-	var r StatsResult
-	cur, err := totals(db, p)
+	r := StatsResult{Window: p.Win}
+	goal, err := convGoal(db, p.Site, p.Conv)
 	if err != nil {
 		return r, err
 	}
-	prev := p
-	prev.From, prev.To = p.From-(p.To-p.From), p.From-1
-	pt, err := totals(db, prev)
-	if err != nil {
+	if r.Totals, err = totals(db, p, goal); err != nil {
 		return r, err
 	}
-	since := time.Now().Add(-onlineWindow).UnixMilli()
-	if err := db.QueryRow(`SELECT count(DISTINCT anon_id) FROM events WHERE site_id=? AND ts>=? AND is_bot=0`,
-		p.Site, since).Scan(&r.Online); err != nil {
-		return r, fmt.Errorf("online: %w", err)
+	if pp, ok := prevParams(p); ok {
+		pt, err := totals(db, pp, goal)
+		if err != nil {
+			return r, err
+		}
+		r.Prev = &pt
 	}
-	r.Totals, r.Prev = cur, &pt
+	if goal != nil {
+		r.Conv = &ConvRef{GoalID: goal.ID, Name: goal.Name}
+	}
+	if r.Online, err = online(db, p); err != nil {
+		return r, err
+	}
 	return r, nil
 }
 
-func totals(db *sql.DB, p Params) (Totals, error) {
+// now is the query clock: p.Now, or the wall clock when unset.
+func (p Params) now() time.Time {
+	if p.Now.IsZero() {
+		return time.Now()
+	}
+	return p.Now
+}
+
+// online counts people seen in the five minutes before p.Now.
+func online(db *sql.DB, p Params) (int, error) {
+	nowMs := p.now().UnixMilli()
+	var n int
+	if err := db.QueryRow(`SELECT count(DISTINCT anon_id) FROM events WHERE site_id=? AND ts>=? AND ts<=? AND is_bot=0`,
+		p.Site, nowMs-onlineWindow.Milliseconds(), nowMs).Scan(&n); err != nil {
+		return 0, fmt.Errorf("online: %w", err)
+	}
+	return n, nil
+}
+
+func totals(db *sql.DB, p Params, goal *Goal) (Totals, error) {
 	var t Totals
 	cte, args, err := base(p)
 	if err != nil {
@@ -134,12 +164,40 @@ func totals(db *sql.DB, p Params) (Totals, error) {
 		Scan(&t.Visitors, &t.Pageviews); err != nil {
 		return t, fmt.Errorf("totals: %w", err)
 	}
-	var sessions, engaged int
-	if err := db.QueryRow(cte+`SELECT count(*), coalesce(sum(`+engagedExpr+`),0) FROM (`+sessionAgg+`)`, args...).
-		Scan(&sessions, &engaged); err != nil {
-		return t, fmt.Errorf("bounce: %w", err)
+	var engaged int
+	var dur float64
+	if err := db.QueryRow(cte+`SELECT count(*), coalesce(sum(`+engagedExpr+`),0), coalesce(avg(dur),0) FROM (`+sessionAgg+`)`, args...).
+		Scan(&t.Sessions, &engaged, &dur); err != nil {
+		return t, fmt.Errorf("sessions: %w", err)
 	}
-	t.Bounce = bounce(sessions, engaged)
+	t.Bounce = bounce(t.Sessions, engaged)
+	t.DurationMs = int64(math.Round(dur))
+	if err := db.QueryRow(cte+`, pc AS (SELECT `+currencyExpr+` AS cur, `+amountMinorExpr+` AS amt FROM ev WHERE `+purchaseWhere+`)
+SELECT coalesce(sum(amt),0), count(*) FROM pc
+WHERE cur=(SELECT cur FROM pc GROUP BY cur ORDER BY count(*) DESC, cur LIMIT 1)`, args...).
+		Scan(&t.RevenueMinor, &t.Purchases); err != nil {
+		return t, fmt.Errorf("revenue: %w", err)
+	}
+	t.BaseVisitors = t.Visitors
+	if bp, ok := withoutGoalFilter(p); ok {
+		bcte, bargs, err := base(bp)
+		if err != nil {
+			return t, err
+		}
+		if err := db.QueryRow(bcte+`SELECT count(DISTINCT person) FROM ev`, bargs...).Scan(&t.BaseVisitors); err != nil {
+			return t, fmt.Errorf("base visitors: %w", err)
+		}
+	}
+	if goal != nil {
+		where, gargs := goalWhere(*goal)
+		if err := db.QueryRow(cte+`SELECT count(*), count(DISTINCT person) FROM ev WHERE `+where, append(args, gargs...)...).
+			Scan(&t.Conversions, &t.ConvVisitors); err != nil {
+			return t, fmt.Errorf("conversions: %w", err)
+		}
+		if t.BaseVisitors > 0 {
+			t.ConvRate = float64(t.ConvVisitors) / float64(t.BaseVisitors)
+		}
+	}
 	return t, nil
 }
 
@@ -242,7 +300,7 @@ func Series(db *sql.DB, p Params, metric string) (SeriesResult, error) {
 // case-insensitive substring.
 func Breakdown(db *sql.DB, p Params, dim, q string, limit int) ([]Row, error) {
 	col, ok := dims[dim]
-	if !ok {
+	if !ok || col == "" {
 		return nil, fmt.Errorf("dim %q: %w", dim, ErrBadDim)
 	}
 	cte, args, err := base(p)

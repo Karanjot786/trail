@@ -7,7 +7,7 @@ import (
 )
 
 // sessionAgg aggregates ev (from base) into one row per session.
-const sessionAgg = `SELECT session_id, min(ts) AS start, sum(type='pageview') AS pv,
+const sessionAgg = `SELECT session_id, min(ts) AS start, max(ts) AS end, max(ts)-min(ts) AS dur, sum(type='pageview') AS pv,
   max(engaged_ms) AS em, max(type IN ('event','identify')) AS ce
 FROM ev GROUP BY session_id`
 
