@@ -40,7 +40,7 @@ func parseJWKS(body []byte) ([]jwk, error) {
 		}
 		out = append(out, jwk{
 			kid:   str("kid"),
-			thumb: thumbprint(map[string]string{"kty": "OKP", "crv": "Ed25519", "x": str("x")}),
+			thumb: thumbprint(map[string]string{"kty": "OKP", "crv": "Ed25519", "x": base64.RawURLEncoding.EncodeToString(raw)}),
 			pub:   ed25519.PublicKey(raw),
 			nbf:   num("nbf"),
 			exp:   num("exp"),

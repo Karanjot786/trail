@@ -81,7 +81,7 @@ func (c *relayCache) len() int {
 // (hostOK). On success it remembers sha256(site|ip|ua) → agent for 30
 // minutes, so the beacons that browser sends next are classified "relay".
 func (d *Directory) RelaySigned(site, ip, ua string, s Signed, hostOK func(string) bool) Result {
-	if hostOK == nil || site == "" || ip == "" || ua == "" || !hostOK(s.Authority) {
+	if hostOK == nil || site == "" || ip == "" || ua == "" || !hostOK(hostOnly(s.Authority)) {
 		return Result{}
 	}
 	a, err := Verify(s, s.Authority, d, d.o.Now())

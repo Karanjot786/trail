@@ -11,7 +11,10 @@ import (
 // Signature-Input, Signature and Signature-Agent. Headers over maxHeader
 // bytes are refused before parsing.
 
-const maxHeader = 4 << 10
+const (
+	maxHeader  = 4 << 10
+	maxMembers = 32 // dictionary members and parameters per item
+)
 
 var (
 	errSFV      = errors.New("malformed structured field")
@@ -133,6 +136,9 @@ func parseDictionary(s string) ([]sfMember, error) {
 			}
 		}
 		if !replaced {
+			if len(out) == maxMembers {
+				return nil, errSFV
+			}
 			out = append(out, m)
 		}
 		p.skipOWS()
@@ -219,6 +225,9 @@ func (p *sfParser) params() ([]sfParam, error) {
 			}
 		}
 		if !replaced {
+			if len(out) == maxMembers {
+				return nil, errSFV
+			}
 			out = append(out, sfParam{key: key, val: val})
 		}
 	}

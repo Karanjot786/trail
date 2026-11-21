@@ -65,7 +65,9 @@ type relayRecorder struct {
 
 func (f *relayRecorder) Status() []agents.ListStatus { return []agents.ListStatus{} }
 
-func (f *relayRecorder) VerifyCrawler(bot, ip string) bool { return bot == "GPTBot" && ip == "192.0.2.1" }
+func (f *relayRecorder) VerifyCrawler(bot, ip string) bool {
+	return bot == "GPTBot" && ip == "192.0.2.1"
+}
 
 func (f *relayRecorder) RelaySigned(site, ip, ua string, s agents.Signed, hostOK func(string) bool) agents.Result {
 	f.relays = append(f.relays, fmt.Sprintf("%s|%s|%s|%s|%v|%v", site, ip, s.Authority, s.SignatureAgent, hostOK(s.Authority), hostOK("evil.example")))
@@ -139,5 +141,29 @@ func TestPostCrawlsOldLineStillValid(t *testing.T) {
 	}
 	if len(fa.relays) != 0 {
 		t.Errorf("unsigned lines relayed: %v", fa.relays)
+	}
+}
+
+// A signed crawler fetch (for example ChatGPT-User) stays a crawler hit.
+func TestPostCrawlsSignedCrawlerIsKept(t *testing.T) {
+	h, fa, _ := setupAgents(t)
+	line := `{"ts":1795149300000,"ua":"Mozilla/5.0 (compatible; ChatGPT-User/1.0)","path":"/a","status":200,"host":"example.com","sa":"\"https://chatgpt.com\"","si":"x","sig":"y"}`
+	w := postCrawl(h, crawlTok, "", line)
+	if w.Code != http.StatusAccepted || !strings.Contains(w.Body.String(), `"kept":1`) || len(fa.relays) != 0 {
+		t.Errorf("%d %s relays %v", w.Code, w.Body, fa.relays)
+	}
+}
+
+func TestPostCrawlsCapsRelays(t *testing.T) {
+	h, fa, _ := setupAgents(t)
+	var b strings.Builder
+	for i := range maxRelaysPerRequest + 50 {
+		fmt.Fprintf(&b, `{"ts":1795149300000,"ua":"Chrome","path":"/","status":0,"ip":"203.0.113.%d","host":"example.com","sa":"\"https://chatgpt.com\"","si":"x","sig":"y"}`+"\n", i%250)
+	}
+	if w := postCrawl(h, crawlTok, "", b.String()); w.Code != http.StatusAccepted {
+		t.Fatalf("%d %s", w.Code, w.Body)
+	}
+	if len(fa.relays) != maxRelaysPerRequest {
+		t.Errorf("%d relays, want %d", len(fa.relays), maxRelaysPerRequest)
 	}
 }

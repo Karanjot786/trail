@@ -1,5 +1,7 @@
 package agents
 
+import "net"
+
 // Classify recognises an AI agent in one beacon request, strongest first:
 //  1. a valid Web Bot Auth signature on this request (sig), verified for
 //     in.Signed.Authority. A caller with several candidate authorities (the
@@ -9,9 +11,13 @@ package agents
 //  3. the client IP in the agent operator's published list (ip);
 //  4. a UA token such as Claude-Agent (ua, "Claimed").
 //
+// When in.HostOK is set, the signed authority must be one of the site's hosts,
+// so a signature captured on another host cannot be replayed.
+//
 // It never waits on the network: it uses what is cached now.
 func (d *Directory) Classify(in Input) Result {
-	if in.Signed.SignatureAgent != "" {
+	hostOK := in.HostOK == nil || in.HostOK(hostOnly(in.Signed.Authority))
+	if in.Signed.SignatureAgent != "" && hostOK {
 		if a, err := Verify(in.Signed, in.Signed.Authority, d, d.o.Now()); err == nil {
 			return Result{ID: a.ID, Via: ViaSig}
 		}
@@ -32,4 +38,12 @@ func (d *Directory) Classify(in Input) Result {
 		return Result{ID: a.ID, Via: ViaUA}
 	}
 	return Result{}
+}
+
+// hostOnly drops a port from an authority ("shop.example:443" → "shop.example").
+func hostOnly(h string) string {
+	if host, _, err := net.SplitHostPort(h); err == nil {
+		return host
+	}
+	return h
 }

@@ -32,6 +32,7 @@ const (
 	defaultLifetime = 5 * time.Minute
 	maxLifetime     = 24 * time.Hour
 	wbaTag          = "web-bot-auth"
+	maxWBAMembers   = 2 // web-bot-auth signatures tried per request
 )
 
 // parseSignatureInput parses Signature-Input: a dictionary of inner lists.
@@ -109,9 +110,13 @@ func Verify(s Signed, authority string, keys KeySource, now time.Time) (Agent, e
 		return Agent{}, fmt.Errorf("signature: %w", err)
 	}
 	lastErr := errNoSignature
+	tried := 0
 	for _, m := range inputs {
 		if tag, _ := m.param("tag"); tag.kind != sfString || tag.s != wbaTag {
 			continue
+		}
+		if tried++; tried > maxWBAMembers {
+			break
 		}
 		a, err := verifyMember(m, sa, sigs, authority, keys, now)
 		if err == nil {
@@ -150,6 +155,9 @@ func verifyMember(m sfMember, sa signatureAgent, sigs []sfMember, authority stri
 	authority = strings.ToLower(strings.TrimSpace(authority))
 	if authority == "" {
 		return Agent{}, ErrBadSignature
+	}
+	if err := checkCovered(m.list); err != nil {
+		return Agent{}, err
 	}
 	values := make([]string, 0, len(m.list))
 	for _, c := range m.list {
@@ -211,6 +219,33 @@ func checkParams(ps []sfParam, now time.Time) (string, error) {
 		return "", fmt.Errorf("%w: lifetime", errSigParams)
 	}
 	return keyid.s, nil
+}
+
+// checkCovered requires "@authority" and "signature-agent" to be covered,
+// each exactly once (RFC 9421 §2.5 forbids duplicates), so a signature cannot
+// be replayed to another host or detached from its Signature-Agent.
+func checkCovered(list []sfInner) error {
+	seen := map[string]bool{}
+	authority, agent := false, false
+	for _, c := range list {
+		var b strings.Builder
+		c.item.serialize(&b)
+		serializeParams(&b, c.params)
+		if seen[b.String()] {
+			return ErrUnsupportedComponent
+		}
+		seen[b.String()] = true
+		switch c.item.s {
+		case "@authority":
+			authority = true
+		case "signature-agent":
+			agent = true
+		}
+	}
+	if !authority || !agent {
+		return fmt.Errorf("%w: @authority and signature-agent must be covered", ErrUnsupportedComponent)
+	}
+	return nil
 }
 
 // componentValue returns the value of one covered component.

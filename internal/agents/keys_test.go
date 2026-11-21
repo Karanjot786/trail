@@ -111,3 +111,12 @@ func TestDirectoryKeySource(t *testing.T) {
 		t.Errorf("Verify through directory: %q %v", a.ID, err)
 	}
 }
+
+func TestThumbprintIgnoresPadding(t *testing.T) {
+	x := "11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo"
+	a, _ := parseJWKS([]byte(`{"keys":[{"kty":"OKP","crv":"Ed25519","x":"` + x + `"}]}`))
+	b, _ := parseJWKS([]byte(`{"keys":[{"kty":"OKP","crv":"Ed25519","x":"` + x + `="}]}`))
+	if len(a) != 1 || len(b) != 1 || a[0].thumb != b[0].thumb {
+		t.Errorf("padded x changes the thumbprint: %v %v", a, b)
+	}
+}

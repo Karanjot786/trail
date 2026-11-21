@@ -261,3 +261,46 @@ func FuzzVerify(f *testing.F) {
 		}
 	})
 }
+
+func TestVerifyRequiresCoveredComponents(t *testing.T) {
+	ks := testKeySource()
+	sign := func(comps string) Signed {
+		params := fmt.Sprintf("(%s);created=%d;keyid=%q;tag=\"web-bot-auth\"", comps, testNow.Unix()-10, testKeyID)
+		var lines []string
+		for _, c := range strings.Fields(comps) {
+			switch c {
+			case `"@authority"`:
+				lines = append(lines, `"@authority": shop.example`)
+			case `"signature-agent"`:
+				lines = append(lines, `"signature-agent": "https://chatgpt.com"`)
+			}
+		}
+		base := strings.Join(append(lines, `"@signature-params": `+params), "\n")
+		return Signed{
+			Authority:      "shop.example",
+			SignatureAgent: `"https://chatgpt.com"`,
+			SignatureInput: "sig1=" + params,
+			Signature:      "sig1=:" + base64.StdEncoding.EncodeToString(ed25519.Sign(testPriv, []byte(base))) + ":",
+		}
+	}
+	for _, comps := range []string{``, `"signature-agent"`, `"@authority"`, `"@authority" "@authority" "signature-agent"`} {
+		if a, err := Verify(sign(comps), "shop.example", ks, testNow); err == nil {
+			t.Errorf("(%s) accepted as %s", comps, a.ID)
+		}
+	}
+	if _, err := Verify(sign(`"@authority" "signature-agent"`), "shop.example", ks, testNow); err != nil {
+		t.Errorf("full set rejected: %v", err)
+	}
+}
+
+func TestVerifyBoundsWork(t *testing.T) {
+	s := signWBA(wbaReq{origin: "https://chatgpt.com", authority: "shop.example"})
+	var members []string
+	for i := range 40 {
+		members = append(members, fmt.Sprintf("m%d=()", i))
+	}
+	s.SignatureInput = strings.Join(members, ", ") + ", " + s.SignatureInput
+	if _, err := Verify(s, "shop.example", testKeySource(), testNow); err == nil {
+		t.Error("a 41-member Signature-Input was accepted")
+	}
+}

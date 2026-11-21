@@ -149,3 +149,18 @@ func TestRelayRejectsForeignHost(t *testing.T) {
 		t.Errorf("cache holds %d entries", d.relay.len())
 	}
 }
+
+// A signature captured from a visit to another host is not replayable.
+func TestClassifySigNeedsAllowedHost(t *testing.T) {
+	now := testNow
+	d := classifyDir(t, &now)
+	sig := signWBA(wbaReq{origin: "https://chatgpt.com", authority: "evil.example"})
+	allowed := func(h string) bool { return h == "shop.example" }
+	if r := d.Classify(Input{Site: "s", UA: chromeUA, IP: "203.0.113.1", Signed: sig, HostOK: allowed}); r != (Result{}) {
+		t.Errorf("foreign authority: %+v", r)
+	}
+	ok := signWBA(wbaReq{origin: "https://chatgpt.com", authority: "shop.example:443"})
+	if r := d.Classify(Input{Site: "s", UA: chromeUA, IP: "203.0.113.1", Signed: ok, HostOK: allowed}); r != (Result{"chatgpt-agent", ViaSig}) {
+		t.Errorf("allowed authority with port: %+v", r)
+	}
+}

@@ -20,6 +20,9 @@ const (
 	maxCrawlBody  = 1 << 20 // 1 MiB of NDJSON per request
 	maxCrawlLines = 10_000
 	maxCrawlField = 4 << 10 // ip, host, sa, si and sig, each
+	// maxRelaysPerRequest bounds the signed lines one request may verify, so a
+	// single token cannot flood the shared relay cache.
+	maxRelaysPerRequest = 100
 )
 
 // postCrawls takes NDJSON request records from a crawl-scoped token bound to
@@ -72,8 +75,11 @@ func (s *server) postCrawls(w http.ResponseWriter, r *http.Request) {
 	}
 	hostOK := func(h string) bool { return s.sites.Allowed(site, hostOnly(h)) }
 	crawls := recs[:0:0]
+	relays := 0
 	for _, rec := range recs {
-		if rec.SA != "" {
+		_, _, _, crawler := crawlers.Lookup(rec.UA)
+		if rec.SA != "" && !crawler && relays < maxRelaysPerRequest {
+			relays++
 			sig := agents.Signed{Authority: rec.Host, SignatureAgent: rec.SA, SignatureInput: rec.SI, Signature: rec.Sig}
 			if res := s.agents.RelaySigned(site, rec.IP, rec.UA, sig, hostOK); res.ID != "" {
 				continue
@@ -121,7 +127,7 @@ func parseNDJSON(body []byte) ([]crawlers.Record, error) {
 		dec := json.NewDecoder(bytes.NewReader(line))
 		dec.DisallowUnknownFields()
 		if err := dec.Decode(&rec); err != nil {
-			return nil, fmt.Errorf("line %d: want {ts, ua, path, status}", n)
+			return nil, fmt.Errorf("line %d: bad JSON or unknown field; want ts, ua, path, status and optional ip, host, sa, si, sig", n)
 		}
 		for _, f := range []string{rec.IP, rec.Host, rec.SA, rec.SI, rec.Sig} {
 			if len(f) > maxCrawlField {
