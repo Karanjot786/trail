@@ -8,7 +8,7 @@
     { "ranges": "all", "cmp": "prev", "filters": [] },
     { "ranges": ["30d"], "cmp": "none", "filters": [] },
     { "ranges": ["30d"], "cmp": "prev", "filters": [["source:Google"], ["country:IN"], ["device:mobile"], ["channel:AI"], ["event:Signup"]] },
-    { "ranges": ["30d"], "cmp": "prev", "filters": [], "params": { "actor": "all" }, "routes": ["/stats", "/series", "/breakdown"] }
+    { "ranges": ["30d"], "cmp": "prev", "filters": [], "params": { "actor": "all" }, "routes": ["/stats", "/series", "/breakdown", "/changes", "/heatmap", "/sessions", "/notes"] }
   ],
   "routes": {
     "static": ["/sites", "/sites/{site}/status", "/goals", "/funnels", "/views", "/notes", "/ai-setup"],
