@@ -100,7 +100,11 @@ export function AllSites() {
           <div>
             <div className="k">Visitors</div>
             <div className="v">{fmtInt(total)}</div>
-            {cmp && basis && <DeltaPill cur={total} prev={prevAll} kind="count" goodWhen="up" basis={basis} />}
+            {cmp && basis && (
+              <span className="band-d">
+                <DeltaPill cur={total} prev={prevAll} kind="count" goodWhen="up" basis={basis} />
+              </span>
+            )}
           </div>
           <div>
             <div className="k">Online now</div>
@@ -123,7 +127,7 @@ export function AllSites() {
       <ul className="site-cards">
         {sites.map((s) => (
           <li key={s.id}>
-            <button type="button" className="scard" aria-label={`Open ${s.domain}: ${fmtInt(s.visitors)} visitors`} onClick={() => navigate({ site: s.id, filters: [], sheet: null })}>
+            <button type="button" className="scard" onClick={() => navigate({ site: s.id, filters: [], sheet: null })}>
               <span className="h">
                 <span className="ic">
                   <Globe size={16} aria-hidden="true" />

@@ -154,9 +154,9 @@
 .all-sites { display: flex; flex-direction: column; gap: 16px; }
 .terrain-band { position: relative; border-radius: var(--radius-panel); overflow: hidden; color: var(--on-brand); background: var(--brand); padding: 18px 20px 0; }
 .terrain-band .kp { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
-.terrain-band .kp .k { font-size: var(--text-small); font-weight: 500; opacity: .85; }
+.terrain-band .kp .k { font-size: var(--text-small); font-weight: 500; }
 .terrain-band .kp .v { font: 600 30px/1.1 var(--font-sans); letter-spacing: -.025em; font-variant-numeric: tabular-nums; }
-.terrain-band .cap { margin: 14px 0 0; font-size: 12px; opacity: .85; }
+.terrain-band .cap { margin: 14px 0 0; font-size: 12px; }
 .terrain-band .terrain { display: block; width: 100%; height: 120px; margin-top: 6px; color: var(--on-brand); }
 .sec-h { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .sec-h h2 { margin: 0; font-size: var(--text-title); font-weight: 600; }
@@ -180,3 +180,4 @@
 @media (max-width: 640px) { .terrain-band .kp { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (prefers-reduced-motion: reduce) { .kpi, .jr, .scard { transition: none; } }
 .ov-empty { margin-top: 12px; }
+.terrain-band .band-d { display: inline-flex; margin-top: 4px; padding: 2px; border-radius: var(--radius-row); background: var(--surface); }

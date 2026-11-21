@@ -19,15 +19,19 @@ export interface KpiStripProps {
   compareOn: boolean
 }
 
-/** The accessible name of a tile: "Visitors, 1,204, up 86% vs Sep 22 – Oct 21 (the previous 30 days), 648 then". */
+/**
+ * The accessible name of a tile: "{Label} {value} {pill} vs {prev}, {delta sr}". It starts with the visible
+ * text in reading order (WCAG 2.5.3), then says what the change is compared with.
+ */
 export function kpiName(def: MetricDef, stats: Stats, basis: Basis, compareOn: boolean, currency: string): string {
   const v = def.value(stats)
   const text = fmtMetric(def, v, currency)
-  if (v == null) return `${def.label}, n/a, no goal on this site yet`
-  if (!compareOn || !stats.prev) return `${def.label}, ${text}, ${basis.none ? 'no comparison' : 'no earlier data'}`
+  if (v == null) return `${def.label} n/a No goal yet, no goal on this site yet`
+  if (!compareOn || !stats.prev) return `${def.label} ${text} ${basis.none ? `${stats.window.label}, no comparison` : 'No earlier data'}`
   const pv = def.value(stats.prev)
   const d = compare(v, pv, def.kind, def.goodWhen, def.n?.(stats.prev))
-  return `${def.label}, ${text}, ${deltaLabel(d, basis).sr}, ${fmtMetric(def, pv, currency)} then`
+  const l = deltaLabel(d, basis)
+  return `${def.label} ${text} ${l.pill} vs ${fmtMetric(def, pv, currency)}, ${l.sr}`
 }
 
 export function KpiStrip({ stats, metrics, active, currency, compareOn }: KpiStripProps) {
@@ -69,16 +73,21 @@ function KpiTile({ def, stats, basis, on, currency, compareOn }: { def: MetricDe
       className="kpi"
       aria-selected={on}
       tabIndex={on ? 0 : -1}
-      aria-label={kpiName(def, stats, basis, compareOn, currency)}
+      aria-describedby={`kpi-d-${def.key}`}
       onClick={() => navigate({ metric: def.key }, { replace: true })}
     >
-      <span className="lbl">{def.label}</span>
+      <span className="lbl">{def.label}</span>{' '}
       <span className="val" data-kpi-value="">
         {fmtMetric(def, v, currency)}
-      </span>
+      </span>{' '}
       <span className="row2">
-        {showDelta && <StaticDelta cur={v} prev={prev} kind={def.kind} goodWhen={def.goodWhen} basis={basis} n={stats.prev ? def.n?.(stats.prev) : undefined} />}
-        <span className="hint">{v == null ? 'No goal yet' : showDelta ? `vs ${fmtMetric(def, prev, currency)}` : basis.none ? stats.window.label : 'No earlier data'}</span>
+        {showDelta && <StaticDelta cur={v} prev={prev} kind={def.kind} goodWhen={def.goodWhen} basis={basis} n={stats.prev ? def.n?.(stats.prev) : undefined} spoken />}{' '}
+        <span className="hint">
+          {v == null ? 'No goal yet' : showDelta ? `vs ${fmtMetric(def, prev, currency)}` : basis.none ? stats.window.label : 'No earlier data'}
+        </span>
+      </span>
+      <span id={`kpi-d-${def.key}`} hidden>
+        {kpiName(def, stats, basis, compareOn, currency)}
       </span>
       {spark.length > 1 && <Sparkline values={spark} width={120} height={20} color={on ? def.color : 'var(--chart-prev)'} className="spark" />}
     </button>
@@ -89,12 +98,12 @@ function KpiTile({ def, stats, basis, on, currency, compareOn }: { def: MetricDe
  * The same pill as DeltaPill (compare + deltaLabel), without its focusable tooltip: a tab cannot hold
  * another focus stop. The tab's accessible name carries the full sentence, and `title` the basis.
  */
-export function StaticDelta(p: { cur: number | null; prev: number | null; kind: DeltaKind; goodWhen: 'up' | 'down' | 'flat'; basis: Basis; n?: number }) {
+export function StaticDelta(p: { cur: number | null; prev: number | null; kind: DeltaKind; goodWhen: 'up' | 'down' | 'flat'; basis: Basis; n?: number; spoken?: boolean }) {
   const d = compare(p.cur, p.prev, p.kind, p.goodWhen, p.n)
   const l = deltaLabel(d, p.basis)
   const Arrow = d.up == null ? null : d.up ? ArrowUp : ArrowDown
   return (
-    <span className="delta" data-mode={d.mode} data-tone={d.tone} title={l.tip} aria-hidden="true">
+    <span className="delta" data-mode={d.mode} data-tone={d.tone} title={l.tip} aria-hidden={p.spoken ? undefined : true}>
       {Arrow && <Arrow aria-hidden="true" />}
       <span>{l.pill}</span>
     </span>

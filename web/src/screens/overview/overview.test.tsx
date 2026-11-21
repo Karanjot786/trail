@@ -81,8 +81,8 @@ const metrics = () => document.querySelector('[role="tablist"][aria-label="Metri
 describe('KPI strip', () => {
   it('names each tab with its value and the basis', async () => {
     const r = render(<OverviewScreen />)
-    const tab = await r.findByRole('tab', { name: /^Visitors, 525/ })
-    expect(tab.getAttribute('aria-label')).toContain('vs Nov 7 – Nov 13')
+    const tab = await r.findByRole('tab', { name: /^Visitors 525/ })
+    expect(document.getElementById(tab.getAttribute('aria-describedby')!)!.textContent).toContain('vs Nov 7 – Nov 13')
     expect(within(metrics()).getAllByRole('tab')).toHaveLength(7)
     expect(tab.textContent).toContain('vs 400')
   })
@@ -210,8 +210,8 @@ describe('Overview', () => {
     ]
     history.replaceState(null, '', '/?site=all')
     const r = render(<OverviewScreen />)
-    await r.findByRole('button', { name: /Open demo.trail.dev: 525 visitors/ })
-    expect(r.getAllByRole('button', { name: /^Open .*visitors$/ })).toHaveLength(2)
+    await r.findByRole('button', { name: /demo\.trail\.dev.*525/ })
+    expect(r.container.querySelectorAll('.scard')).toHaveLength(2)
   })
 })
 

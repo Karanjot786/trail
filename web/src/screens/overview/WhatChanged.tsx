@@ -127,9 +127,12 @@ export function WhatChanged({ goalName, window: w }: { goalName?: string | null;
           const { name, node } = describeItem(it, goalName)
           return (
             <li key={i}>
-              <button type="button" className="wc-i" aria-label={name} onClick={() => act(it)}>
+              <button type="button" className="wc-i" aria-describedby={`wc-d${i}`} onClick={() => act(it)}>
                 {node}
               </button>
+              <span id={`wc-d${i}`} className="sr-only">
+                {name}
+              </span>
             </li>
           )
         })}

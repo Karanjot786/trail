@@ -77,7 +77,6 @@ export function RecentJourneys({ totalVisitors }: { totalVisitors: number }) {
                 <button
                   type="button"
                   className="jr"
-                  aria-label={`Open the journey of ${row.label}: came from ${src}, ${row.pages} ${row.pages === 1 ? 'page' : 'pages'}${g != null ? `, reached ${goalName(g)}` : ''}, ${ago(row.start)}`}
                   onClick={() => navigate({ sheet: { kind: 'journey', person: row.person, session: row.sessionId } })}
                 >
                   <Avatar seed={row.person} size={28} />
@@ -85,6 +84,9 @@ export function RecentJourneys({ totalVisitors }: { totalVisitors: number }) {
                     <span className="jr-n">
                       <b data-testid="journey-label">{row.label}</b>
                       <span className="subtle">{ago(row.start)}</span>
+                    </span>
+                    <span className="sr-only">
+                      {`, came from ${src}, ${row.pages} ${row.pages === 1 ? 'page' : 'pages'}${g != null ? `, reached ${goalName(g)}` : ''}`}
                     </span>
                     <span className="trail" aria-hidden="true">
                       <span className="stp src">{src}</span>
