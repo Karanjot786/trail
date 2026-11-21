@@ -151,8 +151,12 @@ func (r *Registry) Update(s Site) (Site, error) {
 	return s, nil
 }
 
+// purgeTables hold per-site rows deleted by Remove with purge.
+var purgeTables = []string{"events", "goals", "identity_map", "funnels", "notes", "shares", "api_tokens", "views", "crawl_hits"}
+
 // Remove deletes the site so ingest stops accepting it. With purge, its
-// events, goals and identities go too, in the same transaction.
+// events, goals, identities, funnels, notes, share links, site-bound API
+// tokens, saved views and crawler hits go too, in the same transaction.
 func (r *Registry) Remove(id string, purge bool) error {
 	tx, err := r.db.Begin()
 	if err != nil {
@@ -167,7 +171,7 @@ func (r *Registry) Remove(id string, purge bool) error {
 		return ErrNotFound
 	}
 	if purge {
-		for _, table := range []string{"events", "goals", "identity_map"} {
+		for _, table := range purgeTables {
 			// security: table names are the fixed list above, never input.
 			if _, err := tx.Exec(`DELETE FROM `+table+` WHERE site_id=?`, id); err != nil {
 				return fmt.Errorf("purge %s: %w", table, err)

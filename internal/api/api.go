@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"trail/internal/auth"
+	"trail/internal/install"
 	"trail/internal/meta"
 	"trail/internal/query"
 	"trail/internal/sites"
@@ -29,6 +30,8 @@ type server struct {
 	now   func() time.Time
 
 	envTokens []auth.Token
+	fetcher   install.Fetcher
+	checks    checkCache
 
 	startMu sync.Mutex
 	starts  map[string]startCache
@@ -69,7 +72,8 @@ func New(db *sql.DB, reg *sites.Registry, tz *time.Location, opts ...Option) htt
 }
 
 func newServer(db *sql.DB, reg *sites.Registry, tz *time.Location, opts ...Option) *server {
-	s := &server{db: db, sites: reg, tz: tz, now: time.Now, starts: map[string]startCache{}}
+	s := &server{db: db, sites: reg, tz: tz, now: time.Now, starts: map[string]startCache{},
+		fetcher: install.NewSafeFetcher(), checks: checkCache{byID: map[string]cachedCheck{}}}
 	for _, o := range opts {
 		o(s)
 	}
@@ -88,6 +92,7 @@ func (s *server) routes() http.Handler {
 	s.metaRoutes(mux)
 	s.tokenRoutes(mux)
 	s.shareRoutes(mux)
+	s.installRoutes(mux)
 	mux.HandleFunc("POST /api/crawls", s.postCrawls)
 	mux.HandleFunc("GET /api/goals", s.listGoals)
 	mux.HandleFunc("POST /api/goals", s.createGoal)

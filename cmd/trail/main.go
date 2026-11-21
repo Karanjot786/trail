@@ -8,6 +8,7 @@ package main
 import (
 	"context"
 	"crypto/rand"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -179,7 +180,14 @@ func runServe() error {
 		}
 		log.Print("demo: serving sample data at /demo and /api/demo/")
 	}
-	mux := routes(st, geo, reg, tz, a, dist, demoH, rps)
+	ids := make([]string, 0, len(envSites))
+	for id := range envSites {
+		ids = append(ids, id)
+	}
+	slices.Sort(ids)
+	cfg := appConfig{Version: version, TZ: tz.String(), Demo: demoH != nil, Geo: os.Getenv("TRAIL_GEO_DB") != "",
+		IngestRPS: rps, EnvSites: ids, EnvTokens: len(tokens), DBFile: env("TRAIL_DB", "trail.db")}
+	mux := routes(st, geo, reg, tz, a, dist, demoH, rps, cfg)
 
 	srv := &http.Server{
 		Addr:              env("TRAIL_ADDR", ":8080"),
@@ -233,7 +241,22 @@ func parseRPS(s string) (float64, error) {
 // routes builds the server's handler tree. demoH (nil when TRAIL_DEMO is off)
 // is the public demo API; it owns its own DB and refuses anything but GET.
 // rps limits ingest per client IP (0: no limit).
-func routes(st *store.Store, geo *enrich.Geo, reg *sites.Registry, tz *time.Location, a *auth.Auth, dist fs.FS, demoH http.Handler, rps float64) *http.ServeMux {
+// version is set at build time with -ldflags "-X main.version=…".
+var version = "dev"
+
+// appConfig is the /api/config payload (Config in web/src/api/types.ts).
+type appConfig struct {
+	Version   string   `json:"version"`
+	TZ        string   `json:"tz"`
+	Demo      bool     `json:"demo"`
+	Geo       bool     `json:"geo"`
+	IngestRPS float64  `json:"ingestRps"`
+	EnvSites  []string `json:"envSites"`
+	EnvTokens int      `json:"envTokens"`
+	DBFile    string   `json:"dbFile"`
+}
+
+func routes(st *store.Store, geo *enrich.Geo, reg *sites.Registry, tz *time.Location, a *auth.Auth, dist fs.FS, demoH http.Handler, rps float64, cfg appConfig) *http.ServeMux {
 	a.SetLookup(func(plain string) (auth.Token, bool) { return meta.LookupToken(st.DB(), plain) })
 	apiH := api.New(st.DB(), reg, tz, api.WithEnvTokens(a.EnvTokens()))
 	ingestOpts := []ingest.Option{ingest.WithPrivate(ingest.NewPrivate(tz, time.Now))}
@@ -247,6 +270,14 @@ func routes(st *store.Store, geo *enrich.Geo, reg *sites.Registry, tz *time.Loca
 	mux.Handle("/_t/", ingest.TrackerFiles())
 	mux.HandleFunc("POST /api/login", a.Login)
 	mux.Handle("/api/", a.Require(apiH))
+	if cfg.EnvSites == nil {
+		cfg.EnvSites = []string{}
+	}
+	mux.Handle("GET /api/config", a.Require(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Cache-Control", "no-store")
+		_ = json.NewEncoder(w).Encode(cfg)
+	})))
 	mux.Handle("/api/v1/", v1)                                    // scope matrix of plan §0.12
 	mux.Handle("/api/share/", api.ShareHandler(st.DB(), reg, tz)) // read-only links; the token is the credential
 	mux.Handle("/mcp", a.API(mcp.New(st.DB(), reg, tz)))

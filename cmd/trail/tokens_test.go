@@ -198,3 +198,24 @@ func TestTokenNotLogged(t *testing.T) {
 		t.Fatalf("log has the token: %s", buf.String())
 	}
 }
+
+func TestExportRequiresCookie(t *testing.T) {
+	h := testRoutes(t)
+	if w := do(h, "GET", "/api/v1/sites/s/export", testWrite, ""); w.Code != http.StatusForbidden {
+		t.Errorf("bearer export: %d", w.Code)
+	}
+	if w := owner(t, h)("GET", "/api/sites/s/export", ""); w.Code != 200 || w.Header().Get("Content-Encoding") != "gzip" {
+		t.Errorf("cookie export: %d", w.Code)
+	}
+}
+
+func TestConfigRoute(t *testing.T) {
+	h := testRoutes(t)
+	if w := do(h, "GET", "/api/config", "", ""); w.Code != http.StatusUnauthorized {
+		t.Errorf("anonymous config: %d", w.Code)
+	}
+	w := owner(t, h)("GET", "/api/config", "")
+	if w.Code != 200 || !strings.Contains(w.Body.String(), `"version":"test"`) || !strings.Contains(w.Body.String(), `"envSites":[]`) {
+		t.Errorf("config: %d %s", w.Code, w.Body)
+	}
+}
