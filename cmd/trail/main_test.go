@@ -10,9 +10,12 @@ import (
 	"testing/fstest"
 	"time"
 
+	"trail/internal/agents"
 	"trail/internal/auth"
 	"trail/internal/demo"
+	"trail/internal/edgegeo"
 	"trail/internal/enrich"
+	"trail/internal/meta"
 	"trail/internal/sites"
 	"trail/internal/store"
 )
@@ -64,6 +67,14 @@ func testRoutes(t *testing.T) http.Handler { return testRoutesDemo(t, nil) }
 
 func testRoutesDemo(t *testing.T, demoH http.Handler) http.Handler {
 	t.Helper()
+	h, _ := testRoutesWith(t, demoH, nil)
+	return h
+}
+
+// testRoutesWith builds the routes over a fresh store with site s
+// (example.com), and the given demo handler and agent directory.
+func testRoutesWith(t *testing.T, demoH http.Handler, dir agentDirectory) (http.Handler, *store.Store) {
+	t.Helper()
 	st, err := store.Open(filepath.Join(t.TempDir(), "r.db"))
 	if err != nil {
 		t.Fatal(err)
@@ -87,7 +98,7 @@ func testRoutesDemo(t *testing.T, demoH http.Handler) http.Handler {
 	if err := addEnvSites(reg, map[string]string{"s": "example.com"}); err != nil {
 		t.Fatal(err)
 	}
-	return routes(st, geo, reg, time.UTC, a, fstest.MapFS{"index.html": {Data: []byte("app")}}, demoH, 0, nil, appConfig{Version: "test", TZ: "UTC"})
+	return routes(st, geo, reg, time.UTC, a, fstest.MapFS{"index.html": {Data: []byte("app")}}, demoH, 0, nil, dir, appConfig{Version: "test", TZ: "UTC"}), st
 }
 
 func TestAddEnvSitesKeepsEdits(t *testing.T) {
@@ -344,5 +355,90 @@ func TestConfigReportsGeo(t *testing.T) {
 	}
 	if cfg.Geo.Source != enrich.SourceEmbedded || len(cfg.Geo.Build) != len("2006-01") {
 		t.Errorf("geo = %+v", cfg.Geo)
+	}
+}
+
+// claudeAgentUA is a Claude agent browser's user agent (research note).
+const claudeAgentUA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36 Claude-Agent/1.0"
+
+func storedRow(t *testing.T, st *store.Store, cols string) string {
+	t.Helper()
+	if err := st.Flush(); err != nil {
+		t.Fatal(err)
+	}
+	var out string
+	if err := st.DB().QueryRow(`SELECT ` + cols + ` FROM events WHERE anon_id='b1'`).Scan(&out); err != nil {
+		t.Fatal(err)
+	}
+	return out
+}
+
+const wireEvent = `{"s":"s","t":"pageview","a":"b1","u":"https://example.com/"}`
+
+func TestRoutesWireAgents(t *testing.T) {
+	h, st := testRoutesWith(t, nil, agents.NewDirectory(agents.DirOptions{Disabled: true}))
+	r := httptest.NewRequest("POST", "/_t/e", strings.NewReader(wireEvent))
+	r.Header.Set("Origin", "https://example.com")
+	r.Header.Set("User-Agent", claudeAgentUA)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("status %d", w.Code)
+	}
+	if got := storedRow(t, st, `agent || '|' || agent_via || '|' || is_bot`); got != "claude-agent|ua|1" {
+		t.Fatalf("stored %q", got)
+	}
+}
+
+func TestRoutesWireProxy(t *testing.T) {
+	h, st := testRoutesWith(t, nil, nil)
+	tok, err := meta.CreateToken(st.DB(), "proxy", meta.ScopeCrawl, "s")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ip, geo, src, host := "203.0.113.9", "IN|MH|Mumbai", "vercel", "example.com"
+	r := httptest.NewRequest("POST", "/_t/e", strings.NewReader(wireEvent))
+	r.RemoteAddr = "76.76.21.21:443" // a platform edge, not a trusted proxy
+	r.Header.Set("Origin", "https://example.com")
+	r.Header.Set("X-Trail-IP", ip)
+	r.Header.Set("X-Trail-Geo", geo)
+	r.Header.Set("X-Trail-Geo-Src", src)
+	r.Header.Set("X-Trail-Host", host)
+	r.Header.Set("X-Trail-Proxy", edgegeo.SignProxy(tok.Token, "s", time.Now().Unix(), ip, geo, src, host, []byte(wireEvent)))
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("status %d", w.Code)
+	}
+	if got := storedRow(t, st, `country || '|' || region || '|' || city || '|' || geo_src`); got != "IN|MH|Mumbai|vercel" {
+		t.Fatalf("stored %q", got)
+	}
+}
+
+func TestRoutesCFGeoNotFromLoopback(t *testing.T) {
+	h, st := testRoutesWith(t, nil, nil)
+	r := httptest.NewRequest("POST", "/_t/e", strings.NewReader(wireEvent))
+	r.RemoteAddr = "127.0.0.1:5000"
+	r.Header.Set("Origin", "https://example.com")
+	r.Header.Set("X-Forwarded-For", "8.8.8.8")
+	r.Header.Set("CF-IPCountry", "DE")
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+	if got := storedRow(t, st, `country || '|' || geo_src`); got != "US|" {
+		t.Fatalf("stored %q, want the database country for 8.8.8.8", got)
+	}
+}
+
+func TestAgentListsEnv(t *testing.T) {
+	for v, off := range map[string]bool{"": false, "off": true} {
+		got, err := parseAgentLists(v)
+		if err != nil || got != off {
+			t.Errorf("%q: off=%v err=%v, want off=%v", v, got, err, off)
+		}
+	}
+	for _, v := range []string{"on", "OFF", "0", "false", " off"} {
+		if _, err := parseAgentLists(v); err == nil || !strings.Contains(err.Error(), "TRAIL_AGENT_LISTS") {
+			t.Errorf("%q: err %v, want one naming TRAIL_AGENT_LISTS", v, err)
+		}
 	}
 }

@@ -27,10 +27,12 @@ import (
 	"syscall"
 	"time"
 
+	"trail/internal/agents"
 	"trail/internal/api"
 	"trail/internal/auth"
 	"trail/internal/crawlers"
 	"trail/internal/demo"
+	"trail/internal/edgegeo"
 	"trail/internal/enrich"
 	"trail/internal/ingest"
 	"trail/internal/mcp"
@@ -238,6 +240,10 @@ func runServe() error {
 	if err != nil {
 		return fmt.Errorf("TRAIL_TRUSTED_PROXIES: %w", err)
 	}
+	listsOff, err := parseAgentLists(os.Getenv("TRAIL_AGENT_LISTS"))
+	if err != nil {
+		return err
+	}
 	tz, err := time.LoadLocation(env("TRAIL_TZ", "Asia/Kolkata"))
 	if err != nil {
 		return fmt.Errorf("TRAIL_TZ: %w", err)
@@ -276,6 +282,13 @@ func runServe() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	st.Start(ctx)
+	// AI agent lists and key directories: fetched in the background and
+	// refreshed daily; ingest never waits on them.
+	dir := agents.NewDirectory(agents.DirOptions{Disabled: listsOff})
+	dir.Start(ctx)
+	if listsOff {
+		log.Print("agents: TRAIL_AGENT_LISTS=off, AI agents are recognised by user agent only")
+	}
 
 	dist, err := fs.Sub(web.Dist, "dist")
 	if err != nil {
@@ -297,7 +310,7 @@ func runServe() error {
 	slices.Sort(ids)
 	cfg := appConfig{Version: version, TZ: tz.String(), Demo: demoH != nil,
 		IngestRPS: rps, EnvSites: ids, EnvTokens: len(tokens), DBFile: env("TRAIL_DB", "trail.db")}
-	mux := routes(st, geo, reg, tz, a, dist, demoH, rps, ips, cfg)
+	mux := routes(st, geo, reg, tz, a, dist, demoH, rps, ips, dir, cfg)
 
 	srv := &http.Server{
 		Addr:              env("TRAIL_ADDR", ":8080"),
@@ -335,6 +348,26 @@ func addEnvSites(reg *sites.Registry, env map[string]string) error {
 	return nil
 }
 
+// parseAgentLists reads TRAIL_AGENT_LISTS: empty (the default) fetches the
+// published AI agent IP lists and signature key directories about once a
+// day; "off" never fetches them, so agents are recognised by user agent only.
+func parseAgentLists(s string) (off bool, err error) {
+	switch s {
+	case "":
+		return false, nil
+	case "off":
+		return true, nil
+	}
+	return false, fmt.Errorf(`TRAIL_AGENT_LISTS: want "" or "off", got %q`, s)
+}
+
+// agentDirectory is what the server needs from the AI agent directory
+// (agents.Directory): classification for ingest and the API's hooks.
+type agentDirectory interface {
+	ingest.Classifier
+	api.AgentHooks
+}
+
 // parseRPS reads TRAIL_INGEST_RPS: requests per second per client IP on
 // /_t/e, with a burst of twice that. Default 50; 0 turns the limit off.
 func parseRPS(s string) (float64, error) {
@@ -351,7 +384,8 @@ func parseRPS(s string) (float64, error) {
 // routes builds the server's handler tree. demoH (nil when TRAIL_DEMO is off)
 // is the public demo API; it owns its own DB and refuses anything but GET.
 // rps limits ingest per client IP (0: no limit); ips decides which proxies
-// may report that IP (nil: netx.Default).
+// may report that IP (nil: netx.Default). dir recognises AI agents for
+// ingest and the API (nil: none).
 // version is set at build time with -ldflags "-X main.version=…".
 var version = "dev"
 
@@ -367,10 +401,24 @@ type appConfig struct {
 	DBFile    string         `json:"dbFile"`
 }
 
-func routes(st *store.Store, geo *enrich.Geo, reg *sites.Registry, tz *time.Location, a *auth.Auth, dist fs.FS, demoH http.Handler, rps float64, ips *netx.Resolver, cfg appConfig) *http.ServeMux {
+func routes(st *store.Store, geo *enrich.Geo, reg *sites.Registry, tz *time.Location, a *auth.Auth, dist fs.FS, demoH http.Handler, rps float64, ips *netx.Resolver, dir agentDirectory, cfg appConfig) *http.ServeMux {
 	a.SetLookup(func(plain string) (auth.Token, bool) { return meta.LookupToken(st.DB(), plain) })
-	apiH := api.New(st.DB(), reg, tz, api.WithEnvTokens(a.EnvTokens()))
-	ingestOpts := []ingest.Option{ingest.WithPrivate(ingest.NewPrivate(tz, time.Now)), ingest.WithProxies(ips)}
+	apiOpts := []api.Option{api.WithEnvTokens(a.EnvTokens())}
+	// Client IP and location: signed first-party proxy forwards (keyed by the
+	// site's crawl tokens) and Cloudflare edges, else netx and the database.
+	rv := edgegeo.Resolver{Now: time.Now, Net: ips, Keys: func(site, prefix string) [][]byte {
+		k, err := meta.ProxyKeys(st.DB(), site, prefix)
+		if err != nil {
+			log.Printf("ingest: %v", err) // names neither the prefix nor the site's tokens
+		}
+		return k
+	}}
+	ingestOpts := []ingest.Option{ingest.WithPrivate(ingest.NewPrivate(tz, time.Now)), ingest.WithProxies(ips), ingest.WithResolver(rv)}
+	if dir != nil {
+		ingestOpts = append(ingestOpts, ingest.WithAgents(dir))
+		apiOpts = append(apiOpts, api.WithAgents(dir))
+	}
+	apiH := api.New(st.DB(), reg, tz, apiOpts...)
 	if rps > 0 {
 		ingestOpts = append(ingestOpts, ingest.WithRateLimit(rps, int(max(1, 2*rps))))
 	}

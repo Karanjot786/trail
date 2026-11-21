@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -17,6 +18,8 @@ import (
 	"strings"
 	"time"
 
+	"trail/internal/agents"
+	"trail/internal/edgegeo"
 	"trail/internal/enrich"
 	"trail/internal/netx"
 	"trail/internal/sites"
@@ -102,6 +105,25 @@ type handler struct {
 	priv  *Private
 	limit *limiter // nil: no rate limit
 	ips   *netx.Resolver
+	rv    *edgegeo.Resolver // nil: no edge geo; the client IP comes from ips
+	cls   Classifier        // nil: no AI agent classification
+}
+
+// Classifier recognises AI browsing agents (agents.Directory).
+type Classifier interface {
+	Classify(agents.Input) agents.Result
+}
+
+// WithResolver trusts client IP and location from signed first-party proxy
+// forwards and from Cloudflare edges (edgegeo). A nil rv.Net uses the
+// handler's proxies (WithProxies).
+func WithResolver(rv edgegeo.Resolver) Option {
+	return func(h *handler) { h.rv = &rv }
+}
+
+// WithAgents classifies each beacon request once and marks AI agent events.
+func WithAgents(c Classifier) Option {
+	return func(h *handler) { h.cls = c }
 }
 
 // Option configures the ingest handler.
@@ -141,6 +163,9 @@ func New(st *store.Store, geo *enrich.Geo, reg *sites.Registry, opts ...Option) 
 	if h.ips == nil {
 		h.ips = netx.Default()
 	}
+	if h.rv != nil && h.rv.Net == nil {
+		h.rv.Net = h.ips
+	}
 	return h
 }
 
@@ -167,12 +192,6 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	if h.limit != nil && !h.limit.allow(h.ips.ClientIP(r)) {
-		w.Header().Set("Retry-After", "1")
-		http.Error(w, "too many requests", http.StatusTooManyRequests)
-		return
-	}
-
 	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxBody))
 	if err != nil {
 		var tooBig *http.MaxBytesError
@@ -184,6 +203,20 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ps, msg := decode(body)
+	// Who the client is, decided once. The site id is the one the proxy's
+	// HMAC covers; a forward for an unknown site simply fails to verify.
+	var claimed string
+	if msg == "" {
+		claimed = ps[0].S
+	}
+	res := h.resolve(r, claimed, body)
+	// Per visitor: behind a verified proxy that is the forwarded IP, or every
+	// proxied visitor would share the site server's bucket.
+	if h.limit != nil && !h.limit.allow(res.IP) {
+		w.Header().Set("Retry-After", "1")
+		http.Error(w, "too many requests", http.StatusTooManyRequests)
+		return
+	}
 	if msg != "" {
 		http.Error(w, msg, http.StatusBadRequest)
 		return
@@ -227,7 +260,7 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		valid = append(valid, *p)
-		evs = append(evs, h.event(r, p, domain, props))
+		evs = append(evs, h.event(r, p, domain, props, res))
 	}
 	if len(evs) == 0 {
 		http.Error(w, firstErr, http.StatusBadRequest)
@@ -242,7 +275,7 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	for i := range evs {
 		if ps[i].M == "p" {
 			if anon == "" {
-				anon, sess = h.priv.Identify(ps[i].S, h.ips.ClientIP(r), r.UserAgent())
+				anon, sess = h.priv.Identify(ps[i].S, res.IP, r.UserAgent())
 			}
 			evs[i].AnonID, evs[i].SessionID, evs[i].UserID = anon, sess, ""
 		} else if cookie == "" {
@@ -250,6 +283,11 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	if ag := h.classify(r, site.ID, res); ag.ID != "" {
+		for i := range evs {
+			evs[i].Agent, evs[i].AgentVia, evs[i].IsBot = ag.ID, string(ag.Via), true
+		}
+	}
 	for _, e := range evs {
 		h.st.Enqueue(e)
 	}
@@ -345,11 +383,80 @@ func flatProps(d map[string]json.RawMessage) (string, error) {
 	return string(b), nil
 }
 
-func (h *handler) event(r *http.Request, p *payload, domain, props string) store.Event {
+// resolve returns the client IP and any trusted edge location for r. With no
+// resolver it is netx's client IP alone.
+func (h *handler) resolve(r *http.Request, site string, body []byte) edgegeo.Result {
+	if h.rv == nil {
+		return edgegeo.Result{IP: h.ips.ClientIP(r)}
+	}
+	return h.rv.Resolve(r, site, body)
+}
+
+// classify runs the agent classifier once for the request. The signature's
+// @authority is tried as the verified proxy's X-Trail-Host first, then as the
+// request's own Host.
+func (h *handler) classify(r *http.Request, site string, res edgegeo.Result) agents.Result {
+	if h.cls == nil {
+		return agents.Result{}
+	}
+	sig := agents.Signed{
+		SignatureAgent: r.Header.Get("Signature-Agent"),
+		SignatureInput: r.Header.Get("Signature-Input"),
+		Signature:      r.Header.Get("Signature"),
+	}
+	// A signature is good only for one of the site's hosts (through the
+	// proxy) or for Trail's own host (a beacon sent straight to Trail), so a
+	// signature captured elsewhere cannot be replayed here.
+	own := r.Host
+	if hn, _, err := net.SplitHostPort(own); err == nil {
+		own = hn
+	}
+	in := agents.Input{Site: site, UA: r.UserAgent(), IP: res.IP, Signed: sig,
+		HostOK: func(host string) bool {
+			return (own != "" && strings.EqualFold(host, own)) || h.sites.Allowed(site, host)
+		}}
+	in.Signed.Authority = r.Host
+	if res.Host != "" {
+		in.Signed.Authority = res.Host
+	}
+	out := h.cls.Classify(in)
+	signed := sig.SignatureAgent != "" || sig.SignatureInput != "" || sig.Signature != ""
+	if out.Via != agents.ViaSig && signed && res.Host != "" && res.Host != r.Host {
+		in.Signed.Authority = r.Host
+		if again := h.cls.Classify(in); again.Via == agents.ViaSig || out.ID == "" {
+			out = again
+		}
+	}
+	return out
+}
+
+// geoFor answers each location field from the trusted edge when it has one,
+// else from the database for the client IP. Database region and city are
+// used only when the database agrees on the country.
+func (h *handler) geoFor(res edgegeo.Result) (country, region, city, src string) {
+	if res.Country == "" {
+		// The client IP is used only for this lookup and never stored.
+		country, region, city = h.geo.Lookup(res.IP)
+		return country, region, city, ""
+	}
+	country, region, city, src = res.Country, res.Region, res.City, res.Source
+	if region == "" || city == "" {
+		if dc, dr, dci := h.geo.Lookup(res.IP); dc == country {
+			if region == "" {
+				region = dr
+			}
+			if city == "" {
+				city = dci
+			}
+		}
+	}
+	return country, region, city, src
+}
+
+func (h *handler) event(r *http.Request, p *payload, domain, props string, res edgegeo.Result) store.Event {
 	host, path, utm := enrich.ParseURL(p.U)
 	device, browser, os, bot := enrich.ParseUA(r.UserAgent())
-	// The client IP is used only for this lookup and never stored.
-	country, region, city := h.geo.Lookup(h.ips.ClientIP(r))
+	country, region, city, geoSrc := h.geoFor(res)
 	if p.M == "p" {
 		// Private and consent-denied visitors: country only.
 		region, city = "", ""
@@ -364,7 +471,7 @@ func (h *handler) event(r *http.Request, p *payload, domain, props string) store
 		UTMSource: utm[0], UTMMedium: utm[1], UTMCampaign: utm[2], UTMTerm: utm[3], UTMContent: utm[4],
 		RefHost: enrich.RefHost(p.R, host), RefURL: p.R,
 		Name: p.N, Props: props,
-		Country: country, Region: region, City: city,
+		Country: country, Region: region, City: city, GeoSrc: geoSrc,
 		Device: device, Browser: browser, OS: os,
 		Env:       enrich.DeriveEnv(host, domain, p.Env),
 		TS:        h.now().UnixMilli(),
