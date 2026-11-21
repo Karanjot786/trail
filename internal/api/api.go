@@ -223,6 +223,14 @@ func (s *server) handleSites(allowAll bool, fn func(query.Params, *http.Request)
 			s.paramFail(w, r, err)
 			return
 		}
+		format, err := exportFormat(r)
+		if err != nil {
+			s.fail(w, r, err)
+			return
+		}
+		if format != "" { // an export carries every row, not the page on screen
+			p.Limit, p.Offset = maxLimit, 0
+		}
 		v, err := fn(p, r)
 		if err != nil {
 			s.fail(w, r, err)
@@ -231,6 +239,17 @@ func (s *server) handleSites(allowAll bool, fn func(query.Params, *http.Request)
 		if l, ok := v.(list); ok {
 			w.Header().Set("X-Total-Count", strconv.Itoa(l.total))
 			v = l.rows
+		}
+		if format != "" {
+			if err := writeExport(w, format, strings.TrimPrefix(r.URL.Path, "/api/"), p, v); err != nil {
+				if errors.Is(err, errNoRows) {
+					w.Header().Del("Content-Disposition")
+					http.Error(w, err.Error(), http.StatusBadRequest)
+					return
+				}
+				log.Printf("export %s: %v", r.URL.Path, err)
+			}
+			return
 		}
 		writeJSON(w, v)
 	}

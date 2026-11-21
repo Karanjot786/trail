@@ -106,14 +106,14 @@ func (s *server) reportRoutes(mux *http.ServeMux) {
 		return query.PathsToGoal(s.db, p, id)
 	}))
 	mux.HandleFunc("GET /api/funnels/{id}/report", s.handle(func(p query.Params, r *http.Request) (any, error) {
-		id, err := pathID(r)
+		id, err := s.funnelID(p, r)
 		if err != nil {
 			return nil, err
 		}
 		return query.FunnelReport(s.db, p, id)
 	}))
 	mux.HandleFunc("GET /api/funnels/{id}/dropoff", s.handle(func(p query.Params, r *http.Request) (any, error) {
-		id, err := pathID(r)
+		id, err := s.funnelID(p, r)
 		if err != nil {
 			return nil, err
 		}
@@ -136,6 +136,18 @@ func (s *server) reportRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/delivery", s.handle(func(p query.Params, _ *http.Request) (any, error) {
 		return query.Delivery(s.db, p)
 	}))
+}
+
+// funnelID parses {id} and checks the funnel exists for the site (404 otherwise).
+func (s *server) funnelID(p query.Params, r *http.Request) (int64, error) {
+	id, err := pathID(r)
+	if err != nil {
+		return 0, err
+	}
+	if _, err := query.GetFunnel(s.db, p.Site, id); err != nil {
+		return 0, err
+	}
+	return id, nil
 }
 
 // pathID parses the {id} path segment.
