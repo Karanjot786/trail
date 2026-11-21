@@ -121,6 +121,10 @@ func (r *recorder) getN(path string, params url.Values, maxRows int) (json.RawMe
 	q.Set("tz", r.tz)
 	w := httptest.NewRecorder()
 	r.h.ServeHTTP(w, httptest.NewRequest(http.MethodGet, prefix+strings.TrimPrefix(path, "/")+"?"+q.Encode(), nil))
+	if w.Code == http.StatusNotImplemented {
+		// A P0 contract stub (AI agents plan §0.9) whose query has not landed: record nothing.
+		return nil, nil
+	}
 	if w.Code != http.StatusOK {
 		return nil, fmt.Errorf("record %s: %d %s", key, w.Code, strings.TrimSpace(w.Body.String()))
 	}

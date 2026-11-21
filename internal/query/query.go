@@ -81,6 +81,7 @@ type Params struct {
 	Conv          int64     // goal id for conversion columns; 0 = the site's first goal
 	Limit, Offset int
 	Sort          string
+	Actor         string // "" or "human": people only; "all": people and AI agents
 }
 
 // Prev returns the comparison window as Params; false when Win.PrevFrom is nil.

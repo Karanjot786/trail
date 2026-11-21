@@ -51,7 +51,7 @@ func Ingest(db *sql.DB, site string, recs []Record) (int, error) {
 	}
 	defer func() { _ = tx.Rollback() }()
 	stmt, err := tx.Prepare(`INSERT INTO crawl_hits(site_id, hour, bot, path, status, n, last_ts) VALUES(?,?,?,?,?,?,?)
-		ON CONFLICT(site_id, hour, bot, path, status) DO UPDATE SET n=n+excluded.n, last_ts=max(last_ts, excluded.last_ts)`)
+		ON CONFLICT(site_id, hour, bot, path, status, verified) DO UPDATE SET n=n+excluded.n, last_ts=max(last_ts, excluded.last_ts)`)
 	if err != nil {
 		return 0, fmt.Errorf("ingest crawls: %w", err)
 	}
