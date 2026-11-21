@@ -22,7 +22,7 @@ func landing(anon, sess, path, ref string, ts int64) store.Event {
 func thirtyDays() Params {
 	to := t0 + day
 	from := to - 30*day + 1
-	return winParams(from, to, from-30*day, from-1)
+	return b3Win(from, to, from-30*day, from-1)
 }
 
 func TestRevenueFirstTouchBySource(t *testing.T) {
@@ -52,7 +52,7 @@ func TestRevenueFirstTouchBySource(t *testing.T) {
 func TestRevenueZeroIsNoPurchases(t *testing.T) {
 	db := fixture(t, pv("A", "a1", "/", t0))
 	from := time.Date(2026, 11, 19, 0, 0, 0, 0, ist).UnixMilli()
-	p := winParams(from, from+day-1, from-day, from-1)
+	p := b3Win(from, from+day-1, from-day, from-1)
 	p.Win.Bucket = "hour"
 	p.Now = time.UnixMilli(t0 + 5*minute)
 	r, err := Revenue(db, p)

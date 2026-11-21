@@ -56,13 +56,9 @@ func sessionTouches(db *sql.DB, p Params, persons []string) (map[string][]touch,
 	q := `WITH idm AS (SELECT anon_id, user_id FROM identity_map WHERE site_id=? AND rowid IN
   (SELECT min(rowid) FROM identity_map WHERE site_id=? GROUP BY anon_id)),
 who(person) AS (SELECT value FROM json_each(?)),
-anons(anon_id) AS (SELECT person FROM who UNION SELECT anon_id FROM idm WHERE user_id IN (SELECT person FROM who))
-SELECT person, session_id, ts, CASE WHEN pn=1 THEN ` + sourceNameExpr + ` ELSE '' END,
-  CASE WHEN pn=1 THEN ` + channelExpr + ` ELSE '' END, utm_campaign, path, country, device FROM (
-SELECT *, row_number() OVER (PARTITION BY person ORDER BY ts, session_id) AS pn FROM (
-  SELECT COALESCE(idm.user_id, e.anon_id) AS person, e.session_id, e.ts, e.referrer_host, e.utm_source, e.utm_medium,
-    e.utm_campaign, e.path, e.country, e.device,
-    row_number() OVER (PARTITION BY e.session_id ORDER BY e.ts, e.id) AS rn
+anons(anon_id) AS (SELECT person FROM who UNION SELECT anon_id FROM idm WHERE user_id IN (SELECT person FROM who)),
+sess AS (SELECT COALESCE(idm.user_id, e.anon_id) AS person, e.session_id, min(e.ts) AS ts, e.referrer_host,
+    e.utm_source, e.utm_medium, e.utm_campaign, e.path, e.country, e.device
   FROM events e LEFT JOIN idm USING(anon_id)
   WHERE e.site_id=? AND e.is_bot=0 AND e.type='pageview' AND e.anon_id IN (SELECT anon_id FROM anons)`
 	args := []any{p.Site, p.Site, string(who), p.Site}
@@ -70,7 +66,13 @@ SELECT *, row_number() OVER (PARTITION BY person ORDER BY ts, session_id) AS pn 
 		q += " AND e.env=?"
 		args = append(args, p.Env)
 	}
-	q += `) WHERE rn=1 AND person IN (SELECT person FROM who)) ORDER BY person, ts, session_id`
+	// min(ts) with bare columns: SQLite takes the other columns from the session's first pageview.
+	q += ` GROUP BY e.session_id)
+SELECT person, session_id, ts, CASE WHEN pn=1 THEN ` + sourceNameExpr + ` ELSE '' END,
+  CASE WHEN pn=1 THEN ` + channelExpr + ` ELSE '' END, utm_campaign, path, country, device FROM (
+  SELECT *, row_number() OVER (PARTITION BY person ORDER BY ts, session_id) AS pn FROM sess
+  WHERE person IN (SELECT person FROM who))
+ORDER BY person, ts, session_id`
 	err = forRows(db, q, args, func(r *sql.Rows) error {
 		var person string
 		var t touch

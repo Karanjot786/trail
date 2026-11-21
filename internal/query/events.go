@@ -110,26 +110,6 @@ func seriesWithPrev(p Params, run func(Params) ([]Point, error)) (cur, prev []Po
 	return cur, prev, nil
 }
 
-// personLabel is how a person is shown: the identified id, else "Visitor" and the last 4 characters of the anon id.
-func personLabel(person string, identified bool) string {
-	if identified {
-		return person
-	}
-	var tail []rune
-	for _, r := range strings.ToUpper(person) {
-		if (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') {
-			tail = append(tail, r)
-		}
-	}
-	if len(tail) > 4 {
-		tail = tail[len(tail)-4:]
-	}
-	if len(tail) == 0 {
-		return "Visitor"
-	}
-	return "Visitor " + string(tail)
-}
-
 // decodeProps parses a props column into a map; anything malformed becomes {}.
 func decodeProps(s string) map[string]any {
 	out := map[string]any{}

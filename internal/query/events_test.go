@@ -8,9 +8,9 @@ import (
 	"trail/internal/store"
 )
 
-// winParams is a Params with a resolved day-bucket window [from, to] and, when prevFrom < prevTo,
+// b3Win is a Params with a resolved day-bucket window [from, to] and, when prevFrom < prevTo,
 // a comparison window. The clock sits at to.
-func winParams(from, to, prevFrom, prevTo int64) Params {
+func b3Win(from, to, prevFrom, prevTo int64) Params {
 	p := params(from, to)
 	p.Win = Window{Key: "test", From: from, To: to, Bucket: "day", TZ: "Asia/Kolkata"}
 	if prevFrom < prevTo {
@@ -91,7 +91,7 @@ func TestEventDetailLatest15NewestFirst(t *testing.T) {
 	evs = append(evs, ev("B", "sb", "Signup", `{"plan":"pro"}`, t0-2*day)) // previous period
 	db := fixture(t, evs...)
 	from := t0 - 12*hour
-	p := winParams(from, t0+12*hour, from-3*day, from-1)
+	p := b3Win(from, t0+12*hour, from-3*day, from-1)
 	d, err := EventDetail(db, p, "Signup")
 	if err != nil {
 		t.Fatal(err)
@@ -169,7 +169,7 @@ func TestEventDetailOutbound(t *testing.T) {
 func TestBucketValuesNullFuture(t *testing.T) {
 	db := fixture(t, ev("A", "sa", "Signup", ``, t0))
 	from := time.Date(2026, 11, 19, 0, 0, 0, 0, ist).UnixMilli()
-	p := winParams(from, from+day-1, 0, 0)
+	p := b3Win(from, from+day-1, 0, 0)
 	p.Win.Bucket = "hour"
 	p.Now = time.UnixMilli(t0 + 5*minute) // 10:05
 	d, err := EventDetail(db, p, "Signup")
@@ -181,14 +181,5 @@ func TestBucketValuesNullFuture(t *testing.T) {
 	}
 	if d.Prev != nil || len(d.PrevSeries) != 0 {
 		t.Fatalf("no comparison expected")
-	}
-}
-
-func TestPersonLabel(t *testing.T) {
-	if got := personLabel("0190a1b2-c3d4-7e5f-8a9b-cdef12345678", false); got != "Visitor 5678" {
-		t.Fatal(got)
-	}
-	if got := personLabel("ada@example.com", true); got != "ada@example.com" {
-		t.Fatal(got)
 	}
 }

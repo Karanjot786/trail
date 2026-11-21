@@ -110,7 +110,7 @@ func TestCrawlersSingleDayWidens(t *testing.T) {
 	db := fixture(t)
 	hit(t, db, t0-5*day, "GPTBot", "/", 3)
 	from := time.Date(2026, 11, 19, 0, 0, 0, 0, ist).UnixMilli()
-	p := winParams(from, from+day-1, from-day, from-1)
+	p := b3Win(from, from+day-1, from-day, from-1)
 	p.Win.Bucket = "hour"
 	c, err := Crawlers(db, p)
 	if err != nil {

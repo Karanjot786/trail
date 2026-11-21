@@ -46,24 +46,24 @@ func goalStats(db *sql.DB, q Params, g Goal) (GoalStats, error) {
 	return s, nil
 }
 
-// goalHit is a converter's first hit of the goal in the window.
-type goalHit struct {
+// convHit is a converter's first hit of the goal in the window.
+type convHit struct {
 	person, session string
 	ts              int64
 }
 
 // firstHits returns each converter's first hit in p's window, in hit order, and the number of hits.
-func firstHits(db *sql.DB, p Params, g Goal) ([]goalHit, int, error) {
+func firstHits(db *sql.DB, p Params, g Goal) ([]convHit, int, error) {
 	cte, args, err := base(p)
 	if err != nil {
 		return nil, 0, err
 	}
 	where, wargs := goalWhere(g)
-	out := []goalHit{}
+	out := []convHit{}
 	seen := map[string]bool{}
 	n := 0
 	err = forRows(db, cte+`SELECT person, session_id, ts FROM ev WHERE `+where+` ORDER BY ts, id`, append(args, wargs...), func(r *sql.Rows) error {
-		var h goalHit
+		var h convHit
 		if err := r.Scan(&h.person, &h.session, &h.ts); err != nil {
 			return err
 		}
@@ -138,7 +138,7 @@ func GoalDetail(db *sql.DB, p Params, id int64) (GoalDetailResult, error) {
 // It leaves Prev, Series and PrevSeries alone (GoalDetail fills them concurrently).
 func goalCredit(db *sql.DB, p Params, g Goal, res GoalDetailResult) (GoalDetailResult, error) {
 	var (
-		hits     []goalHit
+		hits     []convHit
 		nHits    int
 		persons  = []string{}
 		touches  map[string][]touch
