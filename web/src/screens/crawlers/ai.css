@@ -52,7 +52,6 @@
 .ai-unlock-h p { margin: 0; color: var(--muted); font-size: var(--text-small); max-width: 70ch; text-wrap: pretty; }
 .ai-unlock-b { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 .ai-unlock .codeblock { margin: 0; min-width: 0; }
-.ai-unlock pre code { white-space: pre-wrap; overflow-wrap: anywhere; }
 .ai-unlock-acts { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; font-size: var(--text-small); }
 .ai-err { margin: 0; color: var(--danger); font-size: var(--text-small); }
 .ai-other { border-top: 1px solid var(--border); padding-top: 10px; }

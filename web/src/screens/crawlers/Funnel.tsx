@@ -28,7 +28,7 @@ const UNIT: Record<AIFunnelStep['unit'], string> = { requests: 'requests', sessi
 const SOURCE: Record<AIStepKey, string> = {
   crawled: 'server hook or logs',
   fetched: 'server hook or logs',
-  cited: 'no public source',
+  cited: 'not published by any AI provider',
   visited: 'your script',
   converted: 'your script',
 }
@@ -133,7 +133,7 @@ function StepCard({ k, st, i, cmpOn, basis }: { k: AIStepKey; st: AIFunnelStep |
   else value = fmtInt(st?.value ?? 0)
   const delta = status === 'ok' && cmpOn && st?.prev != null
   return (
-    <li className="aif-step" data-step={k} data-status={status} style={{ ['--i' as string]: i }}>
+    <li className="aif-step" data-step={k} data-status={status}>
       <span className="k">
         <span className="no" aria-hidden="true">
           {i + 1}

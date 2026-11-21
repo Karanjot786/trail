@@ -54,19 +54,19 @@ export function SetupStatus({ setup }: { setup: AISetup | undefined }) {
         <>
           <StatusDot tone="ok" />
           <b>Receiving</b>
-          {c.lastAt != null && <span>· last crawler request {ago(c.lastAt)}</span>}
+          {c.lastAt != null && <span>last crawler request {ago(c.lastAt)}</span>}
         </>
       ) : c.state === 'quiet' ? (
         <>
           <StatusDot tone="warn" />
           <b>Nothing in the last 24 hours</b>
-          {c.lastAt != null && <span>· last crawler request {ago(c.lastAt)}</span>}
+          {c.lastAt != null && <span>last crawler request {ago(c.lastAt)}</span>}
         </>
       ) : (
         <>
           <StatusDot tone="off" />
           <b>Not receiving yet</b>
-          <span>· Crawlers visit irregularly; the first request can take hours.</span>
+          <span>Crawlers visit irregularly; the first request can take hours.</span>
         </>
       )}
     </p>
