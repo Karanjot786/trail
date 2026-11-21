@@ -33,7 +33,7 @@ test.describe('signed proxy geo', () => {
   let tokenId = ''
   let token = ''
   test.beforeEach(async ({ request }, info) => {
-    site = `geo${info.project.name}${Date.now().toString(36)}`.replace(/[^a-z0-9]/g, '')
+    site = `zz-geo-${info.project.name}-${Date.now().toString(36)}`.replace(/[^a-z0-9-]/g, '') // sorts after demo, the default site
     host = `${site}.example.com`
     expect((await request.post('/api/sites', { data: { id: site, domain: host } })).status()).toBe(201)
     const res = await request.post('/api/tokens', { data: { name: `e2e-proxy-${site}`, scope: 'crawl', site } })

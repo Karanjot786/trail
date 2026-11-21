@@ -75,7 +75,7 @@ test.describe('create token', () => {
 
 test('an empty site: every AI tab renders without NaN or Infinity', async ({ app }, info) => {
   const { page } = app
-  const id = `aiempty${info.project.name}`.replace(/[^a-z0-9]/g, '') // projects share one server
+  const id = `zz-aiempty-${info.project.name}`.replace(/[^a-z0-9-]/g, '') // projects share one server; "zz" sorts after demo, the default site
   const res = await page.request.post('/api/sites', { data: { id, domain: `${id}.example.com` } })
   expect(res.status()).toBe(201)
   try {
