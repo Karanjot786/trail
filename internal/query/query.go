@@ -33,57 +33,30 @@ const (
 
 // Params scopes a dashboard query. Env "" or "all" means every environment.
 type Params struct {
-	Site, Env string
-	From, To  int64 // unix ms, inclusive
-	Filters   map[string]string
-	TZ        *time.Location
+	Site, Env     string
+	From, To      int64             // unix ms, inclusive; = Win.From, Win.To (kept for existing callers)
+	Win           Window            // resolved window, including Prev*
+	Filters       map[string]string // dim → value
+	TZ            *time.Location
+	Now           time.Time // server clock; the demo pins it
+	Conv          int64     // goal id for conversion columns; 0 = the site's first goal
+	Limit, Offset int
+	Sort          string
 }
 
-// Totals is one period's headline numbers. Bounce is a 0–1 fraction.
-type Totals struct {
-	Visitors  int     `json:"visitors"`
-	Pageviews int     `json:"pageviews"`
-	Bounce    float64 `json:"bounce"`
+// Prev returns the comparison window as Params; false when Win.PrevFrom is nil.
+func (p Params) Prev() (Params, bool) {
+	if p.Win.PrevFrom == nil || p.Win.PrevTo == nil {
+		return Params{}, false
+	}
+	q := p
+	q.From, q.To = *p.Win.PrevFrom, *p.Win.PrevTo
+	q.Win.From, q.Win.To = q.From, q.To
+	q.Win.PrevFrom, q.Win.PrevTo = nil, nil
+	return q, true
 }
 
-// StatsResult is the /api/stats payload.
-type StatsResult struct {
-	Totals
-	Prev   Totals `json:"prev"`
-	Online int    `json:"online"`
-}
-
-// Point is one series bucket: start time (unix ms) and value.
-type Point struct {
-	T int64   `json:"t"`
-	V float64 `json:"v"`
-}
-
-// SeriesResult is the /api/series payload.
-type SeriesResult struct {
-	Bucket string  `json:"bucket"`
-	Points []Point `json:"points"`
-}
-
-// Row is one breakdown row. Total is filled only for dim=event.
-type Row struct {
-	Key       string `json:"key"`
-	Visitors  int    `json:"visitors"`
-	Pageviews int    `json:"pageviews"`
-	Total     int    `json:"total"`
-}
-
-// Visitor is one person in the visitors list.
-type Visitor struct {
-	Person     string `json:"person"`
-	Identified bool   `json:"identified"`
-	FirstSeen  int64  `json:"firstSeen"`
-	LastSeen   int64  `json:"lastSeen"`
-	Visits     int    `json:"visits"`
-	Country    string `json:"country"`
-	Device     string `json:"device"`
-	Source     string `json:"source"`
-}
+// The v3 JSON types (Totals, StatsResult, Point, SeriesResult, Row, Person/Visitor) live in types.go.
 
 // base builds the person CTE (idm, ev) for p, with env and filters applied.
 func base(p Params) (string, []any, error) {
@@ -147,7 +120,7 @@ func Stats(db *sql.DB, p Params) (StatsResult, error) {
 		p.Site, since).Scan(&r.Online); err != nil {
 		return r, fmt.Errorf("online: %w", err)
 	}
-	r.Totals, r.Prev = cur, pt
+	r.Totals, r.Prev = cur, &pt
 	return r, nil
 }
 
@@ -182,7 +155,7 @@ func Series(db *sql.DB, p Params, metric string) (SeriesResult, error) {
 	if loc == nil {
 		loc = time.UTC
 	}
-	res := SeriesResult{Bucket: "day", Points: []Point{}}
+	res := SeriesResult{Metric: metric, Bucket: "day", Points: []Point{}, Prev: []Point{}}
 	trunc := func(ms int64) time.Time {
 		t := time.UnixMilli(ms).In(loc)
 		return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, loc)
@@ -201,6 +174,7 @@ func Series(db *sql.DB, p Params, metric string) (SeriesResult, error) {
 		index[t.UnixMilli()] = len(res.Points)
 		res.Points = append(res.Points, Point{T: t.UnixMilli()})
 	}
+	vals := make([]float64, len(res.Points))
 	bucketOf := func(ms int64) (int, bool) {
 		i, ok := index[trunc(ms).UnixMilli()]
 		return i, ok
@@ -214,7 +188,7 @@ func Series(db *sql.DB, p Params, metric string) (SeriesResult, error) {
 	case "pageviews":
 		err = scanTS(db, cte+`SELECT ts FROM ev WHERE type='pageview'`, args, func(ts int64) {
 			if i, ok := bucketOf(ts); ok {
-				res.Points[i].V++
+				vals[i]++
 			}
 		})
 	case "visitors":
@@ -234,7 +208,7 @@ func Series(db *sql.DB, p Params, metric string) (SeriesResult, error) {
 			return nil
 		})
 		for i, s := range seen {
-			res.Points[i].V = float64(len(s))
+			vals[i] = float64(len(s))
 		}
 	case "bounce":
 		sessions := make([]int, len(res.Points))
@@ -252,11 +226,14 @@ func Series(db *sql.DB, p Params, metric string) (SeriesResult, error) {
 			return nil
 		})
 		for i := range res.Points {
-			res.Points[i].V = bounce(sessions[i], engaged[i])
+			vals[i] = bounce(sessions[i], engaged[i])
 		}
 	}
 	if err != nil {
 		return res, fmt.Errorf("series %s: %w", metric, err)
+	}
+	for i := range res.Points {
+		res.Points[i].V = &vals[i]
 	}
 	return res, nil
 }

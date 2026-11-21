@@ -1,9 +1,11 @@
-@import 'tailwindcss';
+@import "tailwindcss";
+@import "../design-system/dist/tailwind.css";
+@import "../design-system/dist/fonts.css";
+@import "../design-system/dist/base.css";
+
+/* Legacy v2 rules below keep the current screens rendering until F1 replaces this file. */
 
 @theme {
-  --font-sans: 'Geist Variable', ui-sans-serif, system-ui, sans-serif;
-  --font-mono: 'Geist Mono Variable', ui-monospace, monospace;
-
   --color-bg: #000;
   --color-card: #0a0a0a;
   --color-raised: #111111;

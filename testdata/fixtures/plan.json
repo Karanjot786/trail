@@ -1,0 +1,62 @@
+{
+  "version": 1,
+  "about": "Fixture recording plan (dashboard v3 plan §0.13). Frozen after P0. Read by `trail demo record` and by the fixture tests. Keys are built with web/src/api/transport.ts fixtureKey(): path + '?' + params sorted by key then value, without tz.",
+  "sites": ["demo", "docs"],
+  "ranges": ["today", "yesterday", "7d", "30d", "90d", "12mo", "d:{spikeDay}", "lastmonth"],
+  "spikeDay": "the day with the most visitors in the demo site's last 30 days, resolved by the recorder",
+  "combos": [
+    { "ranges": "all", "cmp": "prev", "filters": [] },
+    { "ranges": ["30d"], "cmp": "none", "filters": [] },
+    { "ranges": ["30d"], "cmp": "prev", "filters": [["source:Google"], ["country:IN"], ["device:mobile"], ["channel:AI"], ["event:Signup"]] }
+  ],
+  "routes": {
+    "static": ["/sites", "/sites/{site}/status", "/goals", "/funnels", "/views", "/notes"],
+    "perCombo": [
+      "/sites/summary",
+      "/stats",
+      "/series",
+      "/breakdown",
+      "/changes",
+      "/heatmap",
+      "/visitors",
+      "/sessions",
+      "/campaigns",
+      "/ai-referrals",
+      "/events",
+      "/goals/report",
+      "/revenue",
+      "/revenue/breakdown",
+      "/crawlers"
+    ],
+    "perDetail": [
+      "/journey",
+      "/events/detail",
+      "/goals/{id}/detail",
+      "/paths",
+      "/funnels/{id}/report",
+      "/funnels/{id}/dropoff"
+    ],
+    "live": "/live",
+    "excluded": ["/sites/{id}/check", "/sites/{id}/export", "/config", "/tokens", "/shares", "/v1/whoami", "/share/{token}/meta"]
+  },
+  "sitesSummary": { "site": "all" },
+  "metrics": ["visitors", "pageviews", "sessions", "duration", "bounce", "conversion", "revenue"],
+  "seriesExtras": true,
+  "breakdownDims": [
+    "path", "entry", "exit", "route", "host",
+    "source", "channel", "ai_source", "utm_campaign", "utm_source", "utm_medium", "utm_term", "utm_content", "referrer",
+    "country", "region", "city",
+    "device", "browser", "os",
+    "event", "goal"
+  ],
+  "revenueDims": ["source", "channel", "campaign", "entry", "country", "device"],
+  "details": {
+    "detailCombos": "the 30d/prev combo with no filters, per site",
+    "goals": "every goal: /goals/{id}/detail and /paths?goal={id}",
+    "funnels": "every funnel: /funnels/{id}/report and /funnels/{id}/dropoff?step={i} for each step",
+    "journeys": { "latestPeople": 15 },
+    "events": "every event name from /events: /events/detail?name={name}"
+  },
+  "live": { "windowMinutes": 30, "streamUncapped": true },
+  "limits": { "maxDiskBytes": 26214400, "maxGzipBytes": 4194304 }
+}

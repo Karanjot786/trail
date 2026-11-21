@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"trail/internal/query"
 	"trail/internal/sites"
 	"trail/internal/store"
 )
@@ -71,15 +72,7 @@ func TestAPIStatsJSONShape(t *testing.T) {
 	if w.Code != 200 {
 		t.Fatalf("status %d: %s", w.Code, w.Body)
 	}
-	var s struct {
-		Visitors, Pageviews int
-		Bounce              float64
-		Prev                struct {
-			Visitors, Pageviews int
-			Bounce              float64
-		}
-		Online int
-	}
+	var s query.StatsResult // the v3 contract (plan §0.5): strict decode fails on unknown keys
 	decodeStrict(t, w.Body.Bytes(), &s)
 	if s.Visitors != 1 || s.Pageviews != 1 || s.Bounce != 1 || s.Online != 1 {
 		t.Fatalf("stats = %+v", s)

@@ -11,3 +11,6 @@ demo.db*
 demo.log
 demo-password.txt
 .superpowers/
+.pids
+dev.db*
+web/test-results/
