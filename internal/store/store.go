@@ -68,8 +68,14 @@ func Open(path string) (*Store, error) {
 	}, nil
 }
 
-// migrate adds columns that databases created by older versions lack.
+// migrate adds columns that databases created by older versions lack, and drops indexes that
+// newer ones make redundant.
 func migrate(db *sql.DB) error {
+	// events_site_session_ts(site_id, session_id, ts) serves every lookup the older
+	// events_site_session(site_id, session_id) did (perf gate in internal/query/perf_test.go).
+	if _, err := db.Exec(`DROP INDEX IF EXISTS events_site_session`); err != nil {
+		return fmt.Errorf("drop events_site_session: %w", err)
+	}
 	var n int
 	if err := db.QueryRow(`SELECT count(*) FROM pragma_table_info('events') WHERE name = 'retry'`).Scan(&n); err != nil {
 		return fmt.Errorf("inspect events: %w", err)

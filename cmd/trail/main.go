@@ -97,7 +97,11 @@ func runSeed() error {
 	if err != nil {
 		return err
 	}
-	if err := seed.Seed(st, ids, 30, 2000, time.Now(), mrand.New(mrand.NewPCG(uint64(time.Now().UnixNano()), 1))); err != nil {
+	specs := make([]seed.SiteSpec, 0, len(ids))
+	for _, id := range ids {
+		specs = append(specs, seed.SiteSpec{ID: id, Revenue: true, Crawlers: true})
+	}
+	if err := seed.Seed(st, specs, 30, 2000, time.Now(), mrand.New(mrand.NewPCG(uint64(time.Now().UnixNano()), 1))); err != nil {
 		_ = st.Close()
 		return err
 	}

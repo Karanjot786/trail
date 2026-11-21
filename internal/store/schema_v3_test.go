@@ -39,3 +39,24 @@ func TestSchemaChecks(t *testing.T) {
 		t.Error("api_tokens accepted an unknown scope")
 	}
 }
+
+// TestMigrateDropsOldSessionIndex: a database from an older version loses the redundant index.
+func TestMigrateDropsOldSessionIndex(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "old.db")
+	s, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.DB().Exec(`CREATE INDEX events_site_session ON events(site_id, session_id)`); err != nil {
+		t.Fatal(err)
+	}
+	_ = s.Close()
+	s, err = Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	if n := count(t, s, `SELECT count(*) FROM sqlite_master WHERE type='index' AND name='events_site_session'`); n != 0 {
+		t.Fatal("events_site_session still present")
+	}
+}

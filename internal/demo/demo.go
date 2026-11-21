@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"trail/internal/api"
-	"trail/internal/query"
 	"trail/internal/seed"
 	"trail/internal/sites"
 	"trail/internal/store"
@@ -105,22 +104,14 @@ func (d *demo) reseed() error {
 func fill(st *store.Store, tz *time.Location, now time.Time) error {
 	t := now.In(tz)
 	end := time.Date(t.Year(), t.Month(), t.Day()+1, 0, 0, 0, 0, tz)
-	if err := seed.Seed(st, []string{siteID}, days, persons, end, rand.New(rand.NewPCG(42, 42))); err != nil {
+	if err := seed.Seed(st, []seed.SiteSpec{{ID: siteID, Revenue: true, Crawlers: true}}, days, persons, end, rand.New(rand.NewPCG(42, 42))); err != nil {
 		return fmt.Errorf("demo seed: %w", err)
 	}
 	db := st.DB()
 	if _, err := db.Exec(`UPDATE events SET host=? WHERE site_id=?`, domain, siteID); err != nil {
 		return fmt.Errorf("demo host: %w", err)
 	}
-	for _, g := range []query.Goal{
-		{Name: "Signup", Kind: "event", Match: "Signup"},
-		{Name: "Pricing", Kind: "page", Match: "/pricing"},
-	} {
-		if _, err := query.CreateGoal(db, siteID, g); err != nil {
-			return fmt.Errorf("demo goals: %w", err)
-		}
-	}
-	return nil
+	return nil // the seed adds the goals Signup and Pricing
 }
 
 // schedule rebuilds the data at the next 00:05 in the demo's zone, then repeats.
