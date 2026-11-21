@@ -15,9 +15,9 @@ test('every page has one h1, description, canonical', async ({ page }) => {
   }
 })
 
-test('llms.txt lists 33 md links', () => {
+test('llms.txt lists 36 md links', () => {
   const t = readFileSync('dist/docs/llms.txt', 'utf8')
-  expect(t.match(/\]\([^)]*\.md\)/g)?.length).toBe(33)
+  expect(t.match(/\]\([^)]*\.md\)/g)?.length).toBe(36)
 })
 
 test('sitemap has landing and quickstart', () => {

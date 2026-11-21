@@ -28,6 +28,17 @@ and groups that visitor's pages into sessions in memory (30 minutes idle, 24 hou
 
 As a result the same person on a different day is a different visitor, and a server restart starts every private visitor afresh. That is the price of storing nothing.
 
+## IP addresses
+
+Trail never stores an IP address, in any mode. The client IP is used in memory for a few things, then dropped:
+
+- the location lookup (see [Geo database](/operations/geo));
+- the per-IP rate limit, which keys its buckets by a hash under a random per-process key;
+- the private-mode visitor key above;
+- recognising AI agents: checking the IP against the operators' published lists, and the relay below.
+
+When your [server hook](/add/ai-crawlers) sees a verified signed page request from an AI agent, Trail remembers `SHA-256(site | IP | user agent)` and the agent's id, in memory only, for 30 minutes, so the beacons that follow from the same browser are marked as that agent. It holds at most 10,000 entries, drops the oldest first, and starts empty after a restart. The IP itself is not kept.
+
 ## Consent
 
 In the default mode, call `consent` from your banner:

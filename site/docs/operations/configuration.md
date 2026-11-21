@@ -1,6 +1,6 @@
 ---
 title: Configuration
-description: Every environment variable the Trail server reads, plus allowed origins, trusted proxies, the ingest rate limit, environments and the trail commands.
+description: Every environment variable the Trail server reads, plus allowed origins, trusted proxies and Cloudflare, AI agent lists, the ingest rate limit, environments and the trail commands.
 ---
 
 # Configuration
@@ -15,10 +15,11 @@ Trail reads its settings from the environment at startup. Nothing is stored in a
 | `TRAIL_ADDR` | `:8080` | Listen address. Use `127.0.0.1:8080` behind a local proxy |
 | `TRAIL_TZ` | `Asia/Kolkata` | IANA timezone for daily buckets and the private-mode key rotation |
 | `TRAIL_SECRET` | random per start | Signs dashboard session cookies. At least 32 characters. Set it so logins survive restarts: `openssl rand -hex 32` |
-| `TRAIL_GEO_DB` | unset | Path to your own City `.mmdb`, such as DB-IP Lite City, for region and city. Without it, the built-in database gives country only. See [Geo database](/operations/geo) |
+| `TRAIL_GEO_DB` | unset | Path to your own City `.mmdb`, such as GeoLite2 City, for region and city. Without it, the built-in database gives country only. See [Geo database](/operations/geo) |
 | `TRAIL_API_TOKENS` | unset | Comma list of `name:token:scope` for the [read API and MCP](/api/tokens). Scope is `read` or `write`; tokens shorter than 24 characters stop the server at startup |
 | `TRAIL_INGEST_RPS` | `50` | Requests per second per client IP on `/_t/e`, with a burst of twice that. Over the limit is `429`. `0` turns the limit off. See [Rate limit](#rate-limit) |
 | `TRAIL_TRUSTED_PROXIES` | `private,cloudflare` | Which proxies may tell Trail the visitor IP. See [Client IP and proxies](#client-ip) |
+| `TRAIL_AGENT_LISTS` | unset | `off` stops Trail fetching the published AI agent IP lists and signature keys, so agents are recognised by user agent only. Any other value stops the server at startup. See [AI agent lists](#ai-agent-lists) |
 | `TRAIL_DEMO` | unset | `1` serves a read-only demo with generated data at `/demo` |
 
 ## Allowed origins
@@ -70,7 +71,42 @@ Common setups:
 
 A visitor on a trusted private network can still write their own `X-Forwarded-For`, since their address is trusted. If that matters, list only your proxy's address instead of `private`.
 
-Cloudflare's ranges change rarely. Each release bundles the current list; to refresh it in a source build, run `make cloudflare-ips` and rebuild.
+## Cloudflare {#cloudflare}
+
+Trail trusts Cloudflare's headers only when the request reached it from an address in Cloudflare's published ranges, and only while `cloudflare` is in `TRAIL_TRUSTED_PROXIES` (it is by default). From anywhere else, these headers are ignored, however they are spelled:
+
+| Header | Used for |
+|---|---|
+| `CF-Connecting-IP` | The visitor IP |
+| `CF-IPCountry` | The country. `XX` (unknown) and `T1` (Tor) are ignored |
+| `CF-Region-Code`, `CF-IPCity` | Region and city. Cloudflare sends them when its visitor location headers are turned on |
+
+A field Cloudflare leaves empty falls back to the [geo database](/operations/geo). A missing or invalid country drops the region and city too. Private-mode visitors keep the country only.
+
+The ranges are bundled in the binary, not fetched. They change rarely. Each release bundles the current list; to refresh it in a source build, run `make cloudflare-ips` and rebuild.
+
+## AI agent lists
+
+To mark an AI agent as Verified (see [AI visibility](/dashboard/ai-visibility#verified-and-claimed)), Trail downloads the agent operators' published IP lists and Web Bot Auth key directories. It keeps them in memory, refreshes them about every 24 hours, and retries 15 minutes after a failure. Ingest never waits for a download: a request is classified with whatever is cached at that moment.
+
+Trail fetches only these fixed URLs, over HTTPS, with a 10 second timeout, a 2 MiB body limit and at most 3 redirects on the same host. It never fetches a URL taken from a request.
+
+| List | URL |
+|---|---|
+| Anthropic agents | `https://claude.com/.well-known/sail` |
+| Google agents | `https://developers.google.com/static/crawling/ipranges/user-triggered-agents.json` |
+| OpenAI crawlers | `https://openai.com/gptbot.json`, `https://openai.com/searchbot.json`, `https://openai.com/chatgpt-user.json`, `https://openai.com/adsbot.json` |
+| Perplexity crawlers | `https://www.perplexity.ai/perplexitybot.json`, `https://www.perplexity.ai/perplexity-user.json` |
+| OpenAI signature keys | `https://chatgpt.com/.well-known/http-message-signatures-directory` |
+| Google signature keys | `https://agent.bot.goog/.well-known/http-message-signatures-directory` |
+
+So the outbound hosts are `claude.com`, `developers.google.com`, `openai.com`, `www.perplexity.ai`, `chatgpt.com` and `agent.bot.goog`. Allow these on your firewall, or turn the downloads off:
+
+```sh
+TRAIL_AGENT_LISTS=off
+```
+
+With the lists off, agents are still recognised, but by user agent only, and the dashboard shows them as Claimed. The AI visibility method note says "Lists unavailable". Crawler requests are no longer checked against the crawler IP lists either. The log says `agents: TRAIL_AGENT_LISTS=off` at startup.
 
 ## Rate limit
 
@@ -100,6 +136,8 @@ The dashboard and the API show `production` unless you choose another environmen
 trail            # same as trail serve
 trail serve      # run the server
 trail seed       # fill TRAIL_DB with ~30 days of generated data, for trying the dashboard
+trail crawlers import --site ID [--format combined|caddy] [--since auto|RFC3339] [--url URL --token T] FILE|-
+                 # import AI crawler requests from an access log, see AI crawlers
 ```
 
 `trail seed` uses the ids in `TRAIL_SITES`, or `demo` and `docs` when it is empty. It writes events only, so add the same ids in Settings (or `TRAIL_SITES`) to see them in the dashboard. Do not run it against a production database.
@@ -108,4 +146,5 @@ trail seed       # fill TRAIL_DB with ~30 days of generated data, for trying the
 
 - Run Trail under [Docker](/install/docker) or a [binary with systemd](/install/binary).
 - Create [API tokens](/api/tokens).
+- Capture [AI crawlers](/add/ai-crawlers).
 - Keep the data safe with [Backups](/operations/backups).

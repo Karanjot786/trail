@@ -5,6 +5,10 @@ description: Serve the tracker and its endpoint from your own domain with a /_t/
 
 # Rewrites (Vercel and others)
 
+::: tip Next.js and Astro
+`npx trail-analytics init` adds a first-party proxy at `/t/t.js` and `/t/e` that replaces this rewrite. It also reports AI crawlers and forwards each beacon with a signed client IP and your host's edge location, so the IP problem below goes away. See [AI crawlers](/add/ai-crawlers). Use the rewrite for other stacks, or for a static site with no request-time code.
+:::
+
 The tracker is served at `/_t/t.js` (and `/_t/t.p.js`, `/_t/t.x.js`), and it sends events to `/_t/e`. If your site forwards `/_t/*` to the Trail server, the browser sees first-party requests: no third-party host for blockers to match, and no CORS round trip.
 
 Replace `stats.example.com` with your Trail host. The files are `vercel.json`, `next.config.js`, `netlify.toml`, your `Caddyfile` and your nginx server config.
@@ -68,6 +72,8 @@ Vercel, Netlify, Caddy and nginx (with the line above) add the visitor's IP to `
 
 - Your own nginx or Caddy with a fixed address: add it, e.g. `TRAIL_TRUSTED_PROXIES=private,cloudflare,198.51.100.7`.
 - Vercel and Netlify: they connect from changing public addresses, so they cannot be listed. You can trust every peer with `TRAIL_TRUSTED_PROXIES=0.0.0.0/0,::/0`, which brings the visitor IP back but lets anyone who calls Trail directly send a forged one. Keep that in mind for the rate limit.
+
+On Next.js and Astro, the [first-party proxy](/add/ai-crawlers#the-first-party-proxy) solves this without trusting every peer: it sends the visitor IP and location in headers signed with your crawl token, and Trail believes them only when the signature checks out.
 
 See [Client IP and proxies](/operations/configuration#client-ip).
 
