@@ -86,7 +86,8 @@ export function Banners() {
       <div key="fail" className="notice" data-tone="bad" role="alert">
         <TriangleAlert size={14} aria-hidden="true" />
         <span>
-          <b>Couldn’t refresh.</b> Showing the numbers from {stats.updatedAt ? hhmm(stats.updatedAt) : 'earlier'}, greyed until they update.
+          <b>Refresh failed.</b> These numbers are from {stats.updatedAt ? hhmm(stats.updatedAt) : 'earlier'} and may be out of date; they stay greyed until Trail can refresh. Nothing is lost:
+          events are still being recorded.
         </span>
         <span className="spacer" />
         <Button size="sm" onClick={() => stats.refetch()}>

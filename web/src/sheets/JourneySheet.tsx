@@ -221,12 +221,14 @@ export function Journey({ person, session, row, label }: { person: string; sessi
                 className={`vmark${goal ? ' goal' : ''}${out ? ' out' : ''}`}
                 data-anchor={m.anchor}
                 style={{ left: `${m.left.toFixed(2)}%`, ['--lane' as string]: m.lane }}
-                aria-label={`Visit ${n}, ${dayTime(x.start, tz)}, ${pv} ${pv === 1 ? 'page' : 'pages'}${goal ? ', reached a goal' : ''}${out ? ', outside the selected range' : ''}. Jump to it`}
                 onClick={() => focusVisit(m.index)}
               >
-                <span className="vn">{n}</span>
+                {/* Named from its content, so the name starts with what is visible ("1 Nov 21"). */}
+                <span className="sr-only">Visit </span>
+                <span className="vn">{n}</span>{' '}
                 <span className="vt">
                   <b>{fmtShortDay(x.start, tz)}</b>
+                  <span className="sr-only">{`, ${hm(x.start, tz)}, ${pv} ${pv === 1 ? 'page' : 'pages'}${goal ? ', reached a goal' : ''}${out ? ', outside the selected range' : ''}. Jump to it`}</span>
                   <span className="vd" aria-hidden="true">
                     {Array.from({ length: Math.min(5, pv) }, (_, k) => (
                       <i key={k} />

@@ -193,31 +193,31 @@ export default function LiveScreen() {
                   <button
                     type="button"
                     className={`ev-row${newKeys.has(k) ? ' new' : ''}`}
-                    aria-label={`${e.label}, ${isPv ? e.path : e.name}, ${rel(e.ts, d.asOf)}. Open the journey`}
                     onClick={() => navigate({ sheet: { kind: 'journey', person: e.person, session: e.sessionId } })}
                   >
                     <Avatar seed={e.person} size={28} />
                     <span className="who2">
-                      <b data-testid="journey-label">{e.label}</b>
+                      <b data-testid="journey-label">{e.label}</b>{' '}
                       <span>{[e.city, e.country].filter(Boolean).join(', ')}</span>
-                    </span>
+                    </span>{' '}
                     <span className="what">
                       {isPv ? (
                         <>
-                          <b className="mono">{e.path}</b>
+                          <b className="mono">{e.path}</b>{' '}
                           <span>Page view</span>
                         </>
                       ) : (
                         <>
                           <b>
                             <Zap aria-hidden="true" size={12} /> {e.name}
-                          </b>
+                          </b>{' '}
                           <span>{e.path ? `on ${e.path}` : 'Custom event'}</span>
                         </>
                       )}
-                    </span>
-                    <span className="ctx">{sourceText(e.source)}</span>
+                    </span>{' '}
+                    <span className="ctx">{sourceText(e.source)}</span>{' '}
                     <span className="when">{rel(e.ts, d.asOf)}</span>
+                    <span className="sr-only">. Open the journey</span>
                   </button>
                 </li>
               )

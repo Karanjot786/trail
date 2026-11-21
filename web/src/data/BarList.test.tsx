@@ -191,3 +191,15 @@ describe('Panel', () => {
     expect(curl).toContain('https://trail.example/api/v1/breakdown?site=demo&range=7d&dim=source')
   })
 })
+
+describe('midTrim', () => {
+  it('keeps both ends of a long label and leaves short ones alone', async () => {
+    const { midTrim } = await import('./BarList')
+    expect(midTrim('/pricing')).toBe('/pricing')
+    const t = midTrim('/' + 'a'.repeat(200) + '/end')
+    expect(t.length).toBe(90)
+    expect(t.startsWith('/aaa')).toBe(true)
+    expect(t.endsWith('a/end')).toBe(true)
+    expect(t).toContain('…')
+  })
+})

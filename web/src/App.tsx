@@ -1,7 +1,7 @@
 // Boot (plan F1-7): the login gate, the share-link and demo modes, the first-site redirect, then the shell.
 import { useEffect, useState } from 'react'
 import { invalidate, onUnauthorized } from './api/useQuery'
-import { navigate, useUrlState } from './state/useUrlState'
+import { go, invalidRange, linkTo, navigate, useUrlState } from './state/useUrlState'
 import { Shell } from './shell/Shell'
 import { Login } from './shell/Login'
 import { useSitesQuery } from './shell/useSite'
@@ -29,7 +29,12 @@ export function App() {
       else if (s.screen === 'settings') navigate({ screen: 'overview', tab: '', id: null }, { replace: true })
     } else if (noSites) {
       if (s.screen !== 'settings') navigate({ screen: 'settings', tab: 'sites', id: null, sheet: null }, { replace: true })
-    } else if (firstSite && !s.site) navigate({ site: firstSite }, { replace: true })
+    } else if (firstSite && !s.site) {
+      // Keep an unknown range= as typed, so the page can still say it is not a range Trail knows.
+      const bad = invalidRange()
+      const url = linkTo({ site: firstSite })
+      go(bad == null ? url : `${url}${url.includes('?') ? '&' : '?'}range=${encodeURIComponent(bad)}`, { replace: true })
+    }
   }, [isShare, shareSite, firstSite, noSites, s.site, s.screen])
 
   if (!authed)

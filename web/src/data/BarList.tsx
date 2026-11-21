@@ -66,7 +66,7 @@ export function BarList({ rows, columns, onOpen, onFilter, overlapNote, isActive
             return (
               <li key={r.key} className={`bl-row${active ? ' active' : ''}`}>
                 <button type="button" className={`bl-open${MONO_DIMS.has(r.dim) ? ' mono' : ''}`} title={r.label} onClick={() => onOpen?.(r)}>
-                  <span className="name" data-label="">{r.label}</span>
+                  <span className="name" data-label="">{midTrim(r.label)}</span>
                 </button>
                 <span className="bl-bar" aria-hidden="true">
                   <i data-testid="bar" data-bar="" style={{ transform: `scaleX(${Number(f.toFixed(4))})` }} />
@@ -114,4 +114,11 @@ function FilterIcon({ off }: { off: boolean }) {
       {off ? <path d="M18 6 6 18M6 6l12 12" /> : <path d="M3 5h18l-7 8v6l-4 2v-8z" />}
     </svg>
   )
+}
+
+/** Long labels (paths) keep both ends, which carry the meaning: "/docs/aaaa…/install". The title has it all. */
+export function midTrim(s: string, max = 90): string {
+  if (s.length <= max) return s
+  const head = Math.ceil((max - 1) * 0.6)
+  return `${s.slice(0, head)}…${s.slice(s.length - (max - 1 - head))}`
 }
