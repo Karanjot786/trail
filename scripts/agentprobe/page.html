@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Trail agent probe</title>
+<style>body{font:16px/1.5 system-ui,sans-serif;max-width:40rem;margin:3rem auto;padding:0 1rem}code{font-family:ui-monospace,monospace}</style>
+</head>
+<body>
+<h1>Trail agent probe</h1>
+<p>This page sends four small requests the way Trail's script does. Please stay on it for 15 seconds.</p>
+<ol id="out"></ol>
+<script>
+(function () {
+  var B = {{.B}};
+  var out = document.getElementById('out');
+  function note(s) { var li = document.createElement('li'); li.textContent = s; out.appendChild(li); }
+  function body(kind, round) {
+    return JSON.stringify({ kind: kind, round: round, ua: navigator.userAgent, webdriver: !!navigator.webdriver });
+  }
+  function round(n) {
+    // 1. same-origin fetch, exactly the tracker's shape (string body = text/plain)
+    fetch('/same', { method: 'POST', keepalive: true, body: body('same', n) })
+      .then(function () { note('same-origin fetch ' + n + ': sent'); }, function (e) { note('same-origin fetch ' + n + ': ' + e); });
+    // 2. cross-origin fetch to origin B
+    fetch(B + '/beacon', { method: 'POST', keepalive: true, body: body('cross', n) })
+      .then(function () { note('cross-origin fetch ' + n + ': sent'); }, function (e) { note('cross-origin fetch ' + n + ': ' + e); });
+    // 3. sendBeacon to origin B
+    note('sendBeacon ' + n + ': ' + navigator.sendBeacon(B + '/beacon2', body('beacon', n)));
+    // 4. same-origin path that origin A reverse-proxies to B (the rewrite case)
+    fetch('/_t/e', { method: 'POST', keepalive: true, body: body('rewrite', n) })
+      .then(function () { note('rewrite ' + n + ': sent'); }, function (e) { note('rewrite ' + n + ': ' + e); });
+  }
+  round(1);
+  setTimeout(function () { round(2); }, 5000);
+  setTimeout(function () { note('Done. Thank you.'); }, 10000);
+})();
+</script>
+</body>
+</html>

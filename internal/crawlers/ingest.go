@@ -11,28 +11,32 @@ import (
 const maxPath = 512
 
 type hitKey struct {
-	hour   int64
-	bot    string
-	path   string
-	status int
+	hour     int64
+	bot      string
+	path     string
+	status   int
+	verified bool
 }
 
 type hit struct{ n, last int64 }
 
 // Ingest stores the records whose user agent is in the catalogue for site,
-// adding to crawl_hits per hour x bot x path x status class (2, 3, 4 or 5).
-// The path loses its query and fragment and is capped at 512 bytes. It returns
-// how many records were kept.
-func Ingest(db *sql.DB, site string, recs []Record) (int, error) {
+// adding to crawl_hits per hour x bot x path x status class (1 to 5, or 0 when
+// the status is unknown) x verified. A record is verified when it has an IP
+// and verify(bot, ip) says the IP is in the bot's published list; a nil
+// verify leaves every record unverified. The path loses its query and
+// fragment and is capped at 512 bytes. It returns how many records were kept.
+func Ingest(db *sql.DB, site string, recs []Record, verify func(bot, ip string) bool) (int, error) {
 	agg := map[hitKey]*hit{}
 	kept := 0
 	for _, r := range recs {
 		name, _, _, ok := Lookup(r.UA)
-		class := r.Status / 100
-		if !ok || r.TS <= 0 || class < 1 || class > 5 {
+		known := r.Status == 0 || (r.Status >= 100 && r.Status <= 599)
+		if !ok || r.TS <= 0 || !known {
 			continue
 		}
-		k := hitKey{hour: r.TS - r.TS%3_600_000, bot: name, path: cleanPath(r.Path), status: class}
+		verified := verify != nil && r.IP != "" && verify(name, r.IP)
+		k := hitKey{hour: r.TS - r.TS%3_600_000, bot: name, path: cleanPath(r.Path), status: r.Status / 100, verified: verified}
 		h := agg[k]
 		if h == nil {
 			h = &hit{}
@@ -50,14 +54,14 @@ func Ingest(db *sql.DB, site string, recs []Record) (int, error) {
 		return 0, fmt.Errorf("ingest crawls: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
-	stmt, err := tx.Prepare(`INSERT INTO crawl_hits(site_id, hour, bot, path, status, n, last_ts) VALUES(?,?,?,?,?,?,?)
+	stmt, err := tx.Prepare(`INSERT INTO crawl_hits(site_id, hour, bot, path, status, verified, n, last_ts) VALUES(?,?,?,?,?,?,?,?)
 		ON CONFLICT(site_id, hour, bot, path, status, verified) DO UPDATE SET n=n+excluded.n, last_ts=max(last_ts, excluded.last_ts)`)
 	if err != nil {
 		return 0, fmt.Errorf("ingest crawls: %w", err)
 	}
 	defer stmt.Close()
 	for k, h := range agg {
-		if _, err := stmt.Exec(site, k.hour, k.bot, k.path, k.status, h.n, h.last); err != nil {
+		if _, err := stmt.Exec(site, k.hour, k.bot, k.path, k.status, k.verified, h.n, h.last); err != nil {
 			return 0, fmt.Errorf("ingest crawls: %w", err)
 		}
 	}

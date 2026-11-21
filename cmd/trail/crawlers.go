@@ -76,7 +76,7 @@ func runCrawlers(args []string, stdin io.Reader, out io.Writer) error {
 		if tok == "" {
 			return errors.New("--url needs --token (or TRAIL_TOKEN)")
 		}
-		sh, err := newShipper(*remote, *site, tok)
+		sh, err := newShipper(*remote, *site, tok, out)
 		if err != nil {
 			return err
 		}
@@ -100,7 +100,7 @@ func runCrawlers(args []string, stdin io.Reader, out io.Writer) error {
 			}
 		}
 		emit = func(recs []crawlers.Record) error {
-			_, err := crawlers.Ingest(st.DB(), *site, recs)
+			_, err := crawlers.Ingest(st.DB(), *site, recs, nil) // local import: no list fetch, unverified
 			return err
 		}
 		finish = func() error { return nil }
@@ -116,15 +116,24 @@ func runCrawlers(args []string, stdin io.Reader, out io.Writer) error {
 	return nil
 }
 
-// shipper posts records to a remote /api/v1/crawls as NDJSON batches.
+// shipper posts records to a remote /api/v1/crawls as NDJSON batches. It
+// sends each crawler's IP so the remote can verify it; an older remote that
+// rejects the field gets the batch again without IPs, and so does every
+// later batch.
 type shipper struct {
 	endpoint, token string
 	client          *http.Client
+	out             io.Writer
 	buf             bytes.Buffer
 	lines           int
+	batch           []crawlers.Record
+	noIP            bool
 }
 
-func newShipper(base, site, token string) (*shipper, error) {
+// oldRemote is the 400 body an older Trail sends for an unknown field.
+const oldRemote = "want {ts, ua, path, status}"
+
+func newShipper(base, site, token string, out io.Writer) (*shipper, error) {
 	u, err := url.Parse(strings.TrimRight(base, "/"))
 	if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" {
 		return nil, fmt.Errorf("--url: want https://host")
@@ -133,13 +142,14 @@ func newShipper(base, site, token string) (*shipper, error) {
 	return &shipper{
 		endpoint: u.String() + "/api/v1/crawls?" + q.Encode(),
 		token:    token,
+		out:      out,
 		client:   &http.Client{Timeout: 30 * time.Second},
 	}, nil
 }
 
 func (s *shipper) add(recs []crawlers.Record) error {
 	for _, r := range recs {
-		b, err := json.Marshal(r)
+		b, err := s.line(r)
 		if err != nil {
 			return err
 		}
@@ -151,14 +161,49 @@ func (s *shipper) add(recs []crawlers.Record) error {
 		s.buf.Write(b)
 		s.buf.WriteByte('\n')
 		s.lines++
+		s.batch = append(s.batch, r)
 	}
 	return nil
+}
+
+func (s *shipper) line(r crawlers.Record) ([]byte, error) {
+	if s.noIP {
+		r.IP = ""
+	}
+	return json.Marshal(r)
 }
 
 func (s *shipper) flush() error {
 	if s.lines == 0 {
 		return nil
 	}
+	err := s.post()
+	if errors.Is(err, errOldRemote) && !s.noIP {
+		s.noIP = true
+		fmt.Fprintln(s.out, "trail: the remote Trail is older and ignores crawler IPs; upgrade it to verify crawlers")
+		s.buf.Reset()
+		for _, r := range s.batch {
+			b, err := s.line(r)
+			if err != nil {
+				return err
+			}
+			s.buf.Write(b)
+			s.buf.WriteByte('\n')
+		}
+		err = s.post()
+	}
+	if err != nil {
+		return err
+	}
+	s.buf.Reset()
+	s.lines = 0
+	s.batch = s.batch[:0]
+	return nil
+}
+
+var errOldRemote = errors.New("remote rejects crawler IPs")
+
+func (s *shipper) post() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, s.endpoint, bytes.NewReader(s.buf.Bytes()))
@@ -173,10 +218,11 @@ func (s *shipper) flush() error {
 	}
 	defer resp.Body.Close()
 	msg, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+	if resp.StatusCode == http.StatusBadRequest && strings.Contains(string(msg), oldRemote) {
+		return fmt.Errorf("ship crawls: %w: %s", errOldRemote, strings.TrimSpace(string(msg)))
+	}
 	if resp.StatusCode != http.StatusAccepted {
 		return fmt.Errorf("ship crawls: %s: %s", resp.Status, strings.TrimSpace(string(msg)))
 	}
-	s.buf.Reset()
-	s.lines = 0
 	return nil
 }

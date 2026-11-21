@@ -6,17 +6,35 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"net/netip"
 	"strconv"
 	"strings"
 	"time"
 )
 
-// Record is one request from an access log. TS is unix ms.
+// Record is one request from an access log or a server hook (the crawl
+// NDJSON line, v2). TS is unix ms; Status 0 means unknown. IP, Host and the
+// Web Bot Auth fields (SA, SI, Sig) are optional; IP is used to verify the
+// crawler or relay a signed agent and is never stored.
 type Record struct {
 	TS     int64  `json:"ts"`
 	UA     string `json:"ua"`
 	Path   string `json:"path"`
 	Status int    `json:"status"`
+	IP     string `json:"ip,omitempty"`
+	Host   string `json:"host,omitempty"`
+	SA     string `json:"sa,omitempty"`  // Signature-Agent, raw
+	SI     string `json:"si,omitempty"`  // Signature-Input, raw
+	Sig    string `json:"sig,omitempty"` // Signature, raw
+}
+
+// clientIP keeps s only when it is an IP address.
+func clientIP(s string) string {
+	a, err := netip.ParseAddr(strings.TrimSpace(s))
+	if err != nil {
+		return ""
+	}
+	return a.Unmap().String()
 }
 
 const combinedTime = "02/Jan/2006:15:04:05 -0700"
@@ -62,7 +80,8 @@ func ParseCombined(line string) (Record, bool) {
 	if len(parts) < 2 {
 		return rec, false
 	}
-	return Record{TS: ts.UnixMilli(), UA: ua, Path: parts[1], Status: status}, true
+	ip, _ := nextField(line)
+	return Record{TS: ts.UnixMilli(), UA: ua, Path: parts[1], Status: status, IP: clientIP(ip)}, true
 }
 
 // nextField splits the next space-separated token off s.
@@ -109,8 +128,10 @@ type caddyLine struct {
 	TS      json.RawMessage `json:"ts"`
 	Status  int             `json:"status"`
 	Request struct {
-		URI     string              `json:"uri"`
-		Headers map[string][]string `json:"headers"`
+		URI      string              `json:"uri"`
+		RemoteIP string              `json:"remote_ip"`
+		ClientIP string              `json:"client_ip"`
+		Headers  map[string][]string `json:"headers"`
 	} `json:"request"`
 }
 
@@ -142,7 +163,11 @@ func ParseCaddyJSON(line []byte) (Record, bool) {
 			ua = v[0]
 		}
 	}
-	return Record{TS: ts, UA: ua, Path: l.Request.URI, Status: l.Status}, true
+	ip := clientIP(l.Request.ClientIP)
+	if ip == "" {
+		ip = clientIP(l.Request.RemoteIP)
+	}
+	return Record{TS: ts, UA: ua, Path: l.Request.URI, Status: l.Status, IP: ip}, true
 }
 
 // maxLine caps one log line; longer lines are skipped.
