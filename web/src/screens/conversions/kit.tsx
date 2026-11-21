@@ -13,11 +13,24 @@ import { EmptyState } from '../../ui/states'
 import './kit.css'
 
 /** A report read keyed by the URL's API query (site, range, cmp, env, tz, filters) plus `name`. */
-export function useReport<T>(name: string, fn: (q: URLSearchParams, signal: AbortSignal) => Promise<T>, opts: { enabled?: boolean } = {}): QueryResult<T> & { q: URLSearchParams; s: UrlState } {
+export function useReport<T>(
+  name: string,
+  fn: (q: URLSearchParams, signal: AbortSignal) => Promise<T>,
+  opts: { enabled?: boolean; dropGoal?: boolean } = {},
+): QueryResult<T> & { q: URLSearchParams; s: UrlState } {
   const s = useUrlState()
-  const q = apiQuery(s, viewerTz())
+  const q = opts.dropGoal ? dropGoalFilter(apiQuery(s, viewerTz())) : apiQuery(s, viewerTz())
   const r = useQuery<T>(`f4|${name}|${q.toString()}|${s.prefix}`, (sig) => fn(q, sig), { enabled: (opts.enabled ?? true) && !!s.site })
   return { ...r, q, s }
+}
+
+/** Goal reports ignore a goal filter, so a rate never turns into "100% of the people who converted". */
+export function dropGoalFilter(q: URLSearchParams): URLSearchParams {
+  const p = new URLSearchParams(q)
+  const keep = p.getAll('f').filter((f) => !f.startsWith('goal:'))
+  p.delete('f')
+  keep.forEach((f) => p.append('f', f))
+  return p
 }
 
 export interface PageTab {

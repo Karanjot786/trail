@@ -148,7 +148,7 @@
 /* Forms in dialogs */
 .f4-form { display: flex; flex-direction: column; gap: 14px; }
 .f4-field { display: flex; flex-direction: column; gap: 6px; font-size: var(--text-small); }
-.f4-field > span { color: var(--muted); }
+.f4-field > span, .f4-field > label { color: var(--muted); }
 .f4-field .err { color: var(--danger); font-size: var(--text-caption); }
 .f4-field .help { color: var(--subtle); font-size: var(--text-caption); }
 .f4-acts { display: flex; justify-content: flex-end; gap: 8px; padding-top: 4px; }
