@@ -1,6 +1,6 @@
 /* Proto checks: 33 one bar rule, 63 small totals agree, 75 the same metrics read the same on every screen, and P0-1
  * (one delta everywhere). Every number is read from the screens and compared with the API truth (plan T-2). */
-import { aiGate, expect, num, panel, test, titled, gate, type App } from './fixtures'
+import { expect, num, panel, test, titled, gate, type App } from './fixtures'
 
 // Playwright records a test's file from the call site, so the wrappers live in each spec rather than in fixtures.ts.
 const chk = (nums: number | number[], title: string, body: (app: App) => Promise<void>, opts: { phone?: boolean } = {}) =>
@@ -75,7 +75,6 @@ chk(75, 'the same metric reads the same on every screen: Overview KPI, chart tot
 // AI agents (plan T-2): agent and crawler numbers agree across the Funnel, the tabs and the API; people exclude agents by default.
 const aiCheck = (title: string, body: (app: App) => Promise<void>) =>
   test(titled(null, title), async ({ app }) => {
-    aiGate()
     await body(app)
   })
 

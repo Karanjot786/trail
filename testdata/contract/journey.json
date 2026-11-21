@@ -1,0 +1,42 @@
+[
+  {
+    "sessionId": "c32984b5e7ed897e49ccfc2dbeebae51",
+    "start": 1794560382844,
+    "source": "Direct",
+    "steps": [
+      {
+        "ts": 1794560382844,
+        "type": "pageview",
+        "path": "/pricing",
+        "name": "",
+        "engagedMs": 10211,
+        "scrollPct": 85,
+        "props": {}
+      },
+      {
+        "ts": 1794560393998,
+        "type": "pageview",
+        "path": "/pricing",
+        "name": "",
+        "engagedMs": 18798,
+        "scrollPct": 80,
+        "props": {}
+      }
+    ],
+    "visit": 1,
+    "durationMs": 29952,
+    "country": "US",
+    "city": "Ashburn",
+    "device": "desktop",
+    "goals": [
+      {
+        "id": 2,
+        "name": "Pricing",
+        "ts": 1794560382844
+      }
+    ],
+    "agent": "claude-agent",
+    "via": "ip",
+    "verified": true
+  }
+]

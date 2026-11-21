@@ -175,7 +175,7 @@ func (s *server) known(id string) bool {
 	return ok
 }
 
-// fail maps err to 400, 404 or 500.
+// fail maps err to 400, 403, 404, 409, 410 or 500.
 func (s *server) fail(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
 	case errors.Is(err, errSiteScope):
@@ -189,7 +189,7 @@ func (s *server) fail(w http.ResponseWriter, r *http.Request, err error) {
 		http.Error(w, err.Error(), http.StatusNotFound)
 	case errors.Is(err, meta.ErrGone):
 		http.Error(w, err.Error(), http.StatusGone)
-	case errors.Is(err, sites.ErrExists):
+	case errors.Is(err, sites.ErrExists) || errors.Is(err, meta.ErrExists):
 		http.Error(w, err.Error(), http.StatusConflict)
 	case errors.Is(err, query.ErrNotImplemented):
 		http.Error(w, "not implemented yet", http.StatusNotImplemented)

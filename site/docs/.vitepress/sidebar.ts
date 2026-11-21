@@ -22,6 +22,7 @@ export const sidebar: DefaultTheme.Sidebar = [
       { text: 'SvelteKit', link: '/add/sveltekit' },
       { text: 'Astro', link: '/add/astro' },
       { text: 'Plain HTML', link: '/add/html' },
+      { text: 'AI crawlers', link: '/add/ai-crawlers' },
     ],
   },
   {
@@ -42,6 +43,7 @@ export const sidebar: DefaultTheme.Sidebar = [
       { text: 'Overview', link: '/dashboard/overview' },
       { text: 'Visitors and journeys', link: '/dashboard/visitors' },
       { text: 'Goals', link: '/dashboard/goals' },
+      { text: 'AI visibility', link: '/dashboard/ai-visibility' },
       { text: 'Delivery health', link: '/dashboard/delivery' },
     ],
   },
@@ -59,6 +61,7 @@ export const sidebar: DefaultTheme.Sidebar = [
       { text: 'Configuration', link: '/operations/configuration' },
       { text: 'Backups', link: '/operations/backups' },
       { text: 'Geo database', link: '/operations/geo' },
+      { text: 'Agent signature probe', link: '/operations/agent-probe' },
       { text: 'Upgrades', link: '/operations/upgrades' },
       { text: 'Troubleshooting', link: '/operations/troubleshooting' },
     ],

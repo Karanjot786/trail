@@ -63,7 +63,7 @@ func TestTokenValidation(t *testing.T) {
 	if _, err := CreateToken(db, "dup", ScopeRead, ""); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := CreateToken(db, "dup", ScopeRead, ""); !errors.Is(err, ErrInvalid) {
+	if _, err := CreateToken(db, "dup", ScopeRead, ""); !errors.Is(err, ErrExists) {
 		t.Errorf("duplicate name: %v", err)
 	}
 }

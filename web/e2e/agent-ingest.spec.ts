@@ -1,6 +1,6 @@
 /* Real-browser agent ingest (plan T-1): a Claude-Agent user agent loads the real tracker; Trail classifies it from the
  * beacon it already sends, lists it on the Agents tab as Claimed, and leaves it out of human visitors. */
-import { aiGate, expect, test } from './fixtures'
+import { expect, test } from './fixtures'
 
 const AGENT_UA = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko; compatible; Claude-Agent/1.0) Chrome/154.0.0.0 Safari/537.36'
 
@@ -8,7 +8,6 @@ test.describe('agent browser', () => {
   test.use({ userAgent: AGENT_UA, storageState: { cookies: [], origins: [] } })
 
   test('a Claude-Agent beacon becomes a Claimed agent session and no human visitor', async ({ browser, baseURL }) => {
-    aiGate()
     const base = baseURL!
     const owner = await browser.newContext({ storageState: 'test-results/.auth.json', userAgent: 'Mozilla/5.0 (Macintosh) Chrome/130.0 Safari/537.36' })
     try {
@@ -20,9 +19,17 @@ test.describe('agent browser', () => {
         await page.route('https://demo.trail.dev/agent-test', (route) =>
           route.fulfill({
             contentType: 'text/html',
-            body: `<!doctype html><title>agent test</title><h1>agent</h1><script src="${base}/_t/t.js" data-site="demo" data-api="${base}/_t/e" data-mode="full" defer></script>`,
+            body: `<!doctype html><title>agent test</title><h1>agent</h1><script src="/_t/t.js" data-site="demo" data-api="/_t/e" data-mode="full" defer></script>`,
           }),
         )
+        // The tracker and its beacon go first-party, like the `/t/*` proxy from init: a public https page may not
+        // reach a loopback server directly (Chromium's local network access check blocks it).
+        await page.route('https://demo.trail.dev/_t/**', async (route) => {
+          const u = new URL(route.request().url())
+          // Firefox adds User-Agent below the interception layer, so pass the context's UA on, as a proxy would.
+          const headers = { ...route.request().headers(), 'user-agent': AGENT_UA }
+          await route.fulfill({ response: await route.fetch({ url: base + u.pathname + u.search, headers }) })
+        })
         const beacon = page.waitForResponse((r) => r.url().endsWith('/_t/e'))
         await page.goto('https://demo.trail.dev/agent-test')
         expect((await beacon).status()).toBe(204)

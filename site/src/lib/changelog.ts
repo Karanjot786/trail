@@ -1,6 +1,13 @@
 // Single source for the changelog page and the RSS feed.
 export const changes = [
   {
+    id: 'ai-visibility',
+    title: 'AI visibility',
+    date: '2026-11-21',
+    summary:
+      'An AI visibility screen with a funnel, Crawlers and Agents tabs. AI browsing agents are recognised from the script’s own requests, marked Verified or Claimed, and left out of visitor numbers unless you count them. npx trail-analytics init adds crawler capture and a first-party /t/* proxy with signed edge location to Next.js and Astro.',
+  },
+  {
     id: 'v2',
     title: 'Trail v2',
     date: '2026-11-20',

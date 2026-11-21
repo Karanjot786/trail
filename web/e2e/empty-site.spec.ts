@@ -1,6 +1,6 @@
 /* T-3 (Review Focus 1): a brand-new site has no events, goals, funnels, purchases or crawler data. Every screen shows
  * its empty state and never NaN, Infinity or -100%. */
-import { aiGate, expect, test, titled, gate, type App } from './fixtures'
+import { expect, test, titled, gate, type App } from './fixtures'
 const check = (title: string, body: (app: App) => Promise<void>, opts: { phone?: boolean } = {}) =>
   test(titled(null, title, opts), async ({ app }) => {
     gate()
@@ -33,7 +33,6 @@ check('a fresh site: every screen renders an empty state with no NaN, Infinity o
 })
 
 test('a fresh site: the three AI tabs and their reports render empty states (AI agents)', async ({ app }) => {
-  aiGate()
   const { page } = app
   expect((await page.request.post('/api/sites', { data: { id: 'freshai', domain: 'freshai.example.com' } })).status()).toBe(201)
   try {

@@ -52,5 +52,6 @@ Load a page. The network panel should show `POST /_t/e` answered with `204`, and
 - [Track events](/tracking/custom-events) and [named clicks](/tracking/named-clicks).
 - Pick a [privacy mode](/tracking/privacy).
 - Read your numbers in the [dashboard](/dashboard/overview).
+- Capture AI crawlers and serve the script first-party with [`npx trail-analytics init`](/add/ai-crawlers).
 
 <small>Reviewed on 2026-11-20 against `trail-analytics` 0.2.0.</small>

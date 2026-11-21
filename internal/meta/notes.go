@@ -13,6 +13,8 @@ import (
 var (
 	// ErrInvalid wraps every validation failure (400).
 	ErrInvalid = errors.New("invalid")
+	// ErrExists is returned for a name that is already taken (409).
+	ErrExists = errors.New("already exists")
 	// ErrNotFound is returned for an id that does not exist (404).
 	ErrNotFound = errors.New("not found")
 	// ErrGone is returned for an expired or revoked share link (410).

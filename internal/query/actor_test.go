@@ -165,16 +165,29 @@ func TestJourneyIncludesAgentSessions(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(j) != 1 || len(j[0].Steps) != 10 || j[0].Agent != "claude-agent" {
+	if len(j) != 1 || len(j[0].Steps) != 10 || j[0].Agent != "claude-agent" || j[0].Via != "ua" || j[0].Verified {
 		t.Fatalf("got %+v", j)
 	}
 	h, err := Journey(db, "s", "A", nil)
-	if err != nil || len(h) != 1 || h[0].Agent != "" {
+	if err != nil || len(h) != 1 || h[0].Agent != "" || h[0].Via != "" || h[0].Verified {
 		t.Fatalf("human journey %+v %v", h, err)
 	}
 	b, err := Journey(db, "s", "BOT", nil)
 	if err != nil || len(b) != 0 {
 		t.Fatalf("plain bot journey %+v %v", b, err)
+	}
+}
+
+// A session's via is the strongest way any of its events was recognised.
+func TestJourneyAgentViaIsBestInSession(t *testing.T) {
+	db := fixture(t, agentPV("V", "v1", "/", "claude-agent", "ua", t0), agentPV("V", "v1", "/docs", "claude-agent", "ip", t0+1000),
+		agentPV("V", "v1", "/pricing", "claude-agent", "ua", t0+2000), agentPV("V", "v2", "/", "chatgpt-agent", "sig", t0+hour))
+	j, err := Journey(db, "s", "V", nil)
+	if err != nil || len(j) != 2 {
+		t.Fatalf("got %+v %v", j, err)
+	}
+	if j[0].Via != "ip" || !j[0].Verified || j[1].Via != "sig" || !j[1].Verified {
+		t.Fatalf("via %q %v, %q %v", j[0].Via, j[0].Verified, j[1].Via, j[1].Verified)
 	}
 }
 

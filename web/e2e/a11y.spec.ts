@@ -2,7 +2,7 @@
  * heatmap cell filter and the drop-off sheet; dark and light; chromium and firefox (projects). Zero violations of any
  * impact. Plus a contrast sample (port of proto-d/test/contrast.cjs): sampled text nodes per route at 4.5:1. */
 import AxeBuilder from '@axe-core/playwright'
-import { aiGate, expect, test } from './fixtures'
+import { expect, test } from './fixtures'
 
 const ROUTES: [string, string][] = [
   ['overview', '/'], ['overview today', '/?range=today'], ['overview filtered', '/?f=source:Google'],
@@ -39,22 +39,28 @@ for (const theme of ['dark', 'light'] as const) {
 
     for (const tab of ['funnel', 'crawlers', 'agents']) {
       test(`axe: /ai/${tab} (${theme})`, async ({ app }) => {
-        aiGate()
         await app.goto(`/ai/${tab}`)
         const r = await new AxeBuilder({ page: app.page }).analyze()
         expect(r.violations.map((v) => `${v.impact} ${v.id} (${v.nodes.length}) ${v.nodes[0]?.target.join(' ')}`)).toEqual([])
       })
     }
 
-    test(`axe: agent journey and the unlock card with its command (${theme})`, async ({ app }) => {
-      aiGate()
+    test(`axe: agent journey and the unlock card with its command (${theme})`, async ({ app }, info) => {
       const { page } = app
+      // Tests share one server and the card names tokens per minute: tag the name so parallel runs never collide.
+      await page.route('**/api/tokens', (route) => {
+        const req = route.request()
+        if (req.method() !== 'POST') return route.continue()
+        const body = req.postDataJSON()
+        return route.continue({ postData: JSON.stringify({ ...body, name: `${body.name} ${info.project.name} ${theme} a11y` }) })
+      })
       await app.goto('/ai/agents')
       await page.getByRole('table', { name: 'Latest agent sessions' }).getByRole('row').nth(1).click()
-      await expect(page.getByRole('dialog').getByRole('heading', { name: /AI agent/ })).toBeVisible()
+      // CSS locators, not getByRole with a name: see the Firefox note on the command palette test.
+      await expect(page.locator('[role=dialog] h3', { hasText: 'AI agent' }).first()).toBeVisible()
       expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([])
       await page.keyboard.press('Escape')
-      const made = page.waitForResponse((r) => r.url().includes('/api/tokens') && r.request().method() === 'POST')
+      const made = page.waitForResponse((r) => r.url().includes('/api/tokens') && r.request().method() === 'POST' && r.status() === 201)
       await app.goto('/ai/funnel?site=docs')
       await page.getByRole('button', { name: 'Create token and copy command' }).click()
       const id = (await (await made).json()).id
@@ -72,11 +78,13 @@ for (const theme of ['dark', 'light'] as const) {
       // Opened from the sidebar's search button. Opened with Ctrl+K under Playwright, axe-core 4.14's run never
       // returns in Firefox (the palette itself stays responsive; CommandPalette.test covers the shortcut).
       await app.page.getByRole('button', { name: /Search or jump to/ }).click()
-      await expect(app.page.getByRole('dialog', { name: 'Command palette' })).toBeVisible()
+      // Firefox (Playwright's build) segfaults the page (a null read in XUL) when axe runs after a getByRole query with
+      // an accessible name on this dialog; CSS locators avoid that and check the same element.
+      await expect(app.page.locator('[role=dialog][aria-label="Command palette"]')).toBeVisible()
       expect((await new AxeBuilder({ page: app.page }).analyze()).violations).toEqual([])
       await app.page.keyboard.press('Escape')
       await app.page.keyboard.press('Shift+?')
-      await expect(app.page.getByRole('dialog', { name: 'Keyboard shortcuts' })).toBeVisible()
+      await expect(app.page.locator('[role=dialog]', { hasText: 'Keyboard shortcuts' })).toBeVisible()
       expect((await new AxeBuilder({ page: app.page }).analyze()).violations).toEqual([])
     })
 

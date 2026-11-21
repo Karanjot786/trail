@@ -118,7 +118,7 @@ var enums = map[string]any{
 	"APIToken.Scope": "read", "WhoAmI.Scope": "read",
 	"ChangeItem.Kind": "day", "ChangeItem.Metric": "bounce",
 	"AIFunnelStep.Key": "crawled", "AIFunnelStep.Unit": "requests", "AIFunnelStep.Status": "ok",
-	"AgentSession.Via": "ua", "AIList.Kind": "ip", "AISetupCrawls.State": "none", "GeoStatus.Source": "db",
+	"AgentSession.Via": "ua", "JourneySession.Via": "sig", "AIList.Kind": "ip", "AISetupCrawls.State": "none", "GeoStatus.Source": "db",
 }
 
 var rawType = reflect.TypeOf(json.RawMessage{})
