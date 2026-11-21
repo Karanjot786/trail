@@ -86,7 +86,7 @@ export function Goals({ share }: { share: boolean }) {
   return (
     <>
       {goals.length === 0 ? (
-        <div className="panel">
+        <div className="panel f4-panel">
           <EmptyState
             title="No goals for this website yet"
             body="A goal turns a page or an event into a number you can watch: “visited /pricing” or “sent Signup”. Trail then shows the rate, its trend and the paths that lead to it."

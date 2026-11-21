@@ -30,7 +30,7 @@ export function Sources({ ctx, share }: { ctx: Omit<MetricCtx, 'max'>; share: bo
   const head = group === 'referrer' ? 'Referrer' : group === 'channel' ? 'Channel' : 'Source'
   return (
     <>
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="seg-scroll">
         <Segmented value={group} onValueChange={(v) => setGroup(v as Group)} items={GROUPS} ariaLabel="Group by" />
       </div>
       <Lede>{LEDE[group]}</Lede>

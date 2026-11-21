@@ -48,7 +48,7 @@ export function Funnels({ id, share }: { id: number | null; share: boolean }) {
     <>
       {staleSheet && <StaleState title="The funnel in this link no longer exists" back={{ sheet: null, id: null }} backLabel="Back to all funnels" />}
       {funnels.length === 0 ? (
-        <div className="panel">
+        <div className="panel f4-panel">
           <EmptyState
             title="No funnels yet"
             body="A funnel is an ordered list of pages or events, like /docs then /pricing then Signup. Trail counts who made it through each step within a time window, and who dropped off."

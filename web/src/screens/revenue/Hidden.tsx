@@ -8,7 +8,7 @@ export const PURCHASE_SNIPPET = "trail.track('Purchase', { amount: 19, currency:
 export function Hidden({ domain, shareHidden }: { domain: string; shareHidden: boolean }) {
   if (shareHidden) return <EmptyState title="Revenue is hidden on this link" body="The person who shared this link chose to leave revenue out." />
   return (
-    <div className="panel">
+    <div className="panel f4-panel">
       <EmptyState
         numeral="0"
         title={`Revenue is hidden for ${domain}`}

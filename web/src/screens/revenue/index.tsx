@@ -50,12 +50,14 @@ function Breakdown({ currency, net }: { currency: string; net: number }) {
   const label = (k: string) => (dim === 'campaign' && !k ? 'No campaign (untagged)' : rowLabel(rowDim[dim], k))
   const head = DIMS.find((d) => d.value === dim)!.label
   return (
-    <section className="panel" aria-labelledby="rev-by-h">
+    <section className="panel f4-panel" aria-labelledby="rev-by-h">
       <div className="panel-h" style={{ flexWrap: 'wrap', paddingBottom: 6 }}>
         <h2 id="rev-by-h" className="sr-only">
           Revenue by first touch {head.toLowerCase()}
         </h2>
-        <Segmented value={dim} onValueChange={(v) => setDim(v as RDim)} items={DIMS} ariaLabel="Credit revenue to" />
+        <div className="seg-scroll">
+          <Segmented value={dim} onValueChange={(v) => setDim(v as RDim)} items={DIMS} ariaLabel="Credit revenue to" />
+        </div>
         <span className="spacer" />
         <Badge>First touch</Badge>
       </div>

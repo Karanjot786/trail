@@ -22,7 +22,7 @@
 @media (hover: hover) and (pointer: fine) { .stat-strip > button:hover, .stat-strip > a:hover { background: var(--hover); } }
 .stat-strip .k { color: var(--muted); font-size: var(--text-small); font-weight: 500; display: flex; gap: 6px; align-items: center; }
 .stat-strip .v { font-family: var(--font-sans); font-size: var(--text-stat); font-weight: 600; line-height: 1.1; letter-spacing: -.02em; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.stat-strip .v.word { font-size: 22px; }
+.stat-strip .v.word { font-size: 22px; white-space: normal; overflow-wrap: anywhere; }
 .stat-strip .s { color: var(--muted); font-size: var(--text-caption); display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 @media (max-width: 960px) {
   .stat-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -171,3 +171,13 @@
 
 /* Shared class names with other screens' CSS: keep F4 layouts independent of load order. */
 .f4 .stat-strip { margin-bottom: 0; }
+/* The panel frame (the Overview's panel stylesheet is not loaded on these screens). */
+.f4-panel { display: flex; flex-direction: column; min-width: 0; border: 1px solid var(--border); border-radius: var(--radius-panel); background: var(--surface); }
+.f4-panel .panel-h { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 6px 8px 0 14px; }
+.f4-panel .panel-h h2 { margin: 0; font-size: var(--text-label); font-weight: 600; }
+.f4-panel .panel-h .spacer { flex: 1; }
+.f4-panel .panel-def { margin: 4px 14px 8px; color: var(--muted); font-size: var(--text-caption); }
+.seg-scroll { max-width: 100%; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+.gcard .nums > span, .gcard .m > span:first-child { display: flex; flex-direction: column; min-width: 0; }
+.gcard .rate-big { display: block; }
+.funnel-pick .seg { max-width: 100%; overflow-x: auto; scrollbar-width: none; }

@@ -235,7 +235,7 @@ export function GoalDetail({ id, share }: { id: number; share: boolean }) {
                 />
               </div>
             )}
-            <section className="panel" aria-labelledby="paths-h">
+            <section className="panel f4-panel" aria-labelledby="paths-h">
               <div className="panel-h">
                 <h2 id="paths-h">Paths that lead here</h2>
                 <span className="spacer" />

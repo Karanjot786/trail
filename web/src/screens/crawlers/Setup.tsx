@@ -20,7 +20,7 @@ export function Setup({ site, origin }: { site: string; origin: string }) {
   const [way, setWay] = useState<Way>('nginx')
   const cmd = setupCommands(site, origin)
   return (
-    <div className="panel">
+    <div className="panel f4-panel">
       <EmptyState
         title="Not set up yet"
         body="AI crawlers never run your tracking script, so Trail reads them from your server or proxy logs. Only known AI crawler user agents are kept, counted per hour, page and status. They never count as visitors."

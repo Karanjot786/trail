@@ -6,6 +6,7 @@ import { api } from '../../api/client'
 import type { FunnelReport } from '../../api/types'
 import { bar } from '../../lib/bar'
 import { fmtDur, fmtInt, fmtPct } from '../../lib/format'
+import { formatRate } from '../../lib/goals'
 import { navigate } from '../../state/useUrlState'
 import { Button } from '../../ui/button'
 import { ErrorState, Skeleton } from '../../ui/states'
@@ -40,7 +41,7 @@ export function FunnelDetail({ id }: { id: number }) {
       <StatStrip>
         <Stat k="Entered" v={fmtInt(rep.started)} s="reached step 1" />
         <Stat k="Completed" v={fmtInt(completed)} s={`reached step ${n}`} />
-        <Stat k="Conversion" v={rep.started ? fmtPct(completed / rep.started) : 'n/a'} s="end to end" />
+        <Stat k="Conversion" v={rep.started ? formatRate(completed / rep.started) : 'n/a'} s="end to end" />
         {drop && drop.people > 0 ? (
           <button type="button" data-testid="biggest-drop" onClick={() => openDropoff(rep.funnel.id, drop.after)}>
             <span className="k">Biggest drop-off</span>
@@ -53,7 +54,7 @@ export function FunnelDetail({ id }: { id: number }) {
           <Stat k="Biggest drop-off" v="none" s={rep.started ? 'everyone who started finished' : 'nobody started yet'} />
         )}
       </StatStrip>
-      <section className="panel" aria-label={`${rep.funnel.name} steps`}>
+      <section className="panel f4-panel" aria-label={`${rep.funnel.name} steps`}>
         <ol className="funnel">
           {steps.map((st, i) => {
             const f = bar(st.reached, max)
@@ -72,10 +73,10 @@ export function FunnelDetail({ id }: { id: number }) {
                   </div>
                   <div className="fbars" aria-hidden="true">
                     <i data-funnel-bar="" style={{ transform: `scaleX(${Number(f.toFixed(4))})` }} />
-                    <em>{fmtPct(st.fromStart)}</em>
+                    <em>{formatRate(st.fromStart)}</em>
                   </div>
                   <div className="nums">
-                    <b>{fmtInt(st.reached)}</b> people
+                    <b>{fmtInt(st.reached)}</b> {st.reached === 1 ? 'person' : 'people'}
                     <span>{i ? `${fmtPct(st.fromPrev)} of step ${i}` : 'started the funnel'}</span>
                   </div>
                 </div>
