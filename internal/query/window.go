@@ -151,7 +151,8 @@ func ResolveWindow(rangeKey, cmp string, now time.Time, loc *time.Location, data
 	if single {
 		w.Bucket = "hour"
 	}
-	w.Elapsed = single && running
+	w.Elapsed = running // the window is still running: its last bucket ends at now
+	sameHours := single && running
 	w.From = from.UnixMilli()
 	w.To = endMs(to)
 	if running {
@@ -161,7 +162,7 @@ func ResolveWindow(rangeKey, cmp string, now time.Time, loc *time.Location, data
 	if pf.IsZero() {
 		pf, pt = dayAt(from, -n), dayAt(from, -1)
 		switch {
-		case single && w.Elapsed:
+		case sameHours:
 			why, clip = "same hours yesterday", true
 		case single:
 			why = "the day before"
@@ -187,9 +188,6 @@ func ResolveWindow(rangeKey, cmp string, now time.Time, loc *time.Location, data
 		}
 	}
 	w.Basis.Custom = custom
-	if w.Elapsed && custom {
-		w.Elapsed = false
-	}
 	w.LastBucket = lastBucket(w, now, loc)
 
 	if cmp == "none" {
