@@ -4,16 +4,6 @@ package query
 
 import "database/sql"
 
-// GoalDetail returns one goal's numbers and first-touch credit.
-func GoalDetail(db *sql.DB, p Params, id int64) (GoalDetailResult, error) {
-	return GoalDetailResult{}, ErrNotImplemented
-}
-
-// PathsToGoal returns the common paths converters took.
-func PathsToGoal(db *sql.DB, p Params, goal int64) (PathsReport, error) {
-	return PathsReport{}, ErrNotImplemented
-}
-
 // FunnelReport runs a stored funnel over the window.
 func FunnelReport(db *sql.DB, p Params, id int64) (FunnelReportResult, error) {
 	return FunnelReportResult{}, ErrNotImplemented
