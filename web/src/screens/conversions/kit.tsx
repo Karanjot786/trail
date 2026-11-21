@@ -57,7 +57,7 @@ export function PageTabs({ items, value, label }: { items: PageTab[]; value: str
 
 export function StatStrip({ children, label, n }: { children: ReactNode; label?: string; n?: number }) {
   return (
-    <div className="stat-strip" role={label ? 'group' : undefined} aria-label={label} style={n ? ({ ['--n' as string]: n } as CSSProperties) : undefined}>
+    <div className="stat-strip" role={label ? 'group' : undefined} aria-label={label} style={n ? ({ ['--n' as string]: n, ['--cols' as string]: n } as CSSProperties) : undefined}>
       {children}
     </div>
   )

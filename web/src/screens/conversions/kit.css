@@ -94,10 +94,10 @@
 .trail .ft i { width: 4px; height: 4px; border-radius: 50%; background: currentColor; display: block; }
 .trail .ft i:nth-child(2) { width: 3px; height: 3px; }
 .trail .ft i:nth-child(3) { width: 2.5px; height: 2.5px; }
-.path-rows { list-style: none; margin: 0; padding: 6px; }
-.path-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 16px; align-items: center; padding: 10px 8px; border-radius: var(--radius-row); }
-.path-row .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.path-row .num span { color: var(--muted); font-size: 12px; margin-left: 6px; }
+.gpath-rows { list-style: none; margin: 0; padding: 6px; }
+.gpath-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 16px; align-items: center; padding: 10px 8px; border-radius: var(--radius-row); }
+.gpath-row .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.gpath-row .num span { color: var(--muted); font-size: 12px; margin-left: 6px; }
 
 /* Funnels */
 .funnel { display: flex; flex-direction: column; gap: 4px; padding: 8px 14px 4px; list-style: none; margin: 0; }
@@ -168,3 +168,6 @@
 @media (prefers-reduced-motion: reduce) {
   .share-bar .barwrap i, .fbars i, .rev-rows .barwrap i, .gcard, .stat-strip > button, .stat-strip > a { transition: none; }
 }
+
+/* Shared class names with other screens' CSS: keep F4 layouts independent of load order. */
+.f4 .stat-strip { margin-bottom: 0; }

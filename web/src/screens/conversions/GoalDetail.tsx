@@ -244,9 +244,9 @@ export function GoalDetail({ id, share }: { id: number; share: boolean }) {
                 </RouteLink>
               </div>
               {paths.data && paths.data.rows.length > 0 ? (
-                <ol className="path-rows">
+                <ol className="gpath-rows">
                   {paths.data.rows.slice(0, 5).map((p, i) => (
-                    <li key={i} className="path-row">
+                    <li key={i} className="gpath-row">
                       <span className="trail">
                         {p.steps.map((x, k) => (
                           <span key={k} className="contents">
