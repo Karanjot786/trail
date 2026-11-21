@@ -1,7 +1,7 @@
 // Shared pieces of the F4 screens (Acquisition, Conversions, Revenue, AI crawlers): the report query hook,
 // page tabs, the stat strip, the one-rule bar cell and the calm stale state. Look: proto-d `.stat-strip`,
 // `.page-tabs`, `.share-bar`, `.lede`, `.method`.
-import type { ReactNode } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import { ChevronLeft } from 'lucide-react'
 import { useQuery, type QueryResult } from '../../api/useQuery'
 import { bar } from '../../lib/bar'
@@ -55,9 +55,9 @@ export function PageTabs({ items, value, label }: { items: PageTab[]; value: str
   )
 }
 
-export function StatStrip({ children, label }: { children: ReactNode; label?: string }) {
+export function StatStrip({ children, label, n }: { children: ReactNode; label?: string; n?: number }) {
   return (
-    <div className="stat-strip" role={label ? 'group' : undefined} aria-label={label}>
+    <div className="stat-strip" role={label ? 'group' : undefined} aria-label={label} style={n ? ({ ['--n' as string]: n } as CSSProperties) : undefined}>
       {children}
     </div>
   )
