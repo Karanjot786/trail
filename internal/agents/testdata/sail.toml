@@ -1,0 +1,26 @@
+schema        = "draft-kelley-webbotauth-sail-00"
+modified      = 2026-11-14T02:20:00Z
+expires_after = 3600  # seconds
+
+[[prefix_sets]]
+name          = "browsers" # trailing comment
+exclusive     = true
+ipv4_prefixes = [
+  "192.0.2.10",
+  "198.51.100.0/24", # inline comment, with "quotes" ]
+]
+ipv6_prefixes = ["2001:db8:1::/48"]
+
+[[prefix_sets]]
+name          = "crawlers"
+ipv4_prefixes = ["203.0.113.0/24"]
+ipv6_prefixes = []
+
+[[services]]
+name        = "Claude-Agent"
+exhaustive  = true
+prefix_sets = ["browsers"]
+
+[[services]]
+name        = "ClaudeBot"
+prefix_sets = ["crawlers"]
