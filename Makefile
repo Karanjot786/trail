@@ -1,4 +1,4 @@
-.PHONY: tracker web build test dev seed dev-seed e2e demo-fixtures clean
+.PHONY: tracker web build test dev seed dev-seed e2e demo-fixtures geo clean
 
 tracker:
 	cd tracker && npm ci && node build.mjs
@@ -36,6 +36,10 @@ demo-fixtures:
 	cd web && pnpm fixtures
 	cd web && pnpm build:demo
 	cd web && E2E_ALL=1 pnpm exec playwright test -c playwright.fixtures.config.ts
+
+# Refresh the embedded DB-IP Lite Country database (CI runs this monthly and opens a PR).
+geo:
+	./scripts/update-geo.sh
 
 clean:
 	rm -f trail dev.db dev.db-* internal/ingest/t.js
