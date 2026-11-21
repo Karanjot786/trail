@@ -1,0 +1,540 @@
+{
+  "configured": true,
+  "window": {
+    "key": "30d",
+    "label": "Last 30 days",
+    "from": 1792607400000,
+    "to": 1795149300000,
+    "prevFrom": 1790015400000,
+    "prevTo": 1792607399999,
+    "bucket": "day",
+    "tz": "Asia/Kolkata",
+    "elapsed": true,
+    "lastBucket": 29,
+    "clamped": false,
+    "invalid": "",
+    "basis": {
+      "text": "vs Sep 22 – Oct 21 (the previous 30 days)",
+      "short": "prev. 30 days",
+      "why": "the previous 30 days",
+      "dates": "Sep 22 – Oct 21",
+      "custom": false,
+      "none": false
+    }
+  },
+  "total": 6662,
+  "prevTotal": 6938,
+  "categories": [
+    {
+      "key": "training",
+      "requests": 0,
+      "prev": 0
+    },
+    {
+      "key": "indexing",
+      "requests": 0,
+      "prev": 0
+    },
+    {
+      "key": "fetch",
+      "requests": 0,
+      "prev": 0
+    },
+    {
+      "key": "general",
+      "requests": 6662,
+      "prev": 6938
+    }
+  ],
+  "providers": [
+    {
+      "provider": "GPTBot",
+      "crawlers": [
+        {
+          "name": "GPTBot",
+          "category": "general",
+          "requests": 968,
+          "prev": 1012
+        }
+      ]
+    },
+    {
+      "provider": "ClaudeBot",
+      "crawlers": [
+        {
+          "name": "ClaudeBot",
+          "category": "general",
+          "requests": 775,
+          "prev": 824
+        }
+      ]
+    },
+    {
+      "provider": "ChatGPT-User",
+      "crawlers": [
+        {
+          "name": "ChatGPT-User",
+          "category": "general",
+          "requests": 614,
+          "prev": 646
+        }
+      ]
+    },
+    {
+      "provider": "Bytespider",
+      "crawlers": [
+        {
+          "name": "Bytespider",
+          "category": "general",
+          "requests": 558,
+          "prev": 573
+        }
+      ]
+    },
+    {
+      "provider": "OAI-SearchBot",
+      "crawlers": [
+        {
+          "name": "OAI-SearchBot",
+          "category": "general",
+          "requests": 480,
+          "prev": 592
+        }
+      ]
+    },
+    {
+      "provider": "Google-Extended",
+      "crawlers": [
+        {
+          "name": "Google-Extended",
+          "category": "general",
+          "requests": 436,
+          "prev": 426
+        }
+      ]
+    },
+    {
+      "provider": "PerplexityBot",
+      "crawlers": [
+        {
+          "name": "PerplexityBot",
+          "category": "general",
+          "requests": 421,
+          "prev": 461
+        }
+      ]
+    },
+    {
+      "provider": "Amazonbot",
+      "crawlers": [
+        {
+          "name": "Amazonbot",
+          "category": "general",
+          "requests": 415,
+          "prev": 385
+        }
+      ]
+    },
+    {
+      "provider": "Meta-ExternalAgent",
+      "crawlers": [
+        {
+          "name": "Meta-ExternalAgent",
+          "category": "general",
+          "requests": 356,
+          "prev": 394
+        }
+      ]
+    },
+    {
+      "provider": "Applebot",
+      "crawlers": [
+        {
+          "name": "Applebot",
+          "category": "general",
+          "requests": 351,
+          "prev": 351
+        }
+      ]
+    },
+    {
+      "provider": "Perplexity-User",
+      "crawlers": [
+        {
+          "name": "Perplexity-User",
+          "category": "general",
+          "requests": 339,
+          "prev": 313
+        }
+      ]
+    },
+    {
+      "provider": "CCBot",
+      "crawlers": [
+        {
+          "name": "CCBot",
+          "category": "general",
+          "requests": 305,
+          "prev": 294
+        }
+      ]
+    },
+    {
+      "provider": "Claude-User",
+      "crawlers": [
+        {
+          "name": "Claude-User",
+          "category": "general",
+          "requests": 249,
+          "prev": 283
+        }
+      ]
+    },
+    {
+      "provider": "Claude-SearchBot",
+      "crawlers": [
+        {
+          "name": "Claude-SearchBot",
+          "category": "general",
+          "requests": 195,
+          "prev": 189
+        }
+      ]
+    },
+    {
+      "provider": "DuckAssistBot",
+      "crawlers": [
+        {
+          "name": "DuckAssistBot",
+          "category": "general",
+          "requests": 125,
+          "prev": 113
+        }
+      ]
+    },
+    {
+      "provider": "MistralAI-User",
+      "crawlers": [
+        {
+          "name": "MistralAI-User",
+          "category": "general",
+          "requests": 75,
+          "prev": 82
+        }
+      ]
+    }
+  ],
+  "series": [
+    {
+      "t": 1792607400000,
+      "training": 0,
+      "indexing": 0,
+      "fetch": 0,
+      "general": 239
+    },
+    {
+      "t": 1792693800000,
+      "training": 0,
+      "indexing": 0,
+      "fetch": 0,
+      "general": 242
+    },
+    {
+      "t": 1792780200000,
+      "training": 0,
+      "indexing": 0,
+      "fetch": 0,
+      "general": 235
+    },
+    {
+      "t": 1792866600000,
+      "training": 0,
+      "indexing": 0,
+      "fetch": 0,
+      "general": 242
+    },
+    {
+      "t": 1792953000000,
+      "training": 0,
+      "indexing": 0,
+      "fetch": 0,
+      "general": 202
+    },
+    {
+      "t": 1793039400000,
+      "training": 0,
+      "indexing": 0,
+      "fetch": 0,
+      "general": 190
+    },
+    {
+      "t": 1793125800000,
+      "training": 0,
+      "indexing": 0,
+      "fetch": 0,
+      "general": 220
+    },
+    {
+      "t": 1793212200000,
+      "training": 0,
+      "indexing": 0,
+      "fetch": 0,
+      "general": 216
+    },
+    {
+      "t": 1793298600000,
+      "training": 0,
+      "indexing": 0,
+      "fetch": 0,
+      "general": 220
+    },
+    {
+      "t": 1793385000000,
+      "training": 0,
+      "indexing": 0,
+      "fetch": 0,
+      "general": 214
+    },
+    {
+      "t": 1793471400000,
+      "training": 0,
+      "indexing": 0,
+      "fetch": 0,
+      "general": 210
+    },
+    {
+      "t": 1793557800000,
+      "training": 0,
+      "indexing": 0,
+      "fetch": 0,
+      "general": 226
+    },
+    {
+      "t": 1793644200000,
+      "training": 0,
+      "indexing": 0,
+      "fetch": 0,
+      "general": 200
+    },
+    {
+      "t": 1793730600000,
+      "training": 0,
+      "indexing": 0,
+      "fetch": 0,
+      "general": 215
+    },
+    {
+      "t": 1793817000000,
+      "training": 0,
+      "indexing": 0,
+      "fetch": 0,
+      "general": 209
+    },
+    {
+      "t": 1793903400000,
+      "training": 0,
+      "indexing": 0,
+      "fetch": 0,
+      "general": 185
+    },
+    {
+      "t": 1793989800000,
+      "training": 0,
+      "indexing": 0,
+      "fetch": 0,
+      "general": 231
+    },
+    {
+      "t": 1794076200000,
+      "training": 0,
+      "indexing": 0,
+      "fetch": 0,
+      "general": 235
+    },
+    {
+      "t": 1794162600000,
+      "training": 0,
+      "indexing": 0,
+      "fetch": 0,
+      "general": 233
+    },
+    {
+      "t": 1794249000000,
+      "training": 0,
+      "indexing": 0,
+      "fetch": 0,
+      "general": 244
+    },
+    {
+      "t": 1794335400000,
+      "training": 0,
+      "indexing": 0,
+      "fetch": 0,
+      "general": 240
+    },
+    {
+      "t": 1794421800000,
+      "training": 0,
+      "indexing": 0,
+      "fetch": 0,
+      "general": 213
+    },
+    {
+      "t": 1794508200000,
+      "training": 0,
+      "indexing": 0,
+      "fetch": 0,
+      "general": 264
+    },
+    {
+      "t": 1794594600000,
+      "training": 0,
+      "indexing": 0,
+      "fetch": 0,
+      "general": 247
+    },
+    {
+      "t": 1794681000000,
+      "training": 0,
+      "indexing": 0,
+      "fetch": 0,
+      "general": 236
+    },
+    {
+      "t": 1794767400000,
+      "training": 0,
+      "indexing": 0,
+      "fetch": 0,
+      "general": 237
+    },
+    {
+      "t": 1794853800000,
+      "training": 0,
+      "indexing": 0,
+      "fetch": 0,
+      "general": 243
+    },
+    {
+      "t": 1794940200000,
+      "training": 0,
+      "indexing": 0,
+      "fetch": 0,
+      "general": 254
+    },
+    {
+      "t": 1795026600000,
+      "training": 0,
+      "indexing": 0,
+      "fetch": 0,
+      "general": 233
+    },
+    {
+      "t": 1795113000000,
+      "training": 0,
+      "indexing": 0,
+      "fetch": 0,
+      "general": 87
+    }
+  ],
+  "pages": [
+    {
+      "path": "/docs/installation",
+      "provider": "GPTBot",
+      "crawler": "GPTBot",
+      "category": "general",
+      "requests": 642,
+      "lastSeen": 1795146868475,
+      "share": 0.09636745722005403
+    },
+    {
+      "path": "/blog/launch-week",
+      "provider": "GPTBot",
+      "crawler": "GPTBot",
+      "category": "general",
+      "requests": 637,
+      "lastSeen": 1795144643606,
+      "share": 0.09561693185229661
+    },
+    {
+      "path": "/",
+      "provider": "GPTBot",
+      "crawler": "GPTBot",
+      "category": "general",
+      "requests": 629,
+      "lastSeen": 1795149223000,
+      "share": 0.09441609126388471
+    },
+    {
+      "path": "/sitemap.xml",
+      "provider": "GPTBot",
+      "crawler": "GPTBot",
+      "category": "general",
+      "requests": 629,
+      "lastSeen": 1795148353890,
+      "share": 0.09441609126388471
+    },
+    {
+      "path": "/docs/components/data-story",
+      "provider": "GPTBot",
+      "crawler": "GPTBot",
+      "category": "general",
+      "requests": 614,
+      "lastSeen": 1795143050149,
+      "share": 0.09216451516061243
+    },
+    {
+      "path": "/changelog",
+      "provider": "GPTBot",
+      "crawler": "GPTBot",
+      "category": "general",
+      "requests": 611,
+      "lastSeen": 1795145925241,
+      "share": 0.09171419993995797
+    },
+    {
+      "path": "/templates/reel-starter",
+      "provider": "GPTBot",
+      "crawler": "GPTBot",
+      "category": "general",
+      "requests": 601,
+      "lastSeen": 1795146363797,
+      "share": 0.09021314920444311
+    },
+    {
+      "path": "/robots.txt",
+      "provider": "GPTBot",
+      "crawler": "GPTBot",
+      "category": "general",
+      "requests": 585,
+      "lastSeen": 1795139280553,
+      "share": 0.08781146802761933
+    },
+    {
+      "path": "/docs/components",
+      "provider": "ClaudeBot",
+      "crawler": "ClaudeBot",
+      "category": "general",
+      "requests": 584,
+      "lastSeen": 1795140406899,
+      "share": 0.08766136295406785
+    },
+    {
+      "path": "/pricing",
+      "provider": "GPTBot",
+      "crawler": "GPTBot",
+      "category": "general",
+      "requests": 574,
+      "lastSeen": 1795132898510,
+      "share": 0.08616031221855298
+    },
+    {
+      "path": "/llms.txt",
+      "provider": "GPTBot",
+      "crawler": "GPTBot",
+      "category": "general",
+      "requests": 556,
+      "lastSeen": 1795147820162,
+      "share": 0.08345842089462624
+    }
+  ]
+}

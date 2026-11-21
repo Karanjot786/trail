@@ -64,7 +64,7 @@ func TestDemoDefaultsToDemoSite(t *testing.T) {
 	}
 }
 
-func TestDemoNonGetIs403(t *testing.T) {
+func TestDemoRefusesWrites(t *testing.T) {
 	now, _ := clock(t0)
 	d := mustNew(t, now)
 	for _, m := range []string{http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete, http.MethodHead, http.MethodOptions} {
@@ -77,7 +77,7 @@ func TestDemoNonGetIs403(t *testing.T) {
 	}
 	// a rejected write must not have changed anything
 	var n int
-	if err := d.cur().st.DB().QueryRow(`SELECT count(*) FROM goals`).Scan(&n); err != nil || n != 2 {
+	if err := d.cur().st.DB().QueryRow(`SELECT count(*) FROM goals`).Scan(&n); err != nil || n != 4 {
 		t.Fatalf("goals = %d, %v", n, err)
 	}
 }
@@ -105,7 +105,8 @@ func TestDemoRoutesAreAllowlisted(t *testing.T) {
 			t.Errorf("%s: %d %s", p, w.Code, w.Body)
 		}
 	}
-	for _, p := range []string{"/api/demo/sites", "/api/demo/login", "/api/demo/", "/api/demo/../login", "/api/demo/goals/1",
+	for _, p := range []string{"/api/demo/tokens", "/api/demo/shares", "/api/demo/config", "/api/demo/sites/demo/check",
+		"/api/demo/sites/demo/export", "/api/demo/login", "/api/demo/", "/api/demo/../login", "/api/demo/goals/1",
 		"/api/stats", "/api/login", "/", "/api/demo/stats/extra"} {
 		if w := do(d, http.MethodGet, p+"?site=demo"); w.Code != http.StatusNotFound {
 			t.Errorf("GET %s: %d, want 404", p, w.Code)
@@ -236,5 +237,49 @@ func TestNewServesHandler(t *testing.T) {
 	}
 	if w := do(h, http.MethodPost, "/api/demo/goals"); w.Code != http.StatusForbidden {
 		t.Fatalf("post: %d", w.Code)
+	}
+}
+
+func TestDemoAllowlistCoversReads(t *testing.T) {
+	now, _ := clock(t0)
+	d := mustNew(t, now)
+	for site, goal := range map[string]string{"demo": "1", "docs": "3"} {
+		for _, p := range []string{"sites", "sites/summary?site=all", "sites/" + site + "/status", "stats", "series?metric=revenue&extras=1",
+			"breakdown?dim=channel", "changes", "heatmap", "live", "visitors", "sessions", "campaigns", "ai-referrals", "events",
+			"events/detail?name=Signup", "goals", "goals/report", "goals/" + goal + "/detail", "paths?goal=" + goal, "funnels", "revenue",
+			"revenue/breakdown?dim=source", "crawlers", "notes", "views", "delivery"} {
+			sep := "?"
+			if strings.Contains(p, "?") {
+				sep = "&"
+			}
+			u := "/api/demo/" + p + sep + "range=30d"
+			if !strings.Contains(p, "site=") {
+				u += "&site=" + site
+			}
+			if w := do(d, http.MethodGet, u); w.Code != 200 {
+				t.Errorf("%s: %d %s", u, w.Code, w.Body)
+			}
+		}
+	}
+	if w := do(d, http.MethodGet, "/api/demo/funnels/1/report?site=demo&range=30d"); w.Code != 200 {
+		t.Errorf("funnel report: %d %s", w.Code, w.Body)
+	}
+	if w := do(d, http.MethodGet, "/api/demo/funnels/1/dropoff?site=demo&range=30d&step=1"); w.Code != 200 {
+		t.Errorf("dropoff: %d %s", w.Code, w.Body)
+	}
+	w := do(d, http.MethodGet, "/api/demo/sites")
+	if !strings.Contains(w.Body.String(), `"id":"demo"`) || !strings.Contains(w.Body.String(), `"revenue":true`) ||
+		!strings.Contains(w.Body.String(), `"crawlers":true`) {
+		t.Errorf("demo features: %s", w.Body)
+	}
+	var list []struct {
+		ID       string
+		Features struct{ Revenue, Crawlers bool }
+	}
+	_ = json.Unmarshal(w.Body.Bytes(), &list)
+	for _, s := range list {
+		if s.ID == "docs" && (s.Features.Revenue || s.Features.Crawlers) {
+			t.Errorf("docs has revenue or crawlers: %+v", s)
+		}
 	}
 }

@@ -1,0 +1,9 @@
+[
+  {
+    "id": 1,
+    "name": "Mobile",
+    "site": "demo",
+    "state": "range=30d\u0026f=device:mobile",
+    "created": 1700000000000
+  }
+]

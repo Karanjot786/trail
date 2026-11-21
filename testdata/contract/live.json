@@ -1,0 +1,218 @@
+{
+  "asOf": 1795149300000,
+  "active": 6,
+  "events5m": 21,
+  "countries": [
+    {
+      "key": "IN",
+      "count": 3
+    },
+    {
+      "key": "BR",
+      "count": 1
+    },
+    {
+      "key": "GB",
+      "count": 1
+    },
+    {
+      "key": "SG",
+      "count": 1
+    }
+  ],
+  "sources": [
+    {
+      "key": "Direct",
+      "count": 2
+    },
+    {
+      "key": "ChatGPT",
+      "count": 1
+    },
+    {
+      "key": "Google",
+      "count": 1
+    },
+    {
+      "key": "LinkedIn",
+      "count": 1
+    },
+    {
+      "key": "newsletter",
+      "count": 1
+    }
+  ],
+  "pages": [
+    {
+      "key": "/",
+      "count": 1
+    },
+    {
+      "key": "/docs",
+      "count": 1
+    },
+    {
+      "key": "/docs/components",
+      "count": 1
+    },
+    {
+      "key": "/docs/components/tutorial",
+      "count": 1
+    },
+    {
+      "key": "/pricing",
+      "count": 1
+    },
+    {
+      "key": "/signup",
+      "count": 1
+    }
+  ],
+  "stream": [
+    {
+      "ts": 1795149299852,
+      "person": "56b2a7bda145121bddc187320ac89db2",
+      "label": "Visitor 56B2",
+      "sessionId": "867046d090870de8a14aeb54c82cdc1f",
+      "type": "pageview",
+      "path": "/docs/components",
+      "name": "",
+      "country": "IN",
+      "city": "Mumbai",
+      "source": "Direct"
+    },
+    {
+      "ts": 1795149273518,
+      "person": "0a2b97602c26eaf364713e5b45661d3c",
+      "label": "Visitor 0A2B",
+      "sessionId": "1e7daf60aebb590540a3f1b815eab00f",
+      "type": "pageview",
+      "path": "/signup",
+      "name": "",
+      "country": "SG",
+      "city": "Singapore",
+      "source": "ChatGPT"
+    },
+    {
+      "ts": 1795149259524,
+      "person": "b42d122dc52323db109cac7a9d0d203f",
+      "label": "Visitor B42D",
+      "sessionId": "f4000fae084994f5d9aa1ce327b26925",
+      "type": "pageview",
+      "path": "/docs/components/tutorial",
+      "name": "",
+      "country": "GB",
+      "city": "Manchester",
+      "source": "Google"
+    },
+    {
+      "ts": 1795149249172,
+      "person": "56b2a7bda145121bddc187320ac89db2",
+      "label": "Visitor 56B2",
+      "sessionId": "867046d090870de8a14aeb54c82cdc1f",
+      "type": "pageview",
+      "path": "/changelog",
+      "name": "",
+      "country": "IN",
+      "city": "Mumbai",
+      "source": "Direct"
+    },
+    {
+      "ts": 1795149233104,
+      "person": "9459777509bd9dac40d8bdcac835e8a0",
+      "label": "Visitor 9459",
+      "sessionId": "e0e46e164b5026b8637b30657e047007",
+      "type": "event",
+      "path": "/pricing",
+      "name": "Download Template",
+      "country": "BR",
+      "city": "São Paulo",
+      "source": "LinkedIn"
+    },
+    {
+      "ts": 1795149232184,
+      "person": "9459777509bd9dac40d8bdcac835e8a0",
+      "label": "Visitor 9459",
+      "sessionId": "e0e46e164b5026b8637b30657e047007",
+      "type": "pageview",
+      "path": "/pricing",
+      "name": "",
+      "country": "BR",
+      "city": "São Paulo",
+      "source": "LinkedIn"
+    },
+    {
+      "ts": 1795149227643,
+      "person": "b42d122dc52323db109cac7a9d0d203f",
+      "label": "Visitor B42D",
+      "sessionId": "f4000fae084994f5d9aa1ce327b26925",
+      "type": "pageview",
+      "path": "/blog/117",
+      "name": "",
+      "country": "GB",
+      "city": "Manchester",
+      "source": "Google"
+    },
+    {
+      "ts": 1795149219553,
+      "person": "0a2b97602c26eaf364713e5b45661d3c",
+      "label": "Visitor 0A2B",
+      "sessionId": "1e7daf60aebb590540a3f1b815eab00f",
+      "type": "pageview",
+      "path": "/",
+      "name": "",
+      "country": "SG",
+      "city": "Singapore",
+      "source": "ChatGPT"
+    },
+    {
+      "ts": 1795149197057,
+      "person": "user_183",
+      "label": "user_183",
+      "sessionId": "6b52b189887b5f7e26db8ce27085e11d",
+      "type": "event",
+      "path": "/signup",
+      "name": "Signup",
+      "country": "IN",
+      "city": "Pune",
+      "source": "newsletter"
+    },
+    {
+      "ts": 1795149193907,
+      "person": "user_183",
+      "label": "user_183",
+      "sessionId": "6b52b189887b5f7e26db8ce27085e11d",
+      "type": "pageview",
+      "path": "/docs",
+      "name": "",
+      "country": "IN",
+      "city": "Pune",
+      "source": "newsletter"
+    },
+    {
+      "ts": 1795149176355,
+      "person": "57579d3fa4ae1b7f503f33d547ecb582",
+      "label": "Visitor 5757",
+      "sessionId": "eec8bfe5437b209013e56fcd4a98548f",
+      "type": "pageview",
+      "path": "/",
+      "name": "",
+      "country": "IN",
+      "city": "Bengaluru",
+      "source": "Direct"
+    },
+    {
+      "ts": 1795149172558,
+      "person": "56b2a7bda145121bddc187320ac89db2",
+      "label": "Visitor 56B2",
+      "sessionId": "867046d090870de8a14aeb54c82cdc1f",
+      "type": "pageview",
+      "path": "/",
+      "name": "",
+      "country": "IN",
+      "city": "Mumbai",
+      "source": "Direct"
+    }
+  ],
+  "streamTotal": 12
+}

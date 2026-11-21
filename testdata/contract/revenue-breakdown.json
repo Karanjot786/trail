@@ -1,0 +1,16 @@
+[
+  {
+    "key": "Direct",
+    "revenueMinor": 1900,
+    "purchases": 1,
+    "buyers": 1,
+    "share": 0.5
+  },
+  {
+    "key": "Google",
+    "revenueMinor": 1900,
+    "purchases": 1,
+    "buyers": 1,
+    "share": 0.5
+  }
+]

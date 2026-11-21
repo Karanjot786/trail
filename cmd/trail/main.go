@@ -10,6 +10,7 @@ import (
 	"crypto/rand"
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"io/fs"
 	"log"
@@ -54,7 +55,7 @@ func main() {
 	case "serve":
 		err = runServe()
 	case "seed":
-		err = runSeed()
+		err = runSeed(os.Args[2:])
 	case "crawlers":
 		err = runCrawlers(os.Args[2:], os.Stdin, os.Stdout)
 	default:
@@ -91,37 +92,90 @@ func parseSites(s string) (map[string]string, error) {
 	return sites, nil
 }
 
-func runSeed() error {
-	sites, err := parseSites(os.Getenv("TRAIL_SITES"))
+// seedOpts are the `trail seed` flags.
+type seedOpts struct {
+	sites, revenue, crawlers []string
+	days, persons            int
+	seed                     uint64
+}
+
+// parseSeedFlags reads `trail seed [--sites a,b] [--days N] [--persons N] [--seed N] [--revenue a] [--crawlers a]`.
+// Sites default to TRAIL_SITES, else demo and docs; a zero seed means a random one.
+func parseSeedFlags(args []string) (seedOpts, error) {
+	fs := flag.NewFlagSet("seed", flag.ContinueOnError)
+	sitesFlag := fs.String("sites", "", "comma-separated site ids (default: TRAIL_SITES, else demo,docs)")
+	days := fs.Int("days", 30, "days of history")
+	persons := fs.Int("persons", 2000, "people to generate")
+	seedN := fs.Uint64("seed", 0, "random seed (0: random)")
+	revenue := fs.String("revenue", "", "comma-separated site ids that get Purchase events")
+	crawls := fs.String("crawlers", "", "comma-separated site ids that get AI crawler hits")
+	if err := fs.Parse(args); err != nil {
+		return seedOpts{}, err
+	}
+	o := seedOpts{days: *days, persons: *persons, seed: *seedN, sites: splitList(*sitesFlag),
+		revenue: splitList(*revenue), crawlers: splitList(*crawls)}
+	if len(o.sites) == 0 {
+		envSites, err := parseSites(os.Getenv("TRAIL_SITES"))
+		if err != nil {
+			return o, err
+		}
+		for id := range envSites {
+			o.sites = append(o.sites, id)
+		}
+		slices.Sort(o.sites)
+	}
+	if len(o.sites) == 0 {
+		o.sites = []string{"demo", "docs"}
+	}
+	if o.days < 1 || o.days > 400 || o.persons < 1 || o.persons > 1_000_000 {
+		return o, errors.New("seed: --days must be 1-400 and --persons 1-1000000")
+	}
+	for _, id := range append(slices.Clone(o.revenue), o.crawlers...) {
+		if !slices.Contains(o.sites, id) {
+			return o, fmt.Errorf("seed: %q is not one of --sites", id)
+		}
+	}
+	return o, nil
+}
+
+func splitList(s string) []string {
+	var out []string
+	for part := range strings.SplitSeq(s, ",") {
+		if part = strings.TrimSpace(part); part != "" {
+			out = append(out, part)
+		}
+	}
+	return out
+}
+
+func runSeed(args []string) error {
+	o, err := parseSeedFlags(args)
 	if err != nil {
 		return err
 	}
-	ids := []string{"demo", "docs"}
-	if len(sites) > 0 {
-		ids = ids[:0]
-		for id := range sites {
-			ids = append(ids, id)
-		}
-		slices.Sort(ids)
-	}
 	path := env("TRAIL_DB", "trail.db")
+	if err := seedDB(path, o, time.Now()); err != nil {
+		return err
+	}
+	fmt.Printf("seeded %s for sites %v\n", path, o.sites)
+	return nil
+}
+
+func seedDB(path string, o seedOpts, now time.Time) error {
 	st, err := store.Open(path)
 	if err != nil {
 		return err
 	}
-	specs := make([]seed.SiteSpec, 0, len(ids))
-	for _, id := range ids {
-		specs = append(specs, seed.SiteSpec{ID: id, Revenue: true, Crawlers: true})
+	seedN := o.seed
+	if seedN == 0 {
+		seedN = uint64(now.UnixNano())
 	}
-	if err := seed.Seed(st, specs, 30, 2000, time.Now(), mrand.New(mrand.NewPCG(uint64(time.Now().UnixNano()), 1))); err != nil {
-		_ = st.Close()
-		return err
+	specs := make([]seed.SiteSpec, 0, len(o.sites))
+	for _, id := range o.sites {
+		specs = append(specs, seed.SiteSpec{ID: id, Revenue: slices.Contains(o.revenue, id), Crawlers: slices.Contains(o.crawlers, id)})
 	}
-	if err := st.Close(); err != nil {
-		return err
-	}
-	fmt.Printf("seeded %s for sites %v\n", path, ids)
-	return nil
+	err = seed.Seed(st, specs, o.days, o.persons, now, mrand.New(mrand.NewPCG(seedN, 1)))
+	return errors.Join(err, st.Close())
 }
 
 func runServe() error {

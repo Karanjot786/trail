@@ -1,0 +1,221 @@
+{
+  "goal": {
+    "id": 1,
+    "name": "Signup",
+    "kind": "event",
+    "match": "Signup"
+  },
+  "converters": 50,
+  "rows": [
+    {
+      "steps": [
+        "Direct",
+        "/",
+        "Signup"
+      ],
+      "people": 7,
+      "share": 0.14
+    },
+    {
+      "steps": [
+        "Direct",
+        "/docs/components",
+        "Signup"
+      ],
+      "people": 3,
+      "share": 0.06
+    },
+    {
+      "steps": [
+        "Hacker News",
+        "/",
+        "Signup"
+      ],
+      "people": 3,
+      "share": 0.06
+    },
+    {
+      "steps": [
+        "ChatGPT",
+        "/",
+        "/docs/components/data-story",
+        "/docs/components/tutorial",
+        "Signup"
+      ],
+      "people": 1,
+      "share": 0.02
+    },
+    {
+      "steps": [
+        "Direct",
+        "/",
+        "/blog/117",
+        "…",
+        "/changelog",
+        "Signup"
+      ],
+      "people": 1,
+      "share": 0.02
+    },
+    {
+      "steps": [
+        "Direct",
+        "/",
+        "/docs/components",
+        "…",
+        "/login",
+        "Signup"
+      ],
+      "people": 1,
+      "share": 0.02
+    },
+    {
+      "steps": [
+        "Direct",
+        "/blog",
+        "Signup"
+      ],
+      "people": 1,
+      "share": 0.02
+    },
+    {
+      "steps": [
+        "Direct",
+        "/changelog",
+        "Signup"
+      ],
+      "people": 1,
+      "share": 0.02
+    },
+    {
+      "steps": [
+        "Direct",
+        "/docs/components/data-story",
+        "Signup"
+      ],
+      "people": 1,
+      "share": 0.02
+    },
+    {
+      "steps": [
+        "Direct",
+        "/login",
+        "/templates/reel-starter",
+        "/changelog",
+        "/docs/installation",
+        "Signup"
+      ],
+      "people": 1,
+      "share": 0.02
+    },
+    {
+      "steps": [
+        "Direct",
+        "/pricing",
+        "/docs",
+        "…",
+        "/docs/installation",
+        "Signup"
+      ],
+      "people": 1,
+      "share": 0.02
+    },
+    {
+      "steps": [
+        "Direct",
+        "/signup",
+        "/blog/117",
+        "…",
+        "/docs/installation",
+        "Signup"
+      ],
+      "people": 1,
+      "share": 0.02
+    },
+    {
+      "steps": [
+        "Direct",
+        "/templates/reel-starter",
+        "/login",
+        "/docs/components",
+        "Signup"
+      ],
+      "people": 1,
+      "share": 0.02
+    },
+    {
+      "steps": [
+        "GitHub",
+        "/",
+        "/blog/117",
+        "…",
+        "/blog/launch-week",
+        "Signup"
+      ],
+      "people": 1,
+      "share": 0.02
+    },
+    {
+      "steps": [
+        "GitHub",
+        "/",
+        "/docs/components/data-story",
+        "/docs/components",
+        "/blog",
+        "Signup"
+      ],
+      "people": 1,
+      "share": 0.02
+    },
+    {
+      "steps": [
+        "GitHub",
+        "/",
+        "/templates/reel-starter",
+        "/docs/installation",
+        "Signup"
+      ],
+      "people": 1,
+      "share": 0.02
+    },
+    {
+      "steps": [
+        "GitHub",
+        "/",
+        "Signup"
+      ],
+      "people": 1,
+      "share": 0.02
+    },
+    {
+      "steps": [
+        "GitHub",
+        "/blog/launch-week",
+        "/pricing",
+        "/blog/launch-week",
+        "/docs/components/data-story",
+        "Signup"
+      ],
+      "people": 1,
+      "share": 0.02
+    },
+    {
+      "steps": [
+        "GitHub",
+        "/docs/components/data-story",
+        "Signup"
+      ],
+      "people": 1,
+      "share": 0.02
+    },
+    {
+      "steps": [
+        "GitHub",
+        "/docs/installation",
+        "Signup"
+      ],
+      "people": 1,
+      "share": 0.02
+    }
+  ]
+}

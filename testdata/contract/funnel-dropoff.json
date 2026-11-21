@@ -1,0 +1,23 @@
+[
+  {
+    "person": "b42d122dc52323db109cac7a9d0d203f",
+    "label": "Visitor B42D",
+    "lastVisit": 1795149227643,
+    "exitPage": "/docs/components/tutorial",
+    "source": "Google"
+  },
+  {
+    "person": "user_183",
+    "label": "user_183",
+    "lastVisit": 1795149193907,
+    "exitPage": "/docs",
+    "source": "newsletter"
+  },
+  {
+    "person": "56b2a7bda145121bddc187320ac89db2",
+    "label": "Visitor 56B2",
+    "lastVisit": 1795149172558,
+    "exitPage": "/docs/components",
+    "source": "Direct"
+  }
+]

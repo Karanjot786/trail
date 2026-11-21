@@ -1,0 +1,138 @@
+[
+  {
+    "name": "Signup",
+    "kind": "custom",
+    "count": 50,
+    "people": 50,
+    "lastSeen": 1795149197057,
+    "props": [
+      {
+        "key": "plan",
+        "distinct": 3,
+        "top": [
+          "team",
+          "pro",
+          "free"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "Outbound link",
+    "kind": "outbound",
+    "count": 42,
+    "people": 36,
+    "lastSeen": 1795149233708,
+    "props": [
+      {
+        "key": "host",
+        "distinct": 1,
+        "top": [
+          "github.com"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "Copy Code",
+    "kind": "custom",
+    "count": 25,
+    "people": 25,
+    "lastSeen": 1795001108794,
+    "props": [
+      {
+        "key": "page",
+        "distinct": 10,
+        "top": [
+          "/",
+          "/docs/components/data-story",
+          "/blog/117"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "Download Template",
+    "kind": "custom",
+    "count": 12,
+    "people": 12,
+    "lastSeen": 1795149233104,
+    "props": [
+      {
+        "key": "page",
+        "distinct": 8,
+        "top": [
+          "/",
+          "/blog/117",
+          "/templates/reel-starter"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "Theme Toggle",
+    "kind": "custom",
+    "count": 11,
+    "people": 11,
+    "lastSeen": 1795106200813,
+    "props": [
+      {
+        "key": "page",
+        "distinct": 7,
+        "top": [
+          "/",
+          "/docs",
+          "/blog"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "Search",
+    "kind": "custom",
+    "count": 10,
+    "people": 9,
+    "lastSeen": 1794822356750,
+    "props": [
+      {
+        "key": "page",
+        "distinct": 8,
+        "top": [
+          "/docs/components/tutorial",
+          "/",
+          "/blog/117"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "Purchase",
+    "kind": "custom",
+    "count": 2,
+    "people": 2,
+    "lastSeen": 1794542498901,
+    "props": [
+      {
+        "key": "amount",
+        "distinct": 1,
+        "top": [
+          "19"
+        ]
+      },
+      {
+        "key": "currency",
+        "distinct": 1,
+        "top": [
+          "USD"
+        ]
+      },
+      {
+        "key": "plan",
+        "distinct": 1,
+        "top": [
+          "free"
+        ]
+      }
+    ]
+  }
+]

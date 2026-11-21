@@ -1,0 +1,91 @@
+{
+  "funnel": {
+    "id": 1,
+    "name": "Docs to signup",
+    "windowMs": 604800000,
+    "steps": [
+      {
+        "kind": "page",
+        "match": "/docs*",
+        "label": "Docs"
+      },
+      {
+        "kind": "page",
+        "match": "/pricing",
+        "label": "Pricing"
+      },
+      {
+        "kind": "page",
+        "match": "/signup",
+        "label": "Signup page"
+      },
+      {
+        "kind": "event",
+        "match": "Signup",
+        "label": "Signed up"
+      }
+    ],
+    "created": 1700000000000
+  },
+  "window": {
+    "key": "30d",
+    "label": "Last 30 days",
+    "from": 1792607400000,
+    "to": 1795149300000,
+    "prevFrom": 1790015400000,
+    "prevTo": 1792607399999,
+    "bucket": "day",
+    "tz": "Asia/Kolkata",
+    "elapsed": true,
+    "lastBucket": 29,
+    "clamped": false,
+    "invalid": "",
+    "basis": {
+      "text": "vs Sep 22 – Oct 21 (the previous 30 days)",
+      "short": "prev. 30 days",
+      "why": "the previous 30 days",
+      "dates": "Sep 22 – Oct 21",
+      "custom": false,
+      "none": false
+    }
+  },
+  "started": 145,
+  "steps": [
+    {
+      "label": "Docs",
+      "reached": 145,
+      "leftAfter": 126,
+      "fromStart": 1,
+      "fromPrev": 1,
+      "medianMsFromPrev": null
+    },
+    {
+      "label": "Pricing",
+      "reached": 19,
+      "leftAfter": 18,
+      "fromStart": 0.1310344827586207,
+      "fromPrev": 0.1310344827586207,
+      "medianMsFromPrev": 184292
+    },
+    {
+      "label": "Signup page",
+      "reached": 1,
+      "leftAfter": 0,
+      "fromStart": 0.006896551724137931,
+      "fromPrev": 0.05263157894736842,
+      "medianMsFromPrev": 202227
+    },
+    {
+      "label": "Signed up",
+      "reached": 1,
+      "leftAfter": 0,
+      "fromStart": 0.006896551724137931,
+      "fromPrev": 1,
+      "medianMsFromPrev": 122577
+    }
+  ],
+  "biggestDrop": {
+    "after": 1,
+    "people": 126
+  }
+}

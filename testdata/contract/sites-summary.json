@@ -1,0 +1,34 @@
+[
+  {
+    "id": "demo",
+    "domain": "demo.trail.dev",
+    "visitors": 229,
+    "prevVisitors": 212,
+    "online": 6,
+    "spark": [
+      7,
+      8,
+      14,
+      4,
+      19,
+      6,
+      10
+    ]
+  },
+  {
+    "id": "docs",
+    "domain": "docs.trail.dev",
+    "visitors": 219,
+    "prevVisitors": 195,
+    "online": 6,
+    "spark": [
+      9,
+      10,
+      13,
+      15,
+      6,
+      8,
+      11
+    ]
+  }
+]

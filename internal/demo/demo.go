@@ -10,6 +10,7 @@ import (
 	"log"
 	"math/rand/v2"
 	"net/http"
+	"regexp"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -21,8 +22,10 @@ import (
 )
 
 const (
-	siteID  = "demo"
+	siteID  = "demo" // revenue and crawlers
 	domain  = "demo.trail.dev"
+	docsID  = "docs" // neither
+	docsDom = "docs.trail.dev"
 	prefix  = "/api/demo/"
 	days    = 60 // two 30-day periods, so "Last 30 Days" has a real previous period to compare with
 	persons = 1800
@@ -32,11 +35,24 @@ const (
 	grace = time.Minute
 )
 
-// routes is the allowlist of demo endpoints. Anything else is a 404.
-var routes = map[string]bool{
-	"stats": true, "series": true, "breakdown": true, "visitors": true,
-	"journey": true, "goals": true, "goals/report": true, "delivery": true,
+// routes is the allowlist of demo endpoints: every read route of the
+// dashboard except the install check, raw export, config, tokens and shares.
+// Anything else is a 404.
+var routes = map[string]bool{}
+
+// idRoutes are the allowlisted routes with a numeric or site id in the path.
+var idRoutes = regexp.MustCompile(`^(goals/[0-9]+/detail|funnels/[0-9]+/(report|dropoff)|sites/(demo|docs)/status)$`)
+
+func init() {
+	for _, r := range strings.Fields(`sites sites/summary stats series breakdown changes heatmap live visitors sessions
+		journey campaigns ai-referrals events events/detail goals goals/report paths funnels revenue revenue/breakdown
+		crawlers notes views delivery`) {
+		routes[r] = true
+	}
 }
+
+// Allowed reports whether route (the path after /api/) is a demo route.
+func Allowed(route string) bool { return routes[route] || idRoutes.MatchString(route) }
 
 // snapshot is one generation of demo data and the API handler bound to it.
 type snapshot struct {
@@ -85,16 +101,27 @@ func (d *demo) reseed() error {
 		_ = st.Close()
 		return err
 	}
-	// The registry lives in the same private database, so it holds only the demo site.
+	// The registry lives in the same private database, so it holds only the demo sites.
 	reg, err := sites.Open(st.DB())
 	if err == nil {
 		_, err = reg.Add(sites.Site{ID: siteID, Domain: domain})
+	}
+	if err == nil {
+		_, err = reg.Add(sites.Site{ID: docsID, Domain: docsDom})
 	}
 	if err != nil {
 		_ = st.Close()
 		return fmt.Errorf("demo site: %w", err)
 	}
-	next := &snapshot{st: st, h: api.New(st.DB(), reg, d.tz)}
+	// Pin the sites' created time to the clock, so recordings are byte-identical.
+	if _, err := st.DB().Exec(`UPDATE sites SET created=?`, d.now().UnixMilli()); err == nil {
+		reg, err = sites.Open(st.DB())
+	}
+	if err != nil {
+		_ = st.Close()
+		return fmt.Errorf("demo site: %w", err)
+	}
+	next := &snapshot{st: st, h: api.New(st.DB(), reg, d.tz, api.WithClock(d.now))}
 	if old := d.snap.Swap(next); old != nil {
 		time.AfterFunc(grace, func() { _ = old.st.Close() })
 	}
@@ -102,16 +129,18 @@ func (d *demo) reseed() error {
 }
 
 func fill(st *store.Store, tz *time.Location, now time.Time) error {
-	t := now.In(tz)
-	end := time.Date(t.Year(), t.Month(), t.Day()+1, 0, 0, 0, 0, tz)
-	if err := seed.Seed(st, []seed.SiteSpec{{ID: siteID, Revenue: true, Crawlers: true}}, days, persons, end, rand.New(rand.NewPCG(42, 42))); err != nil {
+	rng := rand.New(rand.NewPCG(42, 42))
+	specs := []seed.SiteSpec{{ID: siteID, Revenue: true, Crawlers: true}, {ID: docsID}}
+	if err := seed.Seed(st, specs, days, persons, now, rng); err != nil {
 		return fmt.Errorf("demo seed: %w", err)
 	}
 	db := st.DB()
-	if _, err := db.Exec(`UPDATE events SET host=? WHERE site_id=?`, domain, siteID); err != nil {
-		return fmt.Errorf("demo host: %w", err)
+	for id, host := range map[string]string{siteID: domain, docsID: docsDom} {
+		if _, err := db.Exec(`UPDATE events SET host=? WHERE site_id=? AND env='production'`, host, id); err != nil {
+			return fmt.Errorf("demo host: %w", err)
+		}
 	}
-	return nil // the seed adds the goals Signup and Pricing
+	return nil // the seed adds the goals, a funnel and a note per site
 }
 
 // schedule rebuilds the data at the next 00:05 in the demo's zone, then repeats.
@@ -130,15 +159,15 @@ func (d *demo) schedule() {
 	})
 }
 
-// ServeHTTP refuses anything but GET, allows only the listed routes, and pins
-// the site to demo (a request naming another site gets the API's 400).
+// ServeHTTP refuses anything but GET, allows only the listed routes, and
+// defaults the site to demo (a request naming another site gets the API's 400).
 func (d *demo) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "demo is read-only", http.StatusForbidden)
 		return
 	}
 	route, ok := strings.CutPrefix(r.URL.Path, prefix)
-	if !ok || !routes[route] {
+	if !ok || !Allowed(route) {
 		http.NotFound(w, r)
 		return
 	}

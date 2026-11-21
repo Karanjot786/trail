@@ -1,0 +1,36 @@
+{
+  "items": [
+    {
+      "kind": "source",
+      "key": "Hacker News",
+      "cur": 25,
+      "prev": 8,
+      "basis": "vs Sep 22 – Oct 21 (the previous 30 days)"
+    },
+    {
+      "kind": "day",
+      "day": "Tue, Nov 10",
+      "cur": 16,
+      "prev": 6,
+      "added": 10,
+      "source": "Google",
+      "basis": "vs Mon, Nov 9 (the day before)"
+    },
+    {
+      "kind": "rate",
+      "metric": "bounce",
+      "cur": 0.3529411764705882,
+      "prev": 0.3835616438356164,
+      "n": 365,
+      "basis": "vs Sep 22 – Oct 21 (the previous 30 days)"
+    },
+    {
+      "kind": "rate",
+      "metric": "conversion",
+      "cur": 0.2183406113537118,
+      "prev": 0.23113207547169812,
+      "n": 212,
+      "basis": "vs Sep 22 – Oct 21 (the previous 30 days)"
+    }
+  ]
+}

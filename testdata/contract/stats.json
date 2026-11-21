@@ -1,0 +1,54 @@
+{
+  "visitors": 229,
+  "pageviews": 881,
+  "sessions": 357,
+  "durationMs": 128448,
+  "bounce": 0.3529411764705882,
+  "conversions": 50,
+  "convVisitors": 50,
+  "convRate": 0.2183406113537118,
+  "baseVisitors": 229,
+  "revenueMinor": 3800,
+  "purchases": 2,
+  "window": {
+    "key": "30d",
+    "label": "Last 30 days",
+    "from": 1792607400000,
+    "to": 1795149300000,
+    "prevFrom": 1790015400000,
+    "prevTo": 1792607399999,
+    "bucket": "day",
+    "tz": "Asia/Kolkata",
+    "elapsed": true,
+    "lastBucket": 29,
+    "clamped": false,
+    "invalid": "",
+    "basis": {
+      "text": "vs Sep 22 – Oct 21 (the previous 30 days)",
+      "short": "prev. 30 days",
+      "why": "the previous 30 days",
+      "dates": "Sep 22 – Oct 21",
+      "custom": false,
+      "none": false
+    }
+  },
+  "prev": {
+    "visitors": 212,
+    "pageviews": 853,
+    "sessions": 365,
+    "durationMs": 117311,
+    "bounce": 0.3835616438356164,
+    "conversions": 49,
+    "convVisitors": 49,
+    "convRate": 0.23113207547169812,
+    "baseVisitors": 212,
+    "revenueMinor": 5700,
+    "purchases": 3
+  },
+  "online": 6,
+  "botRequests": 6662,
+  "conv": {
+    "goalId": 1,
+    "name": "Signup"
+  }
+}

@@ -1,0 +1,842 @@
+{
+  "window": {
+    "key": "30d",
+    "label": "Last 30 days",
+    "from": 1792607400000,
+    "to": 1795149300000,
+    "prevFrom": 1790015400000,
+    "prevTo": 1792607399999,
+    "bucket": "day",
+    "tz": "Asia/Kolkata",
+    "elapsed": true,
+    "lastBucket": 29,
+    "clamped": false,
+    "invalid": "",
+    "basis": {
+      "text": "vs Sep 22 – Oct 21 (the previous 30 days)",
+      "short": "prev. 30 days",
+      "why": "the previous 30 days",
+      "dates": "Sep 22 – Oct 21",
+      "custom": false,
+      "none": false
+    }
+  },
+  "metric": "visitors",
+  "bucket": "day",
+  "points": [
+    {
+      "t": 1792607400000,
+      "v": 14
+    },
+    {
+      "t": 1792693800000,
+      "v": 22
+    },
+    {
+      "t": 1792780200000,
+      "v": 13
+    },
+    {
+      "t": 1792866600000,
+      "v": 17
+    },
+    {
+      "t": 1792953000000,
+      "v": 7
+    },
+    {
+      "t": 1793039400000,
+      "v": 8
+    },
+    {
+      "t": 1793125800000,
+      "v": 13
+    },
+    {
+      "t": 1793212200000,
+      "v": 10
+    },
+    {
+      "t": 1793298600000,
+      "v": 7
+    },
+    {
+      "t": 1793385000000,
+      "v": 13
+    },
+    {
+      "t": 1793471400000,
+      "v": 5
+    },
+    {
+      "t": 1793557800000,
+      "v": 14
+    },
+    {
+      "t": 1793644200000,
+      "v": 9
+    },
+    {
+      "t": 1793730600000,
+      "v": 18
+    },
+    {
+      "t": 1793817000000,
+      "v": 10
+    },
+    {
+      "t": 1793903400000,
+      "v": 9
+    },
+    {
+      "t": 1793989800000,
+      "v": 11
+    },
+    {
+      "t": 1794076200000,
+      "v": 13
+    },
+    {
+      "t": 1794162600000,
+      "v": 6
+    },
+    {
+      "t": 1794249000000,
+      "v": 16
+    },
+    {
+      "t": 1794335400000,
+      "v": 11
+    },
+    {
+      "t": 1794421800000,
+      "v": 16
+    },
+    {
+      "t": 1794508200000,
+      "v": 22
+    },
+    {
+      "t": 1794594600000,
+      "v": 7
+    },
+    {
+      "t": 1794681000000,
+      "v": 8
+    },
+    {
+      "t": 1794767400000,
+      "v": 14
+    },
+    {
+      "t": 1794853800000,
+      "v": 4
+    },
+    {
+      "t": 1794940200000,
+      "v": 19
+    },
+    {
+      "t": 1795026600000,
+      "v": 6
+    },
+    {
+      "t": 1795113000000,
+      "v": 10
+    }
+  ],
+  "prev": [
+    {
+      "t": 1790015400000,
+      "v": 13
+    },
+    {
+      "t": 1790101800000,
+      "v": 14
+    },
+    {
+      "t": 1790188200000,
+      "v": 16
+    },
+    {
+      "t": 1790274600000,
+      "v": 10
+    },
+    {
+      "t": 1790361000000,
+      "v": 9
+    },
+    {
+      "t": 1790447400000,
+      "v": 8
+    },
+    {
+      "t": 1790533800000,
+      "v": 13
+    },
+    {
+      "t": 1790620200000,
+      "v": 10
+    },
+    {
+      "t": 1790706600000,
+      "v": 11
+    },
+    {
+      "t": 1790793000000,
+      "v": 14
+    },
+    {
+      "t": 1790879400000,
+      "v": 14
+    },
+    {
+      "t": 1790965800000,
+      "v": 11
+    },
+    {
+      "t": 1791052200000,
+      "v": 8
+    },
+    {
+      "t": 1791138600000,
+      "v": 13
+    },
+    {
+      "t": 1791225000000,
+      "v": 10
+    },
+    {
+      "t": 1791311400000,
+      "v": 15
+    },
+    {
+      "t": 1791397800000,
+      "v": 11
+    },
+    {
+      "t": 1791484200000,
+      "v": 13
+    },
+    {
+      "t": 1791570600000,
+      "v": 11
+    },
+    {
+      "t": 1791657000000,
+      "v": 17
+    },
+    {
+      "t": 1791743400000,
+      "v": 11
+    },
+    {
+      "t": 1791829800000,
+      "v": 9
+    },
+    {
+      "t": 1791916200000,
+      "v": 12
+    },
+    {
+      "t": 1792002600000,
+      "v": 6
+    },
+    {
+      "t": 1792089000000,
+      "v": 20
+    },
+    {
+      "t": 1792175400000,
+      "v": 13
+    },
+    {
+      "t": 1792261800000,
+      "v": 11
+    },
+    {
+      "t": 1792348200000,
+      "v": 16
+    },
+    {
+      "t": 1792434600000,
+      "v": 10
+    },
+    {
+      "t": 1792521000000,
+      "v": 10
+    }
+  ],
+  "extras": [
+    {
+      "t": 1792607400000,
+      "topSources": [
+        {
+          "key": "Google",
+          "visitors": 5
+        },
+        {
+          "key": "Direct",
+          "visitors": 4
+        },
+        {
+          "key": "Bing",
+          "visitors": 1
+        }
+      ],
+      "conversions": 1,
+      "revenueMinor": 0
+    },
+    {
+      "t": 1792693800000,
+      "topSources": [
+        {
+          "key": "Direct",
+          "visitors": 7
+        },
+        {
+          "key": "Google",
+          "visitors": 6
+        },
+        {
+          "key": "GitHub",
+          "visitors": 3
+        }
+      ],
+      "conversions": 2,
+      "revenueMinor": 0
+    },
+    {
+      "t": 1792780200000,
+      "topSources": [
+        {
+          "key": "Google",
+          "visitors": 4
+        },
+        {
+          "key": "Direct",
+          "visitors": 3
+        },
+        {
+          "key": "newsletter",
+          "visitors": 2
+        }
+      ],
+      "conversions": 3,
+      "revenueMinor": 0
+    },
+    {
+      "t": 1792866600000,
+      "topSources": [
+        {
+          "key": "Google",
+          "visitors": 8
+        },
+        {
+          "key": "Direct",
+          "visitors": 3
+        },
+        {
+          "key": "Bing",
+          "visitors": 1
+        }
+      ],
+      "conversions": 2,
+      "revenueMinor": 0
+    },
+    {
+      "t": 1792953000000,
+      "topSources": [
+        {
+          "key": "Google",
+          "visitors": 4
+        },
+        {
+          "key": "Direct",
+          "visitors": 2
+        },
+        {
+          "key": "GitHub",
+          "visitors": 1
+        }
+      ],
+      "conversions": 1,
+      "revenueMinor": 0
+    },
+    {
+      "t": 1793039400000,
+      "topSources": [
+        {
+          "key": "Direct",
+          "visitors": 3
+        },
+        {
+          "key": "Google",
+          "visitors": 2
+        },
+        {
+          "key": "DuckDuckGo",
+          "visitors": 1
+        }
+      ],
+      "conversions": 2,
+      "revenueMinor": 0
+    },
+    {
+      "t": 1793125800000,
+      "topSources": [
+        {
+          "key": "Google",
+          "visitors": 4
+        },
+        {
+          "key": "Direct",
+          "visitors": 3
+        },
+        {
+          "key": "Bing",
+          "visitors": 2
+        }
+      ],
+      "conversions": 2,
+      "revenueMinor": 0
+    },
+    {
+      "t": 1793212200000,
+      "topSources": [
+        {
+          "key": "Direct",
+          "visitors": 4
+        },
+        {
+          "key": "Google",
+          "visitors": 4
+        },
+        {
+          "key": "Hacker News",
+          "visitors": 2
+        }
+      ],
+      "conversions": 0,
+      "revenueMinor": 0
+    },
+    {
+      "t": 1793298600000,
+      "topSources": [
+        {
+          "key": "X",
+          "visitors": 2
+        },
+        {
+          "key": "Claude",
+          "visitors": 1
+        },
+        {
+          "key": "Direct",
+          "visitors": 1
+        }
+      ],
+      "conversions": 1,
+      "revenueMinor": 0
+    },
+    {
+      "t": 1793385000000,
+      "topSources": [
+        {
+          "key": "Direct",
+          "visitors": 6
+        },
+        {
+          "key": "Google",
+          "visitors": 3
+        },
+        {
+          "key": "X",
+          "visitors": 2
+        }
+      ],
+      "conversions": 2,
+      "revenueMinor": 0
+    },
+    {
+      "t": 1793471400000,
+      "topSources": [
+        {
+          "key": "Direct",
+          "visitors": 3
+        },
+        {
+          "key": "GitHub",
+          "visitors": 1
+        },
+        {
+          "key": "Google",
+          "visitors": 1
+        }
+      ],
+      "conversions": 1,
+      "revenueMinor": 0
+    },
+    {
+      "t": 1793557800000,
+      "topSources": [
+        {
+          "key": "GitHub",
+          "visitors": 5
+        },
+        {
+          "key": "Direct",
+          "visitors": 4
+        },
+        {
+          "key": "Google",
+          "visitors": 3
+        }
+      ],
+      "conversions": 2,
+      "revenueMinor": 0
+    },
+    {
+      "t": 1793644200000,
+      "topSources": [
+        {
+          "key": "Direct",
+          "visitors": 4
+        },
+        {
+          "key": "Google",
+          "visitors": 4
+        },
+        {
+          "key": "GitHub",
+          "visitors": 1
+        }
+      ],
+      "conversions": 2,
+      "revenueMinor": 0
+    },
+    {
+      "t": 1793730600000,
+      "topSources": [
+        {
+          "key": "Direct",
+          "visitors": 7
+        },
+        {
+          "key": "Google",
+          "visitors": 6
+        },
+        {
+          "key": "GitHub",
+          "visitors": 4
+        }
+      ],
+      "conversions": 3,
+      "revenueMinor": 1900
+    },
+    {
+      "t": 1793817000000,
+      "topSources": [
+        {
+          "key": "Direct",
+          "visitors": 3
+        },
+        {
+          "key": "GitHub",
+          "visitors": 3
+        },
+        {
+          "key": "Bing",
+          "visitors": 1
+        }
+      ],
+      "conversions": 1,
+      "revenueMinor": 0
+    },
+    {
+      "t": 1793903400000,
+      "topSources": [
+        {
+          "key": "Direct",
+          "visitors": 2
+        },
+        {
+          "key": "Google",
+          "visitors": 2
+        },
+        {
+          "key": "Bing",
+          "visitors": 1
+        }
+      ],
+      "conversions": 0,
+      "revenueMinor": 0
+    },
+    {
+      "t": 1793989800000,
+      "topSources": [
+        {
+          "key": "Direct",
+          "visitors": 5
+        },
+        {
+          "key": "Google",
+          "visitors": 5
+        },
+        {
+          "key": "newsletter",
+          "visitors": 1
+        }
+      ],
+      "conversions": 0,
+      "revenueMinor": 0
+    },
+    {
+      "t": 1794076200000,
+      "topSources": [
+        {
+          "key": "Direct",
+          "visitors": 7
+        },
+        {
+          "key": "GitHub",
+          "visitors": 2
+        },
+        {
+          "key": "ChatGPT",
+          "visitors": 1
+        }
+      ],
+      "conversions": 4,
+      "revenueMinor": 0
+    },
+    {
+      "t": 1794162600000,
+      "topSources": [
+        {
+          "key": "GitHub",
+          "visitors": 2
+        },
+        {
+          "key": "X",
+          "visitors": 2
+        },
+        {
+          "key": "Bing",
+          "visitors": 1
+        }
+      ],
+      "conversions": 0,
+      "revenueMinor": 0
+    },
+    {
+      "t": 1794249000000,
+      "topSources": [
+        {
+          "key": "Google",
+          "visitors": 5
+        },
+        {
+          "key": "Direct",
+          "visitors": 3
+        },
+        {
+          "key": "X",
+          "visitors": 2
+        }
+      ],
+      "conversions": 1,
+      "revenueMinor": 0
+    },
+    {
+      "t": 1794335400000,
+      "topSources": [
+        {
+          "key": "Direct",
+          "visitors": 5
+        },
+        {
+          "key": "X",
+          "visitors": 2
+        },
+        {
+          "key": "Claude",
+          "visitors": 1
+        }
+      ],
+      "conversions": 2,
+      "revenueMinor": 0
+    },
+    {
+      "t": 1794421800000,
+      "topSources": [
+        {
+          "key": "Hacker News",
+          "visitors": 13
+        },
+        {
+          "key": "Direct",
+          "visitors": 2
+        },
+        {
+          "key": "Google",
+          "visitors": 1
+        }
+      ],
+      "conversions": 5,
+      "revenueMinor": 0
+    },
+    {
+      "t": 1794508200000,
+      "topSources": [
+        {
+          "key": "Google",
+          "visitors": 12
+        },
+        {
+          "key": "Direct",
+          "visitors": 7
+        },
+        {
+          "key": "DuckDuckGo",
+          "visitors": 1
+        }
+      ],
+      "conversions": 3,
+      "revenueMinor": 1900
+    },
+    {
+      "t": 1794594600000,
+      "topSources": [
+        {
+          "key": "Google",
+          "visitors": 2
+        },
+        {
+          "key": "Direct",
+          "visitors": 1
+        },
+        {
+          "key": "Hacker News",
+          "visitors": 1
+        }
+      ],
+      "conversions": 3,
+      "revenueMinor": 0
+    },
+    {
+      "t": 1794681000000,
+      "topSources": [
+        {
+          "key": "Direct",
+          "visitors": 5
+        },
+        {
+          "key": "Google",
+          "visitors": 2
+        },
+        {
+          "key": "GitHub",
+          "visitors": 1
+        }
+      ],
+      "conversions": 1,
+      "revenueMinor": 0
+    },
+    {
+      "t": 1794767400000,
+      "topSources": [
+        {
+          "key": "Direct",
+          "visitors": 5
+        },
+        {
+          "key": "Google",
+          "visitors": 4
+        },
+        {
+          "key": "Reddit",
+          "visitors": 2
+        }
+      ],
+      "conversions": 1,
+      "revenueMinor": 0
+    },
+    {
+      "t": 1794853800000,
+      "topSources": [
+        {
+          "key": "Direct",
+          "visitors": 1
+        },
+        {
+          "key": "Google",
+          "visitors": 1
+        },
+        {
+          "key": "LinkedIn",
+          "visitors": 1
+        }
+      ],
+      "conversions": 0,
+      "revenueMinor": 0
+    },
+    {
+      "t": 1794940200000,
+      "topSources": [
+        {
+          "key": "Direct",
+          "visitors": 11
+        },
+        {
+          "key": "Google",
+          "visitors": 4
+        },
+        {
+          "key": "GitHub",
+          "visitors": 3
+        }
+      ],
+      "conversions": 1,
+      "revenueMinor": 0
+    },
+    {
+      "t": 1795026600000,
+      "topSources": [
+        {
+          "key": "Direct",
+          "visitors": 2
+        },
+        {
+          "key": "X",
+          "visitors": 2
+        },
+        {
+          "key": "ChatGPT",
+          "visitors": 1
+        }
+      ],
+      "conversions": 2,
+      "revenueMinor": 0
+    },
+    {
+      "t": 1795113000000,
+      "topSources": [
+        {
+          "key": "Direct",
+          "visitors": 3
+        },
+        {
+          "key": "GitHub",
+          "visitors": 2
+        },
+        {
+          "key": "Google",
+          "visitors": 2
+        }
+      ],
+      "conversions": 2,
+      "revenueMinor": 0
+    }
+  ]
+}
