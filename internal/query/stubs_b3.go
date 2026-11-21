@@ -4,14 +4,6 @@ package query
 
 import "database/sql"
 
-// EventCatalogue lists custom and outbound events.
-func EventCatalogue(db *sql.DB, p Params) ([]EventRow, error) { return nil, ErrNotImplemented }
-
-// EventDetail returns one event's numbers, series, properties and latest occurrences.
-func EventDetail(db *sql.DB, p Params, name string) (EventDetailResult, error) {
-	return EventDetailResult{}, ErrNotImplemented
-}
-
 // GoalDetail returns one goal's numbers and first-touch credit.
 func GoalDetail(db *sql.DB, p Params, id int64) (GoalDetailResult, error) {
 	return GoalDetailResult{}, ErrNotImplemented
