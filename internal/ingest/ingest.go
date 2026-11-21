@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -403,8 +404,17 @@ func (h *handler) classify(r *http.Request, site string, res edgegeo.Result) age
 		SignatureInput: r.Header.Get("Signature-Input"),
 		Signature:      r.Header.Get("Signature"),
 	}
+	// A signature is good only for one of the site's hosts (through the
+	// proxy) or for Trail's own host (a beacon sent straight to Trail), so a
+	// signature captured elsewhere cannot be replayed here.
+	own := r.Host
+	if hn, _, err := net.SplitHostPort(own); err == nil {
+		own = hn
+	}
 	in := agents.Input{Site: site, UA: r.UserAgent(), IP: res.IP, Signed: sig,
-		HostOK: func(host string) bool { return h.sites.Allowed(site, host) }}
+		HostOK: func(host string) bool {
+			return (own != "" && strings.EqualFold(host, own)) || h.sites.Allowed(site, host)
+		}}
 	in.Signed.Authority = r.Host
 	if res.Host != "" {
 		in.Signed.Authority = res.Host
