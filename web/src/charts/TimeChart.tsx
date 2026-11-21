@@ -10,7 +10,7 @@ import { placeCard } from './placeCard'
 import { useWidth } from './useWidth'
 import './charts.css'
 
-export const CARD_W = 272
+export const CARD_W = 300
 
 export interface TimeChartProps {
   mode: 'line' | 'bars'

@@ -31,7 +31,8 @@
   .wc { flex-direction: column; align-items: stretch; gap: 4px; padding: 8px 10px; }
   .wc-list { flex-direction: column; align-items: stretch; }
   .wc-list li + li::before { display: none; }
-  .wc-i { flex-wrap: wrap; white-space: normal; min-height: 32px; padding: 4px 6px; text-align: left; }
+  .wc-list li { min-width: 0; }
+  .wc-i { flex: 1 1 auto; min-width: 0; flex-wrap: wrap; white-space: normal; min-height: 32px; padding: 4px 6px; text-align: left; }
   .wc-s { white-space: normal; }
   .wc-m { align-self: flex-start; }
 }
