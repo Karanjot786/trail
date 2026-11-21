@@ -343,9 +343,6 @@ func (s *server) window(p *query.Params, q url.Values) error {
 		rangeKey = "30d"
 	}
 	win, err := query.ResolveWindow(rangeKey, cmp, p.Now, p.TZ, s.dataStart(p.Site))
-	if errors.Is(err, query.ErrNotImplemented) {
-		win, err = fallbackWindow(rangeKey, p.Now, p.TZ), nil
-	}
 	if err != nil {
 		return fmt.Errorf("%w: %w", errBadRequest, err)
 	}
@@ -354,17 +351,6 @@ func (s *server) window(p *query.Params, q url.Values) error {
 	}
 	p.Win, p.From, p.To = win, win.From, win.To
 	return nil
-}
-
-// fallbackWindow is a plain "last N days" window, used only until query.ResolveWindow lands.
-func fallbackWindow(key string, now time.Time, loc *time.Location) query.Window {
-	days := map[string]int{"today": 1, "yesterday": 1, "7d": 7, "30d": 30, "90d": 90, "12mo": 365}[key]
-	if days == 0 {
-		days = 30
-	}
-	to := now.UnixMilli()
-	return query.Window{Key: key, From: to - int64(days)*24*60*60*1000, To: to, Bucket: "day", TZ: loc.String(),
-		Basis: query.Basis{Text: "no comparison", None: true}}
 }
 
 // dataStart is the site's first event (unix ms), cached for a minute; 0 when unknown.
