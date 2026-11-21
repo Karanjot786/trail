@@ -1,12 +1,15 @@
 // FilterBar (plan F1-5): sticky inside the header. Chips plus "Clear all". Removing a chip focuses the next
 // chip (or main after the last). Under a share link the chips are fixed.
+// Plan F-5: the "Count AI agents as visitors" toggle writes actor=all. It is a scope, not a filter, so Clear all
+// and Shift+X keep it. It shows when the site has agent sessions in range, or when it is on.
 import { useEffect, useRef } from 'react'
-import { Plus, X } from 'lucide-react'
+import { Bot, Plus, X } from 'lucide-react'
 import { navigate, useUrlState } from '../state/useUrlState'
 import { toast } from '../ui/toast'
 import { DIM_LABEL, MONO_DIMS, valueLabel } from './labels'
 import { setUi } from './uiStore'
 import { announce } from './announce'
+import { useStats } from './useStats'
 
 export function clearFilters(): void {
   navigate({ filters: [] })
@@ -14,9 +17,27 @@ export function clearFilters(): void {
   toast('Filters cleared', { kbd: 'Back', ms: 2200 })
 }
 
+export function setActor(all: boolean): void {
+  navigate({ actor: all ? 'all' : 'human' })
+  announce(all ? 'AI agents are counted as visitors. Press Back to undo.' : 'AI agents are left out of visitor numbers. Press Back to undo.')
+}
+
+export function ActorToggle({ on }: { on: boolean }) {
+  return (
+    <button type="button" className="btn btn-sm" aria-pressed={on} onClick={() => setActor(!on)} style={{ marginLeft: 'auto' }}>
+      <Bot size={14} aria-hidden="true" />
+      Count AI agents as visitors
+    </button>
+  )
+}
+
 export function FilterBar() {
   const s = useUrlState()
   const share = s.prefix.startsWith('/share/')
+  const scoped = s.screen !== 'settings' && s.screen !== 'live' && s.site !== 'all' && !!s.site
+  const stats = useStats(scoped)
+  const actorOn = s.actor === 'all'
+  const showActor = scoped && !share && (actorOn || (stats.data?.agentSessions ?? 0) > 0)
   const ref = useRef<HTMLDivElement>(null)
   const focusAfter = useRef<number | null>(null)
 
@@ -30,7 +51,7 @@ export function FilterBar() {
     else document.getElementById('main')?.focus()
   }, [s.filters])
 
-  if (!s.filters.length || s.screen === 'settings') return null
+  if ((!s.filters.length || s.screen === 'settings') && !showActor) return null
   return (
     <div className="fbar" role="region" aria-label="Filters" ref={ref}>
       {s.filters.map((f, i) => {
@@ -62,7 +83,7 @@ export function FilterBar() {
           </span>
         )
       })}
-      {!share && (
+      {!share && s.filters.length > 0 && s.screen !== 'settings' && (
         <>
           <button type="button" className="clear" onClick={(e) => setUi({ palette: { scope: 'filter', instant: e.detail === 0 } })}>
             <Plus size={14} aria-hidden="true" />
@@ -73,6 +94,7 @@ export function FilterBar() {
           </button>
         </>
       )}
+      {showActor && <ActorToggle on={actorOn} />}
     </div>
   )
 }

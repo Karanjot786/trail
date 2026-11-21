@@ -1,9 +1,8 @@
-// AI crawlers, not set up yet (Task F4-6): crawler requests come from server logs, never the browser script.
-// Three ways in: nginx (combined log), Caddy (JSON log), or any proxy posting NDJSON.
+// "Other ways" in the Unlock AI crawlers card (plan F-4; first built in Task F4-6): crawler requests from server
+// logs. Three ways in: nginx (combined log), Caddy (JSON log), or any proxy posting NDJSON.
 import { useState } from 'react'
 import { RouteLink } from '../../shell/RouteLink'
 import { CodeBlock } from '../../ui/code'
-import { EmptyState } from '../../ui/states'
 import { Tabs } from '../../ui/tabs'
 
 export function setupCommands(site: string, origin: string) {
@@ -20,12 +19,11 @@ export function Setup({ site, origin }: { site: string; origin: string }) {
   const [way, setWay] = useState<Way>('nginx')
   const cmd = setupCommands(site, origin)
   return (
-    <div className="panel f4-panel">
-      <EmptyState
-        title="Not set up yet"
-        body="AI crawlers never run your tracking script, so Trail reads them from your server or proxy logs. Only known AI crawler user agents are kept, counted per hour, page and status. They never count as visitors."
-      />
-      <div className="flex flex-col gap-3 px-6 pb-6" style={{ maxWidth: 760 }}>
+    <div className="ai-ways">
+      <p className="lede">
+        No Next.js or Astro? Trail can read crawlers from your server or proxy logs. Only known AI crawler user agents are kept, counted per hour, page and status.
+      </p>
+      <div className="flex flex-col gap-3">
         <div className="sub-tabs">
           <Tabs
             value={way}
