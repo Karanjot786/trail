@@ -244,8 +244,8 @@ func TestPurgeCascades(t *testing.T) {
 	}
 	for _, table := range purgeTables {
 		var gone, kept int
-		_ = db.QueryRow(`SELECT count(*) FROM `+table+` WHERE site_id='gone'`).Scan(&gone)
-		_ = db.QueryRow(`SELECT count(*) FROM `+table+` WHERE site_id='keep'`).Scan(&kept)
+		_ = db.QueryRow(`SELECT count(*) FROM ` + table + ` WHERE site_id='gone'`).Scan(&gone)
+		_ = db.QueryRow(`SELECT count(*) FROM ` + table + ` WHERE site_id='keep'`).Scan(&kept)
 		if gone != 0 {
 			t.Errorf("%s: %d rows left", table, gone)
 		}
