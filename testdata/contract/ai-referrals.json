@@ -1,0 +1,34 @@
+[
+  {
+    "key": "ChatGPT",
+    "visitors": 5,
+    "sessions": 5,
+    "topEntry": "/",
+    "convRate": 0.4,
+    "revenueMinor": 0
+  },
+  {
+    "key": "Perplexity",
+    "visitors": 4,
+    "sessions": 4,
+    "topEntry": "/",
+    "convRate": 0.3333333333333333,
+    "revenueMinor": 0
+  },
+  {
+    "key": "Claude",
+    "visitors": 3,
+    "sessions": 3,
+    "topEntry": "/",
+    "convRate": 0.5,
+    "revenueMinor": 0
+  },
+  {
+    "key": "Gemini",
+    "visitors": 1,
+    "sessions": 1,
+    "topEntry": "/",
+    "convRate": 0,
+    "revenueMinor": 0
+  }
+]

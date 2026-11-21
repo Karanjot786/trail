@@ -67,15 +67,9 @@ func ListGoals(db *sql.DB, site string) ([]Goal, error) {
 
 // CreateGoal validates and stores g for site. Validation failures wrap ErrBadGoal.
 func CreateGoal(db *sql.DB, site string, g Goal) (Goal, error) {
-	g.Name, g.Match = strings.TrimSpace(g.Name), strings.TrimSpace(g.Match)
-	nameLen, matchLen := utf8.RuneCountInString(g.Name), utf8.RuneCountInString(g.Match)
-	switch {
-	case nameLen < 1 || nameLen > 60:
-		return g, fmt.Errorf("%w: name must be 1-60 characters", ErrBadGoal)
-	case g.Kind != "page" && g.Kind != "event":
-		return g, fmt.Errorf("%w: kind must be page or event", ErrBadGoal)
-	case matchLen < 1 || matchLen > 200:
-		return g, fmt.Errorf("%w: match must be 1-200 characters", ErrBadGoal)
+	g, err := validGoal(g)
+	if err != nil {
+		return g, err
 	}
 	var n int
 	if err := db.QueryRow(`SELECT count(*) FROM goals WHERE site_id=?`, site).Scan(&n); err != nil {
@@ -94,6 +88,40 @@ func CreateGoal(db *sql.DB, site string, g Goal) (Goal, error) {
 	}
 	if g.ID, err = res.LastInsertId(); err != nil {
 		return g, fmt.Errorf("create goal: %w", err)
+	}
+	return g, nil
+}
+
+// validGoal trims g and checks name 1-60, kind page|event and match 1-200.
+func validGoal(g Goal) (Goal, error) {
+	g.Name, g.Match = strings.TrimSpace(g.Name), strings.TrimSpace(g.Match)
+	nameLen, matchLen := utf8.RuneCountInString(g.Name), utf8.RuneCountInString(g.Match)
+	switch {
+	case nameLen < 1 || nameLen > 60:
+		return g, fmt.Errorf("%w: name must be 1-60 characters", ErrBadGoal)
+	case g.Kind != "page" && g.Kind != "event":
+		return g, fmt.Errorf("%w: kind must be page or event", ErrBadGoal)
+	case matchLen < 1 || matchLen > 200:
+		return g, fmt.Errorf("%w: match must be 1-200 characters", ErrBadGoal)
+	}
+	return g, nil
+}
+
+// UpdateGoal replaces the name, kind and match of site's goal g.ID, or returns ErrGoalNotFound.
+func UpdateGoal(db *sql.DB, site string, g Goal) (Goal, error) {
+	g, err := validGoal(g)
+	if err != nil {
+		return g, err
+	}
+	res, err := db.Exec(`UPDATE goals SET name=?, kind=?, match=? WHERE id=? AND site_id=?`, g.Name, g.Kind, g.Match, g.ID, site)
+	if err != nil {
+		if strings.Contains(err.Error(), "UNIQUE constraint") {
+			return g, fmt.Errorf("%w: a goal named %q already exists", ErrBadGoal, g.Name)
+		}
+		return g, fmt.Errorf("update goal: %w", err)
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return g, ErrGoalNotFound
 	}
 	return g, nil
 }

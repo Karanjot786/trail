@@ -4,6 +4,7 @@ import (
 	"errors"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -211,5 +212,45 @@ func TestRejectedCounter(t *testing.T) {
 	}
 	if n := r.Rejected24h("unknown"); n != 0 {
 		t.Fatalf("unknown = %d", n)
+	}
+}
+
+func TestPurgeCascades(t *testing.T) {
+	r, st := open(t)
+	db := st.DB()
+	for _, id := range []string{"keep", "gone"} {
+		if _, err := r.Add(Site{ID: id, Domain: id + ".com"}); err != nil {
+			t.Fatal(err)
+		}
+		for _, q := range []string{
+			`INSERT INTO funnels(site_id,name,window_ms,steps,created) VALUES(?,'f',1,'[]',1)`,
+			`INSERT INTO notes(site_id,ts,label,created) VALUES(?,1,'n',1)`,
+			`INSERT INTO shares(id,site_id,hash,pkey,state,created) VALUES(?||'-sh',?,randomblob(32),randomblob(32),'',1)`,
+			`INSERT INTO api_tokens(id,name,prefix,hash,scope,site_id,created) VALUES(?||'-t',?||'-t','p',randomblob(32),'read',?,1)`,
+			`INSERT INTO views(name,site_id,state,created) VALUES('v',?,'',1)`,
+			`INSERT INTO crawl_hits(site_id,hour,bot,path,status,n,last_ts) VALUES(?,1,'GPTBot','/',2,1,1)`,
+		} {
+			args := []any{id}
+			for range strings.Count(q, "?") - 1 {
+				args = append(args, id)
+			}
+			if _, err := db.Exec(q, args...); err != nil {
+				t.Fatalf("%s: %v", q, err)
+			}
+		}
+	}
+	if err := r.Remove("gone", true); err != nil {
+		t.Fatal(err)
+	}
+	for _, table := range purgeTables {
+		var gone, kept int
+		_ = db.QueryRow(`SELECT count(*) FROM ` + table + ` WHERE site_id='gone'`).Scan(&gone)
+		_ = db.QueryRow(`SELECT count(*) FROM ` + table + ` WHERE site_id='keep'`).Scan(&kept)
+		if gone != 0 {
+			t.Errorf("%s: %d rows left", table, gone)
+		}
+		if kept == 0 && table != "events" && table != "goals" && table != "identity_map" {
+			t.Errorf("%s: other site's rows deleted", table)
+		}
 	}
 }

@@ -1,0 +1,469 @@
+{
+  "goal": {
+    "id": 1,
+    "name": "Signup",
+    "kind": "event",
+    "match": "Signup"
+  },
+  "cur": {
+    "conversions": 50,
+    "visitors": 50,
+    "rate": 0.2183406113537118
+  },
+  "prev": {
+    "conversions": 49,
+    "visitors": 49,
+    "rate": 0.23113207547169812
+  },
+  "series": [
+    {
+      "t": 1792607400000,
+      "v": 1
+    },
+    {
+      "t": 1792693800000,
+      "v": 2
+    },
+    {
+      "t": 1792780200000,
+      "v": 3
+    },
+    {
+      "t": 1792866600000,
+      "v": 2
+    },
+    {
+      "t": 1792953000000,
+      "v": 1
+    },
+    {
+      "t": 1793039400000,
+      "v": 2
+    },
+    {
+      "t": 1793125800000,
+      "v": 2
+    },
+    {
+      "t": 1793212200000,
+      "v": 0
+    },
+    {
+      "t": 1793298600000,
+      "v": 1
+    },
+    {
+      "t": 1793385000000,
+      "v": 2
+    },
+    {
+      "t": 1793471400000,
+      "v": 1
+    },
+    {
+      "t": 1793557800000,
+      "v": 2
+    },
+    {
+      "t": 1793644200000,
+      "v": 2
+    },
+    {
+      "t": 1793730600000,
+      "v": 3
+    },
+    {
+      "t": 1793817000000,
+      "v": 1
+    },
+    {
+      "t": 1793903400000,
+      "v": 0
+    },
+    {
+      "t": 1793989800000,
+      "v": 0
+    },
+    {
+      "t": 1794076200000,
+      "v": 4
+    },
+    {
+      "t": 1794162600000,
+      "v": 0
+    },
+    {
+      "t": 1794249000000,
+      "v": 1
+    },
+    {
+      "t": 1794335400000,
+      "v": 2
+    },
+    {
+      "t": 1794421800000,
+      "v": 5
+    },
+    {
+      "t": 1794508200000,
+      "v": 3
+    },
+    {
+      "t": 1794594600000,
+      "v": 3
+    },
+    {
+      "t": 1794681000000,
+      "v": 1
+    },
+    {
+      "t": 1794767400000,
+      "v": 1
+    },
+    {
+      "t": 1794853800000,
+      "v": 0
+    },
+    {
+      "t": 1794940200000,
+      "v": 1
+    },
+    {
+      "t": 1795026600000,
+      "v": 2
+    },
+    {
+      "t": 1795113000000,
+      "v": 2
+    }
+  ],
+  "prevSeries": [
+    {
+      "t": 1790015400000,
+      "v": 0
+    },
+    {
+      "t": 1790101800000,
+      "v": 1
+    },
+    {
+      "t": 1790188200000,
+      "v": 4
+    },
+    {
+      "t": 1790274600000,
+      "v": 1
+    },
+    {
+      "t": 1790361000000,
+      "v": 3
+    },
+    {
+      "t": 1790447400000,
+      "v": 3
+    },
+    {
+      "t": 1790533800000,
+      "v": 1
+    },
+    {
+      "t": 1790620200000,
+      "v": 3
+    },
+    {
+      "t": 1790706600000,
+      "v": 3
+    },
+    {
+      "t": 1790793000000,
+      "v": 2
+    },
+    {
+      "t": 1790879400000,
+      "v": 0
+    },
+    {
+      "t": 1790965800000,
+      "v": 1
+    },
+    {
+      "t": 1791052200000,
+      "v": 1
+    },
+    {
+      "t": 1791138600000,
+      "v": 1
+    },
+    {
+      "t": 1791225000000,
+      "v": 0
+    },
+    {
+      "t": 1791311400000,
+      "v": 2
+    },
+    {
+      "t": 1791397800000,
+      "v": 3
+    },
+    {
+      "t": 1791484200000,
+      "v": 2
+    },
+    {
+      "t": 1791570600000,
+      "v": 1
+    },
+    {
+      "t": 1791657000000,
+      "v": 3
+    },
+    {
+      "t": 1791743400000,
+      "v": 2
+    },
+    {
+      "t": 1791829800000,
+      "v": 0
+    },
+    {
+      "t": 1791916200000,
+      "v": 1
+    },
+    {
+      "t": 1792002600000,
+      "v": 1
+    },
+    {
+      "t": 1792089000000,
+      "v": 2
+    },
+    {
+      "t": 1792175400000,
+      "v": 1
+    },
+    {
+      "t": 1792261800000,
+      "v": 1
+    },
+    {
+      "t": 1792348200000,
+      "v": 4
+    },
+    {
+      "t": 1792434600000,
+      "v": 2
+    },
+    {
+      "t": 1792521000000,
+      "v": 0
+    }
+  ],
+  "sources": [
+    {
+      "key": "Google",
+      "converted": 14,
+      "share": 0.28,
+      "visitors": 60,
+      "rate": 0.23333333333333334,
+      "lowBase": false,
+      "revenueMinor": 1900
+    },
+    {
+      "key": "Direct",
+      "converted": 11,
+      "share": 0.22,
+      "visitors": 74,
+      "rate": 0.14864864864864866,
+      "lowBase": false,
+      "revenueMinor": 1900
+    },
+    {
+      "key": "GitHub",
+      "converted": 6,
+      "share": 0.12,
+      "visitors": 17,
+      "rate": 0.35294117647058826,
+      "lowBase": true,
+      "revenueMinor": 0
+    },
+    {
+      "key": "Hacker News",
+      "converted": 5,
+      "share": 0.1,
+      "visitors": 17,
+      "rate": 0.29411764705882354,
+      "lowBase": true,
+      "revenueMinor": 0
+    },
+    {
+      "key": "Reddit",
+      "converted": 3,
+      "share": 0.06,
+      "visitors": 11,
+      "rate": 0.2727272727272727,
+      "lowBase": true,
+      "revenueMinor": 0
+    },
+    {
+      "key": "X",
+      "converted": 3,
+      "share": 0.06,
+      "visitors": 17,
+      "rate": 0.17647058823529413,
+      "lowBase": true,
+      "revenueMinor": 0
+    },
+    {
+      "key": "newsletter",
+      "converted": 3,
+      "share": 0.06,
+      "visitors": 11,
+      "rate": 0.2727272727272727,
+      "lowBase": true,
+      "revenueMinor": 0
+    },
+    {
+      "key": "ChatGPT",
+      "converted": 2,
+      "share": 0.04,
+      "visitors": 5,
+      "rate": 0.4,
+      "lowBase": true,
+      "revenueMinor": 0
+    },
+    {
+      "key": "Claude",
+      "converted": 1,
+      "share": 0.02,
+      "visitors": 2,
+      "rate": 0.5,
+      "lowBase": true,
+      "revenueMinor": 0
+    },
+    {
+      "key": "LinkedIn",
+      "converted": 1,
+      "share": 0.02,
+      "visitors": 6,
+      "rate": 0.16666666666666666,
+      "lowBase": true,
+      "revenueMinor": 0
+    },
+    {
+      "key": "Perplexity",
+      "converted": 1,
+      "share": 0.02,
+      "visitors": 3,
+      "rate": 0.3333333333333333,
+      "lowBase": true,
+      "revenueMinor": 0
+    }
+  ],
+  "landings": [
+    {
+      "key": "/",
+      "converted": 29,
+      "share": 0.58,
+      "visitors": 118,
+      "rate": 0.2457627118644068,
+      "lowBase": false,
+      "revenueMinor": 3800
+    },
+    {
+      "key": "/docs",
+      "converted": 5,
+      "share": 0.1,
+      "visitors": 10,
+      "rate": 0.5,
+      "lowBase": true,
+      "revenueMinor": 0
+    },
+    {
+      "key": "/changelog",
+      "converted": 3,
+      "share": 0.06,
+      "visitors": 7,
+      "rate": 0.42857142857142855,
+      "lowBase": true,
+      "revenueMinor": 0
+    },
+    {
+      "key": "/docs/components",
+      "converted": 2,
+      "share": 0.04,
+      "visitors": 7,
+      "rate": 0.2857142857142857,
+      "lowBase": true,
+      "revenueMinor": 0
+    },
+    {
+      "key": "/docs/components/data-story",
+      "converted": 2,
+      "share": 0.04,
+      "visitors": 10,
+      "rate": 0.2,
+      "lowBase": true,
+      "revenueMinor": 0
+    },
+    {
+      "key": "/docs/components/tutorial",
+      "converted": 2,
+      "share": 0.04,
+      "visitors": 12,
+      "rate": 0.16666666666666666,
+      "lowBase": true,
+      "revenueMinor": 0
+    },
+    {
+      "key": "/docs/installation",
+      "converted": 2,
+      "share": 0.04,
+      "visitors": 11,
+      "rate": 0.18181818181818182,
+      "lowBase": true,
+      "revenueMinor": 0
+    },
+    {
+      "key": "/login",
+      "converted": 2,
+      "share": 0.04,
+      "visitors": 11,
+      "rate": 0.18181818181818182,
+      "lowBase": true,
+      "revenueMinor": 0
+    },
+    {
+      "key": "/blog/117",
+      "converted": 1,
+      "share": 0.02,
+      "visitors": 9,
+      "rate": 0.1111111111111111,
+      "lowBase": true,
+      "revenueMinor": 0
+    },
+    {
+      "key": "/pricing",
+      "converted": 1,
+      "share": 0.02,
+      "visitors": 4,
+      "rate": 0.25,
+      "lowBase": true,
+      "revenueMinor": 0
+    },
+    {
+      "key": "/templates/reel-starter",
+      "converted": 1,
+      "share": 0.02,
+      "visitors": 5,
+      "rate": 0.2,
+      "lowBase": true,
+      "revenueMinor": 0
+    }
+  ],
+  "byVisit": {
+    "first": 21,
+    "second": 18,
+    "later": 11
+  }
+}

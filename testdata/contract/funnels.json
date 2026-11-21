@@ -1,0 +1,30 @@
+[
+  {
+    "id": 1,
+    "name": "Docs to signup",
+    "windowMs": 604800000,
+    "steps": [
+      {
+        "kind": "page",
+        "match": "/docs*",
+        "label": "Docs"
+      },
+      {
+        "kind": "page",
+        "match": "/pricing",
+        "label": "Pricing"
+      },
+      {
+        "kind": "page",
+        "match": "/signup",
+        "label": "Signup page"
+      },
+      {
+        "kind": "event",
+        "match": "Signup",
+        "label": "Signed up"
+      }
+    ],
+    "created": 1700000000000
+  }
+]

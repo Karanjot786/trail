@@ -1,0 +1,52 @@
+[
+  {
+    "key": "Direct",
+    "visitors": 98,
+    "pageviews": 299,
+    "total": 0,
+    "sessions": 119,
+    "bounce": 0.31932773109243695,
+    "convRate": 0.14864864864864866,
+    "revenueMinor": 1900
+  },
+  {
+    "key": "Google",
+    "visitors": 89,
+    "pageviews": 247,
+    "total": 0,
+    "sessions": 98,
+    "bounce": 0.3571428571428571,
+    "convRate": 0.23333333333333334,
+    "revenueMinor": 1900
+  },
+  {
+    "key": "GitHub",
+    "visitors": 35,
+    "pageviews": 95,
+    "total": 0,
+    "sessions": 38,
+    "bounce": 0.368421052631579,
+    "convRate": 0.35294117647058826,
+    "revenueMinor": 0
+  },
+  {
+    "key": "Hacker News",
+    "visitors": 25,
+    "pageviews": 63,
+    "total": 0,
+    "sessions": 25,
+    "bounce": 0.4,
+    "convRate": 0.29411764705882354,
+    "revenueMinor": 0
+  },
+  {
+    "key": "X",
+    "visitors": 22,
+    "pageviews": 51,
+    "total": 0,
+    "sessions": 23,
+    "bounce": 0.3913043478260869,
+    "convRate": 0.17647058823529413,
+    "revenueMinor": 0
+  }
+]

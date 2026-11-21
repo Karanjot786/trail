@@ -2,13 +2,18 @@
 //
 //	trail [serve]  run the server (default)
 //	trail seed     fill TRAIL_DB with fake data
+//	trail demo record --out DIR --plan FILE [--now RFC3339]
+//	trail crawlers import --site ID [--format combined|caddy] [--since auto|RFC3339] [--url URL --token T] FILE|-
 package main
 
 import (
 	"context"
 	"crypto/rand"
+	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
+	"io"
 	"io/fs"
 	"log"
 	mrand "math/rand/v2"
@@ -24,15 +29,23 @@ import (
 
 	"trail/internal/api"
 	"trail/internal/auth"
+	"trail/internal/crawlers"
 	"trail/internal/demo"
 	"trail/internal/enrich"
 	"trail/internal/ingest"
 	"trail/internal/mcp"
+	"trail/internal/meta"
+	"trail/internal/query"
 	"trail/internal/seed"
 	"trail/internal/sites"
 	"trail/internal/store"
 	"trail/web"
 )
+
+func init() {
+	// The crawler report names each bot's provider and category from the ingest catalogue.
+	query.CrawlerInfo = crawlers.Info
+}
 
 func main() {
 	cmd := "serve"
@@ -44,9 +57,13 @@ func main() {
 	case "serve":
 		err = runServe()
 	case "seed":
-		err = runSeed()
+		err = runSeed(os.Args[2:])
+	case "demo":
+		err = runDemo(os.Args[2:], os.Stdout)
+	case "crawlers":
+		err = runCrawlers(os.Args[2:], os.Stdin, os.Stdout)
 	default:
-		fmt.Fprintln(os.Stderr, "usage: trail [serve|seed]")
+		fmt.Fprintln(os.Stderr, "usage: trail [serve|seed|crawlers import]")
 		os.Exit(2)
 	}
 	if err != nil {
@@ -79,37 +96,127 @@ func parseSites(s string) (map[string]string, error) {
 	return sites, nil
 }
 
-func runSeed() error {
-	sites, err := parseSites(os.Getenv("TRAIL_SITES"))
+// runDemo runs `trail demo record`: it records the static demo fixtures.
+func runDemo(args []string, out io.Writer) error {
+	if len(args) == 0 || args[0] != "record" {
+		return errors.New("usage: trail demo record --out DIR --plan FILE [--now RFC3339]")
+	}
+	fs := flag.NewFlagSet("demo record", flag.ContinueOnError)
+	dir := fs.String("out", "", "output directory (e.g. web/public/demo-data)")
+	planPath := fs.String("plan", "testdata/fixtures/plan.json", "recording plan")
+	nowFlag := fs.String("now", "", "pinned clock, RFC 3339 (default: now, to the minute)")
+	if err := fs.Parse(args[1:]); err != nil {
+		return err
+	}
+	if *dir == "" {
+		return errors.New("demo record: --out is required")
+	}
+	tz, err := time.LoadLocation(env("TRAIL_TZ", "Asia/Kolkata"))
+	if err != nil {
+		return fmt.Errorf("TRAIL_TZ: %w", err)
+	}
+	now := time.Now().Truncate(time.Minute)
+	if *nowFlag != "" {
+		if now, err = time.Parse(time.RFC3339, *nowFlag); err != nil {
+			return fmt.Errorf("--now: %w", err)
+		}
+	}
+	plan, err := demo.LoadPlan(*planPath)
 	if err != nil {
 		return err
 	}
-	ids := []string{"demo", "docs"}
-	if len(sites) > 0 {
-		ids = ids[:0]
-		for id := range sites {
-			ids = append(ids, id)
+	man, err := demo.Record(context.Background(), plan, *dir, now, tz)
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(out, "recorded %d responses into %s\n", len(man.Keys), *dir)
+	return nil
+}
+
+// seedOpts are the `trail seed` flags.
+type seedOpts struct {
+	sites, revenue, crawlers []string
+	days, persons            int
+	seed                     uint64
+}
+
+// parseSeedFlags reads `trail seed [--sites a,b] [--days N] [--persons N] [--seed N] [--revenue a] [--crawlers a]`.
+// Sites default to TRAIL_SITES, else demo and docs; a zero seed means a random one.
+func parseSeedFlags(args []string) (seedOpts, error) {
+	fs := flag.NewFlagSet("seed", flag.ContinueOnError)
+	sitesFlag := fs.String("sites", "", "comma-separated site ids (default: TRAIL_SITES, else demo,docs)")
+	days := fs.Int("days", 30, "days of history")
+	persons := fs.Int("persons", 2000, "people to generate")
+	seedN := fs.Uint64("seed", 0, "random seed (0: random)")
+	revenue := fs.String("revenue", "", "comma-separated site ids that get Purchase events")
+	crawls := fs.String("crawlers", "", "comma-separated site ids that get AI crawler hits")
+	if err := fs.Parse(args); err != nil {
+		return seedOpts{}, err
+	}
+	o := seedOpts{days: *days, persons: *persons, seed: *seedN, sites: splitList(*sitesFlag),
+		revenue: splitList(*revenue), crawlers: splitList(*crawls)}
+	if len(o.sites) == 0 {
+		envSites, err := parseSites(os.Getenv("TRAIL_SITES"))
+		if err != nil {
+			return o, err
 		}
-		slices.Sort(ids)
+		for id := range envSites {
+			o.sites = append(o.sites, id)
+		}
+		slices.Sort(o.sites)
+	}
+	if len(o.sites) == 0 {
+		o.sites = []string{"demo", "docs"}
+	}
+	if o.days < 1 || o.days > 400 || o.persons < 1 || o.persons > 1_000_000 {
+		return o, errors.New("seed: --days must be 1-400 and --persons 1-1000000")
+	}
+	for _, id := range append(slices.Clone(o.revenue), o.crawlers...) {
+		if !slices.Contains(o.sites, id) {
+			return o, fmt.Errorf("seed: %q is not one of --sites", id)
+		}
+	}
+	return o, nil
+}
+
+func splitList(s string) []string {
+	var out []string
+	for part := range strings.SplitSeq(s, ",") {
+		if part = strings.TrimSpace(part); part != "" {
+			out = append(out, part)
+		}
+	}
+	return out
+}
+
+func runSeed(args []string) error {
+	o, err := parseSeedFlags(args)
+	if err != nil {
+		return err
 	}
 	path := env("TRAIL_DB", "trail.db")
+	if err := seedDB(path, o, time.Now()); err != nil {
+		return err
+	}
+	fmt.Printf("seeded %s for sites %v\n", path, o.sites)
+	return nil
+}
+
+func seedDB(path string, o seedOpts, now time.Time) error {
 	st, err := store.Open(path)
 	if err != nil {
 		return err
 	}
-	specs := make([]seed.SiteSpec, 0, len(ids))
-	for _, id := range ids {
-		specs = append(specs, seed.SiteSpec{ID: id, Revenue: true, Crawlers: true})
+	seedN := o.seed
+	if seedN == 0 {
+		seedN = uint64(now.UnixNano())
 	}
-	if err := seed.Seed(st, specs, 30, 2000, time.Now(), mrand.New(mrand.NewPCG(uint64(time.Now().UnixNano()), 1))); err != nil {
-		_ = st.Close()
-		return err
+	specs := make([]seed.SiteSpec, 0, len(o.sites))
+	for _, id := range o.sites {
+		specs = append(specs, seed.SiteSpec{ID: id, Revenue: slices.Contains(o.revenue, id), Crawlers: slices.Contains(o.crawlers, id)})
 	}
-	if err := st.Close(); err != nil {
-		return err
-	}
-	fmt.Printf("seeded %s for sites %v\n", path, ids)
-	return nil
+	err = seed.Seed(st, specs, o.days, o.persons, now, mrand.New(mrand.NewPCG(seedN, 1)))
+	return errors.Join(err, st.Close())
 }
 
 func runServe() error {
@@ -175,7 +282,14 @@ func runServe() error {
 		}
 		log.Print("demo: serving sample data at /demo and /api/demo/")
 	}
-	mux := routes(st, geo, reg, tz, a, dist, demoH, rps)
+	ids := make([]string, 0, len(envSites))
+	for id := range envSites {
+		ids = append(ids, id)
+	}
+	slices.Sort(ids)
+	cfg := appConfig{Version: version, TZ: tz.String(), Demo: demoH != nil, Geo: os.Getenv("TRAIL_GEO_DB") != "",
+		IngestRPS: rps, EnvSites: ids, EnvTokens: len(tokens), DBFile: env("TRAIL_DB", "trail.db")}
+	mux := routes(st, geo, reg, tz, a, dist, demoH, rps, cfg)
 
 	srv := &http.Server{
 		Addr:              env("TRAIL_ADDR", ":8080"),
@@ -229,28 +343,46 @@ func parseRPS(s string) (float64, error) {
 // routes builds the server's handler tree. demoH (nil when TRAIL_DEMO is off)
 // is the public demo API; it owns its own DB and refuses anything but GET.
 // rps limits ingest per client IP (0: no limit).
-func routes(st *store.Store, geo *enrich.Geo, reg *sites.Registry, tz *time.Location, a *auth.Auth, dist fs.FS, demoH http.Handler, rps float64) *http.ServeMux {
-	apiH := api.New(st.DB(), reg, tz)
+// version is set at build time with -ldflags "-X main.version=…".
+var version = "dev"
+
+// appConfig is the /api/config payload (Config in web/src/api/types.ts).
+type appConfig struct {
+	Version   string   `json:"version"`
+	TZ        string   `json:"tz"`
+	Demo      bool     `json:"demo"`
+	Geo       bool     `json:"geo"`
+	IngestRPS float64  `json:"ingestRps"`
+	EnvSites  []string `json:"envSites"`
+	EnvTokens int      `json:"envTokens"`
+	DBFile    string   `json:"dbFile"`
+}
+
+func routes(st *store.Store, geo *enrich.Geo, reg *sites.Registry, tz *time.Location, a *auth.Auth, dist fs.FS, demoH http.Handler, rps float64, cfg appConfig) *http.ServeMux {
+	a.SetLookup(func(plain string) (auth.Token, bool) { return meta.LookupToken(st.DB(), plain) })
+	apiH := api.New(st.DB(), reg, tz, api.WithEnvTokens(a.EnvTokens()))
 	ingestOpts := []ingest.Option{ingest.WithPrivate(ingest.NewPrivate(tz, time.Now))}
 	if rps > 0 {
 		ingestOpts = append(ingestOpts, ingest.WithRateLimit(rps, int(max(1, 2*rps))))
 	}
-	v1 := rewrite("/api/v1/", "/api/", apiH)
-	v1Read, v1Write := a.Bearer("read", v1), a.Bearer("write", v1)
+	v1 := a.API(rewrite("/api/v1/", "/api/", apiH))
 
 	mux := http.NewServeMux()
 	mux.Handle("/_t/e", ingest.New(st, geo, reg, ingestOpts...))
 	mux.Handle("/_t/", ingest.TrackerFiles())
 	mux.HandleFunc("POST /api/login", a.Login)
 	mux.Handle("/api/", a.Require(apiH))
-	mux.Handle("/api/v1/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodGet || r.Method == http.MethodHead {
-			v1Read.ServeHTTP(w, r)
-			return
-		}
-		v1Write.ServeHTTP(w, r) // goal and site changes
-	}))
-	mux.Handle("/mcp", a.Bearer("read", mcp.New(st.DB(), reg, tz)))
+	if cfg.EnvSites == nil {
+		cfg.EnvSites = []string{}
+	}
+	mux.Handle("GET /api/config", a.Require(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Cache-Control", "no-store")
+		_ = json.NewEncoder(w).Encode(cfg)
+	})))
+	mux.Handle("/api/v1/", v1)                                    // scope matrix of plan §0.12
+	mux.Handle("/api/share/", api.ShareHandler(st.DB(), reg, tz)) // read-only links; the token is the credential
+	mux.Handle("/mcp", a.API(mcp.New(st.DB(), reg, tz)))
 	if demoH != nil {
 		mux.Handle("/api/demo/", demoH) // unauthenticated; rewrites to /api/ itself
 	}
@@ -300,6 +432,11 @@ func spaHandler(fsys fs.FS) http.Handler {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("X-Frame-Options", "DENY")
 		w.Header().Set("Referrer-Policy", "same-origin")
+		if strings.HasPrefix(r.URL.Path, "/share/") {
+			// The token is in the path: never send it on as a Referer, and keep the page out of search.
+			w.Header().Set("Referrer-Policy", "no-referrer")
+			w.Header().Set("X-Robots-Tag", "noindex, nofollow")
+		}
 		name := strings.TrimPrefix(path.Clean("/"+r.URL.Path), "/")
 		if name != "" && name != "index.html" {
 			if fi, err := fs.Stat(fsys, name); err == nil && !fi.IsDir() {

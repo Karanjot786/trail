@@ -1,0 +1,14 @@
+[
+  {
+    "id": 1,
+    "name": "Signup",
+    "kind": "event",
+    "match": "Signup"
+  },
+  {
+    "id": 2,
+    "name": "Pricing",
+    "kind": "page",
+    "match": "/pricing"
+  }
+]

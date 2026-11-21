@@ -1,0 +1,38 @@
+[
+  {
+    "source": "google",
+    "medium": "cpc",
+    "campaign": "brand",
+    "term": "",
+    "content": "",
+    "visitors": 11,
+    "sessions": 11,
+    "bounce": 0.09090909090909094,
+    "convRate": 0.125,
+    "revenueMinor": 0
+  },
+  {
+    "source": "newsletter",
+    "medium": "email",
+    "campaign": "nov-digest",
+    "term": "",
+    "content": "",
+    "visitors": 11,
+    "sessions": 11,
+    "bounce": 0.5454545454545454,
+    "convRate": 0.2727272727272727,
+    "revenueMinor": 0
+  },
+  {
+    "source": "x",
+    "medium": "social",
+    "campaign": "launch-week",
+    "term": "",
+    "content": "",
+    "visitors": 9,
+    "sessions": 9,
+    "bounce": 0.4444444444444444,
+    "convRate": 0.2,
+    "revenueMinor": 0
+  }
+]

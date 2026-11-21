@@ -1,0 +1,53 @@
+[
+  {
+    "person": "56b2a7bda145121bddc187320ac89db2",
+    "label": "Visitor 56B2",
+    "identified": false,
+    "firstSeen": 1795149172558,
+    "lastSeen": 1795149299852,
+    "visits": 1,
+    "pages": 3,
+    "durationMs": 127294,
+    "country": "IN",
+    "region": "Maharashtra",
+    "city": "Mumbai",
+    "device": "mobile",
+    "browser": "Chrome",
+    "os": "Android",
+    "source": "Direct"
+  },
+  {
+    "person": "0a2b97602c26eaf364713e5b45661d3c",
+    "label": "Visitor 0A2B",
+    "identified": false,
+    "firstSeen": 1795149219553,
+    "lastSeen": 1795149273518,
+    "visits": 1,
+    "pages": 2,
+    "durationMs": 53965,
+    "country": "SG",
+    "region": "Singapore",
+    "city": "Singapore",
+    "device": "desktop",
+    "browser": "Safari",
+    "os": "Mac",
+    "source": "ChatGPT"
+  },
+  {
+    "person": "b42d122dc52323db109cac7a9d0d203f",
+    "label": "Visitor B42D",
+    "identified": false,
+    "firstSeen": 1795149227643,
+    "lastSeen": 1795149259524,
+    "visits": 1,
+    "pages": 2,
+    "durationMs": 31881,
+    "country": "GB",
+    "region": "England",
+    "city": "Manchester",
+    "device": "mobile",
+    "browser": "Chrome",
+    "os": "Android",
+    "source": "Google"
+  }
+]

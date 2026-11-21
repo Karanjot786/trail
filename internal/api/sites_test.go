@@ -14,6 +14,11 @@ type siteRow struct {
 	Created     int64    `json:"created"`
 	LastEventAt *int64   `json:"lastEventAt"`
 	Events24h   int      `json:"events24h"`
+	Features    struct {
+		Revenue  bool   `json:"revenue"`
+		Crawlers bool   `json:"crawlers"`
+		Currency string `json:"currency"`
+	} `json:"features"`
 }
 
 func TestAPISitesList(t *testing.T) {

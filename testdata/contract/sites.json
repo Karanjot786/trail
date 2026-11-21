@@ -1,0 +1,28 @@
+[
+  {
+    "id": "demo",
+    "domain": "demo.trail.dev",
+    "origins": [],
+    "created": 1700000000000,
+    "lastEventAt": 1795149299852,
+    "events24h": 0,
+    "features": {
+      "revenue": true,
+      "crawlers": true,
+      "currency": "USD"
+    }
+  },
+  {
+    "id": "docs",
+    "domain": "docs.trail.dev",
+    "origins": [],
+    "created": 1700000000000,
+    "lastEventAt": 1795149237323,
+    "events24h": 0,
+    "features": {
+      "revenue": false,
+      "crawlers": false,
+      "currency": "USD"
+    }
+  }
+]

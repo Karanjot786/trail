@@ -41,7 +41,8 @@ func TestParseTokens(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if toks[readTok] != (Token{Name: "ci", Scope: "read"}) || toks[writeTok] != (Token{Name: "admin", Scope: "write"}) || len(toks) != 2 {
+	if toks[readTok] != (Token{ID: "env:ci", Name: "ci", Scope: "read", FromEnv: true}) ||
+		toks[writeTok] != (Token{ID: "env:admin", Name: "admin", Scope: "write", FromEnv: true}) || len(toks) != 2 {
 		t.Fatalf("got %+v", toks)
 	}
 	if toks, err := ParseTokens(""); err != nil || len(toks) != 0 {
@@ -68,7 +69,7 @@ func TestParseTokens(t *testing.T) {
 }
 
 func TestBearerMissing401(t *testing.T) {
-	h := bearerAuth(t).Bearer("read", okHandler)
+	h := bearerAuth(t).API(okHandler)
 	for _, hdr := range []string{"", "Bearer", "Bearer ", "Basic " + readTok, readTok} {
 		if c := call(h, "GET", hdr); c != http.StatusUnauthorized {
 			t.Errorf("%q: %d, want 401", hdr, c)
@@ -77,7 +78,7 @@ func TestBearerMissing401(t *testing.T) {
 }
 
 func TestBearerWrong401(t *testing.T) {
-	h := bearerAuth(t).Bearer("read", okHandler)
+	h := bearerAuth(t).API(okHandler)
 	if c := call(h, "GET", "Bearer "+readTok+"x"); c != http.StatusUnauthorized {
 		t.Fatalf("%d", c)
 	}
@@ -85,7 +86,7 @@ func TestBearerWrong401(t *testing.T) {
 		t.Fatalf("prefix: %d", c)
 	}
 	// No tokens configured: everything is 401.
-	if c := call(newAuth().Bearer("read", okHandler), "GET", "Bearer "+readTok); c != http.StatusUnauthorized {
+	if c := call(newAuth().API(okHandler), "GET", "Bearer "+readTok); c != http.StatusUnauthorized {
 		t.Fatalf("unconfigured: %d", c)
 	}
 }
@@ -93,17 +94,17 @@ func TestBearerWrong401(t *testing.T) {
 func TestBearerOK(t *testing.T) {
 	a := bearerAuth(t)
 	for _, hdr := range []string{"Bearer " + readTok, "bearer " + writeTok} {
-		if c := call(a.Bearer("read", okHandler), "GET", hdr); c != http.StatusTeapot {
+		if c := call(a.API(okHandler), "GET", hdr); c != http.StatusTeapot {
 			t.Errorf("%q: %d", hdr, c)
 		}
 	}
-	if c := call(a.Bearer("write", okHandler), "POST", "Bearer "+writeTok); c != http.StatusTeapot {
+	if c := call(a.API(okHandler), "POST", "Bearer "+writeTok); c != http.StatusTeapot {
 		t.Errorf("write token on write route: %d", c)
 	}
 }
 
 func TestBearerReadCannotWrite403(t *testing.T) {
-	if c := call(bearerAuth(t).Bearer("write", okHandler), "POST", "Bearer "+readTok); c != http.StatusForbidden {
+	if c := call(bearerAuth(t).API(okHandler), "POST", "Bearer "+readTok); c != http.StatusForbidden {
 		t.Fatalf("%d, want 403", c)
 	}
 }
@@ -112,7 +113,7 @@ func TestBearerRateLimit429(t *testing.T) {
 	a := bearerAuth(t)
 	now := time.Unix(1_700_000_000, 0)
 	a.now = func() time.Time { return now }
-	h := a.Bearer("read", okHandler)
+	h := a.API(okHandler)
 	for i := range rateLimit {
 		if c := call(h, "GET", "Bearer "+readTok); c != http.StatusTeapot {
 			t.Fatalf("request %d: %d", i, c)
@@ -162,7 +163,7 @@ func TestBearerCannotUseCookieRoutes(t *testing.T) {
 }
 
 func TestBearerNoTokenInResponse(t *testing.T) {
-	h := bearerAuth(t).Bearer("write", okHandler)
+	h := bearerAuth(t).API(okHandler)
 	for _, tok := range []string{readTok, readTok + "zz"} {
 		r := httptest.NewRequest("POST", "/x", nil)
 		r.Header.Set("Authorization", "Bearer "+tok)

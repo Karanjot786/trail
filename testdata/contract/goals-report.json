@@ -1,0 +1,30 @@
+[
+  {
+    "id": 1,
+    "name": "Signup",
+    "kind": "event",
+    "match": "Signup",
+    "conversions": 50,
+    "visitors": 50,
+    "rate": 0.2183406113537118,
+    "prev": {
+      "conversions": 49,
+      "visitors": 49,
+      "rate": 0.23444976076555024
+    }
+  },
+  {
+    "id": 2,
+    "name": "Pricing",
+    "kind": "page",
+    "match": "/pricing",
+    "conversions": 51,
+    "visitors": 45,
+    "rate": 0.1965065502183406,
+    "prev": {
+      "conversions": 36,
+      "visitors": 30,
+      "rate": 0.14354066985645933
+    }
+  }
+]

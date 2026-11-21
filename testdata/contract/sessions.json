@@ -1,0 +1,58 @@
+[
+  {
+    "sessionId": "e0e46e164b5026b8637b30657e047007",
+    "person": "9459777509bd9dac40d8bdcac835e8a0",
+    "label": "Visitor 9459",
+    "start": 1795149232184,
+    "durationMs": 1167,
+    "pages": 1,
+    "entry": "/pricing",
+    "exit": "/pricing",
+    "source": "LinkedIn",
+    "country": "BR",
+    "city": "São Paulo",
+    "device": "mobile",
+    "browser": "Chrome",
+    "os": "Android",
+    "goals": [
+      2
+    ],
+    "revenueMinor": 0
+  },
+  {
+    "sessionId": "f4000fae084994f5d9aa1ce327b26925",
+    "person": "b42d122dc52323db109cac7a9d0d203f",
+    "label": "Visitor B42D",
+    "start": 1795149227643,
+    "durationMs": 31881,
+    "pages": 2,
+    "entry": "/blog/117",
+    "exit": "/docs/components/tutorial",
+    "source": "Google",
+    "country": "GB",
+    "city": "Manchester",
+    "device": "mobile",
+    "browser": "Chrome",
+    "os": "Android",
+    "goals": [],
+    "revenueMinor": 0
+  },
+  {
+    "sessionId": "1e7daf60aebb590540a3f1b815eab00f",
+    "person": "0a2b97602c26eaf364713e5b45661d3c",
+    "label": "Visitor 0A2B",
+    "start": 1795149219553,
+    "durationMs": 53965,
+    "pages": 2,
+    "entry": "/",
+    "exit": "/signup",
+    "source": "ChatGPT",
+    "country": "SG",
+    "city": "Singapore",
+    "device": "desktop",
+    "browser": "Safari",
+    "os": "Mac",
+    "goals": [],
+    "revenueMinor": 0
+  }
+]

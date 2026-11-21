@@ -1,0 +1,9 @@
+{
+  "about": "Shared fixture-key vectors: web fixtureKey() and Go query.FixtureKey must produce `key` from `path` and `params` (tz is dropped).",
+  "vectors": [
+    { "path": "/stats", "params": [["site", "demo"], ["range", "30d"], ["cmp", "prev"], ["env", "production"], ["tz", "Asia/Kolkata"]], "key": "/stats?cmp=prev&env=production&range=30d&site=demo" },
+    { "path": "/breakdown", "params": [["site", "demo"], ["range", "c:2026-11-01~2026-11-05"], ["f", "source:Google"], ["dim", "path"]], "key": "/breakdown?dim=path&f=source%3AGoogle&range=c%3A2026-11-01%7E2026-11-05&site=demo" },
+    { "path": "/events/detail", "params": [["site", "demo"], ["name", "Copy Code"], ["f", "path:/a*b é"]], "key": "/events/detail?f=path%3A%2Fa*b+%C3%A9&name=Copy+Code&site=demo" },
+    { "path": "/sites", "params": [], "key": "/sites?" }
+  ]
+}
