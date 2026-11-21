@@ -1,0 +1,11 @@
+{
+  "token": "trl_AbCdEfGhIjKlMnOpQrStUvWxYz012345",
+  "site": "demo",
+  "t": 1763700000,
+  "ip": "203.0.113.7",
+  "geo": "BR|SP|São Paulo",
+  "geoSrc": "vercel",
+  "host": "demo.trail.dev",
+  "body": "{\"s\":\"demo\",\"t\":\"pageview\"}",
+  "header": "v1;k=trl_AbCdEfGh;t=1763700000;s=e50b88d851299f7b224127d09474d279589fa80191bbfea9890df277fc176e76"
+}
