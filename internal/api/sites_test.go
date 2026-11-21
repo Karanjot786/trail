@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+
+	"trail/internal/query"
 )
 
 type siteRow struct {
@@ -139,11 +141,7 @@ func TestAPISiteStatus(t *testing.T) {
 	reg.Reject("s")
 	reg.Reject("s")
 	w := get(h, "/api/sites/s/status")
-	var st struct {
-		LastEventAt *int64 `json:"lastEventAt"`
-		Events24h   int    `json:"events24h"`
-		Rejected24h int    `json:"rejected24h"`
-	}
+	var st query.SiteStatus
 	decodeStrict(t, w.Body.Bytes(), &st)
 	if st.LastEventAt == nil || st.Events24h != 1 || st.Rejected24h != 2 {
 		t.Fatalf("status %s", w.Body)
