@@ -167,6 +167,7 @@ func (s *server) siteStatus(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, struct {
 		activity
-		Rejected24h int `json:"rejected24h"`
-	}{a, s.sites.Rejected24h(id)})
+		Rejected24h int              `json:"rejected24h"`
+		Geo         *query.GeoStatus `json:"geo"` // null until B-api's Task A-4 fills it
+	}{a, s.sites.Rejected24h(id), nil})
 }

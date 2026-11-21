@@ -52,5 +52,6 @@
   "conv": {
     "goalId": 1,
     "name": "Signup"
-  }
+  },
+  "agentSessions": 0
 }
