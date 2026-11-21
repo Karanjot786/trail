@@ -5,12 +5,14 @@ import { useMemo, useState } from 'react'
 import { api } from '../api/client'
 import type { Dim, Filter } from '../api/types'
 import { useQuery } from '../api/useQuery'
+import { viewerTz } from '../shell/labels'
 import { useSite } from '../shell/useSite'
+import { useStats } from '../shell/useStats'
 import { apiQuery } from '../state/url'
 import { navigate, useUrlState } from '../state/useUrlState'
 import { Menu, MenuCheckbox, MenuItem, MenuLabel, MenuSeparator } from '../ui/menu'
 import { EmptyState, ErrorState, Skeleton } from '../ui/states'
-import { Segmented, Tabs } from '../ui/tabs'
+import { Tabs } from '../ui/tabs'
 import { toast } from '../ui/toast'
 import { BarList, type BarRowModel, type ColumnDef } from './BarList'
 import { losesMost, overlapNoteFor, toggleColumn, toRows } from './columns'
@@ -32,14 +34,6 @@ export interface PanelProps {
 }
 
 export const PANEL_ROWS = 7
-
-export function browserTz(): string {
-  try {
-    return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
-  } catch {
-    return 'UTC'
-  }
-}
 
 /** One filter per dim: the same row again removes it, another value replaces it. */
 export function toggleFilter(filters: Filter[], dim: Dim, value: string): Filter[] {
@@ -68,7 +62,7 @@ function download(href: string): void {
 export function Panel({ id, title, tabs, definition }: PanelProps) {
   const state = useUrlState()
   const { share } = useSite()
-  const tz = browserTz()
+  const tz = viewerTz()
   const tab = tabs.find((t) => t.value === state.panels[id]) ?? tabs[0]
   const q = apiQuery(state, tz)
   const qs = q.toString()
@@ -76,8 +70,8 @@ export function Panel({ id, title, tabs, definition }: PanelProps) {
   const [exitSort, setExitSort] = useState<'exits' | 'rate'>('exits')
   const headingId = `panel-${id}-h`
 
-  const rowsQ = useQuery(`breakdown|${tab?.dim}|${qs}`, (signal) => api.breakdown(q, tab.dim, { limit: 100 }, signal))
-  const statsQ = useQuery(`stats|${qs}`, (signal) => api.stats(q, signal))
+  const rowsQ = useQuery(`breakdown|${tab?.dim}|${qs}|${state.prefix}`, async (signal) => api.breakdown(q, tab.dim, { limit: 100 }, signal))
+  const statsQ = useStats()
 
   const allCols = tab?.columns ?? []
   const visibleIds = allCols.map((c) => c.id).filter((c) => !(hidden[tab?.value] ?? []).includes(c))
@@ -154,15 +148,18 @@ export function Panel({ id, title, tabs, definition }: PanelProps) {
       {(tab.definition ?? definition) && <p className="panel-def">{tab.definition ?? definition}</p>}
       {isExit && (
         <div className="panel-def">
-          <Segmented
-            value={exitSort}
-            onValueChange={(v) => setExitSort(v as 'exits' | 'rate')}
-            ariaLabel="Sort exit pages"
-            items={[
-              { value: 'exits', label: 'Most exits' },
-              { value: 'rate', label: 'Loses people most' },
-            ]}
-          />
+          <div className="seg" role="group" aria-label="Sort exit pages">
+            {(
+              [
+                ['exits', 'Most exits'],
+                ['rate', 'Loses people most'],
+              ] as const
+            ).map(([v, label]) => (
+              <button key={v} type="button" aria-pressed={exitSort === v} onClick={() => setExitSort(v)}>
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
       )}
       <div className="panel-body" role={tabs.length > 1 ? 'tabpanel' : undefined} aria-labelledby={headingId}>

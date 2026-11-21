@@ -9,6 +9,8 @@ export interface ChartCardRow {
   value: string
   /** The series colour: pass it only for the plotted series. */
   color?: string
+  /** The value of the same bucket in the dashed series. */
+  prev?: string
   delta?: ReactNode
 }
 export interface ChartCardRef {
@@ -40,17 +42,20 @@ export function ChartCard({ title, vs, rows, refs, note, signups }: ChartCardPro
       </div>
       {rows.map((r) => (
         <div key={r.key} className={`tt-r ${r.color ? 'on' : 'plain'}`}>
-          {r.color ? <span className="tt-dot" style={{ background: r.color }} /> : <span />}
+          {r.color ? <span className="tt-dot" data-key-dot="" style={{ background: r.color }} /> : <span />}
           <span className="tt-l">{r.label}</span>
           <b className="tt-v">{r.value}</b>
-          <span className="tt-pv">{r.delta}</span>
+          <span className="tt-prev">{r.prev}</span>
+          <span className="tt-pv" data-delta={r.delta ? '' : undefined}>
+            {r.delta}
+          </span>
         </div>
       ))}
       {refs && refs.length > 0 && (
         <>
           <div className="tt-h">Top referrers</div>
           {refs.slice(0, 3).map((r) => (
-            <div key={r.key} className="tt-ref">
+            <div key={r.key} className="tt-ref" data-testid="chart-ref">
               <span className="tt-ini">{(r.label.trim()[0] ?? '?').toUpperCase()}</span>
               <span className="tt-l">{r.label}</span>
               <b className="tt-v">{r.value}</b>

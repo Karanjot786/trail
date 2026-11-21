@@ -10,7 +10,7 @@ import { placeCard } from './placeCard'
 import { useWidth } from './useWidth'
 import './charts.css'
 
-export const CARD_W = 272
+export const CARD_W = 300
 
 export interface TimeChartProps {
   mode: 'line' | 'bars'
@@ -38,12 +38,6 @@ export function noFloatingCard(): boolean {
   if (typeof window === 'undefined') return true
   const coarse = typeof window.matchMedia === 'function' && window.matchMedia('(hover: none), (pointer: coarse)').matches
   return coarse || window.innerWidth <= 640
-}
-
-function barPath(x: number, y: number, w: number, h: number, r: number): string {
-  // Rounded data end, square on the baseline.
-  const rr = Math.min(r, w / 2, h)
-  return `M${x.toFixed(1)} ${(y + h).toFixed(1)} V${(y + rr).toFixed(1)} Q${x.toFixed(1)} ${y.toFixed(1)} ${(x + rr).toFixed(1)} ${y.toFixed(1)} H${(x + w - rr).toFixed(1)} Q${(x + w).toFixed(1)} ${y.toFixed(1)} ${(x + w).toFixed(1)} ${(y + rr).toFixed(1)} V${(y + h).toFixed(1)} Z`
 }
 
 export function TimeChart(o: TimeChartProps) {
@@ -247,7 +241,7 @@ export function TimeChart(o: TimeChartProps) {
             if (v == null || !v) return null
             const w = Math.max(2, bw * 0.62)
             const yy = y(v)
-            return <path key={i} className={`vbar${i === active ? ' on' : ''}`} d={barPath(x(i) - w / 2, yy, w, Math.max(1, plotB - yy), 4)} />
+            return <rect key={i} className={`vbar${i === active ? ' on' : ''}`} x={x(i) - w / 2} y={yy} width={w} height={Math.max(1, plotB - yy)} rx={Math.min(3, w / 3)} />
           })}
         {bars &&
           prevVals?.map((v, i) =>
@@ -270,7 +264,7 @@ export function TimeChart(o: TimeChartProps) {
             </text>
             <line className="lane-base" x1={padL} x2={W - padR} y1={plotB + 19} y2={plotB + 19} />
             {lane.marks.map((m) => (
-              <g key={m.i} className={`goal-g${active >= m.from && active <= m.to ? ' on' : ''}`}>
+              <g key={m.i} data-goal-mark="" className={`goal-g${active >= m.from && active <= m.to ? ' on' : ''}`}>
                 <circle className="goal-d" cx={x(m.i)} cy={plotB + 19} r="4" />
                 <text className="goal-n" x={x(m.i)} y={plotB + 10} textAnchor="middle">
                   {m.count}
