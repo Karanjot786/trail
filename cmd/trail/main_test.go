@@ -87,7 +87,7 @@ func testRoutesDemo(t *testing.T, demoH http.Handler) http.Handler {
 	if err := addEnvSites(reg, map[string]string{"s": "example.com"}); err != nil {
 		t.Fatal(err)
 	}
-	return routes(st, geo, reg, time.UTC, a, fstest.MapFS{"index.html": {Data: []byte("app")}}, demoH, 0, appConfig{Version: "test", TZ: "UTC"})
+	return routes(st, geo, reg, time.UTC, a, fstest.MapFS{"index.html": {Data: []byte("app")}}, demoH, 0, nil, appConfig{Version: "test", TZ: "UTC"})
 }
 
 func TestAddEnvSitesKeepsEdits(t *testing.T) {

@@ -63,8 +63,16 @@ func postFrom(h http.Handler, body string, hdr map[string]string) *httptest.Resp
 	r := httptest.NewRequest(http.MethodPost, "/_t/e", strings.NewReader(body))
 	r.Header.Set("Content-Type", "text/plain")
 	r.Header.Set("User-Agent", iphoneUA)
+	// As if behind a reverse proxy on the same box: the TCP peer is loopback
+	// and the proxy appended the visitor's address. A "RemoteAddr" key in hdr
+	// sets the TCP peer instead.
+	r.RemoteAddr = "127.0.0.1:41000"
 	r.Header.Set("X-Forwarded-For", "203.0.113.77, 10.0.0.1")
 	for k, v := range hdr {
+		if k == "RemoteAddr" {
+			r.RemoteAddr = v
+			continue
+		}
 		r.Header.Set(k, v)
 	}
 	w := httptest.NewRecorder()
@@ -576,5 +584,36 @@ func TestPrivateKeepsCountryOnly(t *testing.T) {
 	}
 	if want := [3]string{"IN", "Maharashtra", "Mumbai"}; got["an"] != want {
 		t.Errorf("full = %q, want %q", got["an"], want)
+	}
+}
+
+// Geo comes from the real client: a forged X-Forwarded-For from a public peer
+// is ignored, while the same header from a local proxy is used.
+func TestGeoIgnoresSpoofedXFF(t *testing.T) {
+	st, reg := newRegistry(t, map[string]string{"s1": "example.com"})
+	geo, err := enrich.OpenGeo("../enrich/testdata/city-test.mmdb")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = geo.Close() })
+	h := New(st, geo, reg)
+	postFrom(h, pageview, map[string]string{"Origin": "https://example.com", "RemoteAddr": "198.51.100.7:5000", "X-Forwarded-For": "49.36.0.1"})
+	postFrom(h, pageview, map[string]string{"Origin": "https://example.com", "X-Forwarded-For": "49.36.0.1"})
+	rows(t, st)
+	r, err := st.DB().Query(`SELECT country FROM events ORDER BY rowid`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+	var got []string
+	for r.Next() {
+		var c string
+		if err := r.Scan(&c); err != nil {
+			t.Fatal(err)
+		}
+		got = append(got, c)
+	}
+	if len(got) != 2 || got[0] != "" || got[1] != "IN" {
+		t.Errorf("countries = %q, want [\"\" \"IN\"] (spoofed, then via proxy)", got)
 	}
 }

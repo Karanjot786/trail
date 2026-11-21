@@ -35,6 +35,7 @@ import (
 	"trail/internal/ingest"
 	"trail/internal/mcp"
 	"trail/internal/meta"
+	"trail/internal/netx"
 	"trail/internal/query"
 	"trail/internal/seed"
 	"trail/internal/sites"
@@ -233,6 +234,10 @@ func runServe() error {
 	if err != nil {
 		return err
 	}
+	ips, err := netx.ParseTrusted(os.Getenv("TRAIL_TRUSTED_PROXIES"))
+	if err != nil {
+		return fmt.Errorf("TRAIL_TRUSTED_PROXIES: %w", err)
+	}
 	tz, err := time.LoadLocation(env("TRAIL_TZ", "Asia/Kolkata"))
 	if err != nil {
 		return fmt.Errorf("TRAIL_TZ: %w", err)
@@ -292,7 +297,7 @@ func runServe() error {
 	slices.Sort(ids)
 	cfg := appConfig{Version: version, TZ: tz.String(), Demo: demoH != nil,
 		IngestRPS: rps, EnvSites: ids, EnvTokens: len(tokens), DBFile: env("TRAIL_DB", "trail.db")}
-	mux := routes(st, geo, reg, tz, a, dist, demoH, rps, cfg)
+	mux := routes(st, geo, reg, tz, a, dist, demoH, rps, ips, cfg)
 
 	srv := &http.Server{
 		Addr:              env("TRAIL_ADDR", ":8080"),
@@ -345,7 +350,8 @@ func parseRPS(s string) (float64, error) {
 
 // routes builds the server's handler tree. demoH (nil when TRAIL_DEMO is off)
 // is the public demo API; it owns its own DB and refuses anything but GET.
-// rps limits ingest per client IP (0: no limit).
+// rps limits ingest per client IP (0: no limit); ips decides which proxies
+// may report that IP (nil: netx.Default).
 // version is set at build time with -ldflags "-X main.version=…".
 var version = "dev"
 
@@ -361,10 +367,10 @@ type appConfig struct {
 	DBFile    string         `json:"dbFile"`
 }
 
-func routes(st *store.Store, geo *enrich.Geo, reg *sites.Registry, tz *time.Location, a *auth.Auth, dist fs.FS, demoH http.Handler, rps float64, cfg appConfig) *http.ServeMux {
+func routes(st *store.Store, geo *enrich.Geo, reg *sites.Registry, tz *time.Location, a *auth.Auth, dist fs.FS, demoH http.Handler, rps float64, ips *netx.Resolver, cfg appConfig) *http.ServeMux {
 	a.SetLookup(func(plain string) (auth.Token, bool) { return meta.LookupToken(st.DB(), plain) })
 	apiH := api.New(st.DB(), reg, tz, api.WithEnvTokens(a.EnvTokens()))
-	ingestOpts := []ingest.Option{ingest.WithPrivate(ingest.NewPrivate(tz, time.Now))}
+	ingestOpts := []ingest.Option{ingest.WithPrivate(ingest.NewPrivate(tz, time.Now)), ingest.WithProxies(ips)}
 	if rps > 0 {
 		ingestOpts = append(ingestOpts, ingest.WithRateLimit(rps, int(max(1, 2*rps))))
 	}

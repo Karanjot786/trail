@@ -1,4 +1,4 @@
-.PHONY: tracker web build test dev seed dev-seed e2e demo-fixtures geo clean
+.PHONY: tracker web build test dev seed dev-seed e2e demo-fixtures geo cloudflare-ips clean
 
 tracker:
 	cd tracker && npm ci && node build.mjs
@@ -40,6 +40,10 @@ demo-fixtures:
 # Refresh the embedded DB-IP Lite Country database (CI runs this monthly and opens a PR).
 geo:
 	./scripts/update-geo.sh
+
+# Refresh the bundled Cloudflare IP ranges (trusted for CF-Connecting-IP).
+cloudflare-ips:
+	./scripts/update-cloudflare-ips.sh
 
 clean:
 	rm -f trail dev.db dev.db-* internal/ingest/t.js

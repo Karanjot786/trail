@@ -64,7 +64,12 @@ Trail serves `t.js` gzipped, with an `ETag` and `Vary: Accept-Encoding`. A proxy
 
 ## Forward the visitor IP
 
-Trail takes the visitor IP from the first `X-Forwarded-For` entry. Vercel, Netlify and Caddy add the original client IP there. If your proxy does not, every visitor appears to come from the proxy: countries go wrong, in private mode visitors from different people can merge, and the per-IP rate limit (`TRAIL_INGEST_RPS`, default 50 per second) applies to the proxy as a whole. Make sure the header is forwarded.
+Vercel, Netlify, Caddy and nginx (with the line above) add the visitor's IP to `X-Forwarded-For`. Trail believes that header only when the request comes from a proxy listed in `TRAIL_TRUSTED_PROXIES` (default: loopback, private ranges and Cloudflare). Otherwise every visitor appears to come from the proxy: countries go wrong, in private mode visitors from different people can merge, and the per-IP rate limit (`TRAIL_INGEST_RPS`, default 50 per second) applies to the proxy as a whole.
+
+- Your own nginx or Caddy with a fixed address: add it, e.g. `TRAIL_TRUSTED_PROXIES=private,cloudflare,198.51.100.7`.
+- Vercel and Netlify: they connect from changing public addresses, so they cannot be listed. You can trust every peer with `TRAIL_TRUSTED_PROXIES=0.0.0.0/0,::/0`, which brings the visitor IP back but lets anyone who calls Trail directly send a forged one. Keep that in mind for the rate limit.
+
+See [Client IP and proxies](/operations/configuration#client-ip).
 
 ## Next
 

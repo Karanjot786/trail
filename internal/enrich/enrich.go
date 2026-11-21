@@ -3,7 +3,6 @@ package enrich
 
 import (
 	"net"
-	"net/http"
 	"net/netip"
 	"net/url"
 	"regexp"
@@ -35,22 +34,6 @@ func ParseUA(ua string) (device, browser, os string, bot bool) {
 		os = "GNU/Linux"
 	}
 	return device, p.Name, os, bot
-}
-
-// ClientIP returns the first X-Forwarded-For entry, else the RemoteAddr host.
-// XFF is spoofable; that only skews the owner's own geo stats (spec decision 1).
-func ClientIP(r *http.Request) string {
-	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		first, _, _ := strings.Cut(xff, ",")
-		if ip := strings.TrimSpace(first); ip != "" {
-			return ip
-		}
-	}
-	host, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil {
-		return r.RemoteAddr
-	}
-	return host
 }
 
 var (
