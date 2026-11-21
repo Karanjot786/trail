@@ -39,6 +39,16 @@ describe('compare', () => {
     expect(compare(1900, 0, 'money', 'up')).toMatchObject({ mode: 'abs', text: 'new', sign: '+' })
   })
 
+  it('rounds the size of a change symmetrically, never "−0%"', () => {
+    expect(compare(199, 200, 'count', 'up')).toMatchObject({ mode: 'pct', text: '1%', sign: '−' })
+    expect(compare(201, 200, 'count', 'up')).toMatchObject({ mode: 'pct', text: '1%', sign: '+' })
+    expect(compare(1999, 2000, 'count', 'up')).toMatchObject({ mode: 'flat', text: 'no change', sign: '' })
+  })
+
+  it('money backed by fewer than 5 purchases is too little data', () => {
+    expect(compare(4000, 100, 'money', 'up', 2)).toMatchObject({ mode: 'low', text: 'too little data' })
+  })
+
   it('flat goal reads flat tone either way', () => expect(compare(10, 50, 'count', 'flat').tone).toBe('flat'))
 })
 

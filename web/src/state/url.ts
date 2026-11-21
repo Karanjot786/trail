@@ -94,7 +94,9 @@ const splitOnce = (s: string, sep: string): [string, string] | null => {
 function parseSheet(q: URLSearchParams): Sheet | null {
   const v = q.get('v')
   if (v) {
-    const [person, session] = splitOnce(v, '~') ?? [v, '']
+    // Split on the last ~: session ids never contain one, person ids may (a trailing ~ marks "no session").
+    const i = v.lastIndexOf('~')
+    const [person, session] = i < 0 ? [v, ''] : [v.slice(0, i), v.slice(i + 1)]
     if (person) return session ? { kind: 'journey', person, session } : { kind: 'journey', person }
   }
   const dr = splitOnce(q.get('dr') ?? '', '|')
@@ -230,7 +232,7 @@ function sheetParams(q: URLSearchParams, sheet: Sheet | null) {
   if (!sheet) return
   switch (sheet.kind) {
     case 'journey':
-      q.set('v', sheet.session ? `${sheet.person}~${sheet.session}` : sheet.person)
+      q.set('v', sheet.session ? `${sheet.person}~${sheet.session}` : sheet.person.includes('~') ? `${sheet.person}~` : sheet.person)
       break
     case 'row':
       q.set('dr', `${sheet.dim}|${sheet.key}`)

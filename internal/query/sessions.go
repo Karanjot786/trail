@@ -57,7 +57,7 @@ ORDER BY e.ts, e.id`
 		if !ok {
 			i = len(out)
 			bySession[sid] = i
-			out = append(out, Session{SessionID: sid, Start: s.TS, Source: src, Steps: []Step{}})
+			out = append(out, Session{SessionID: sid, Start: s.TS, Source: src, Steps: []Step{}, Goals: []GoalHit{}})
 		}
 		sess := &out[i]
 		if s.Type == "engage" {

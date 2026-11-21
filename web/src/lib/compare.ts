@@ -1,7 +1,7 @@
 // THE comparison function (plan §0.9). Every delta in the app is computed here and nowhere else.
 // Frozen after P0. Port of the prototype's TE.compare, with rates as 0–1 fractions and money in minor units.
 //   - fewer than MIN_BASE in the earlier period: counts show the plain difference, never "+700%"
-//   - rates and averages backed by fewer than MIN_BASE (`n`): "too little data"
+//   - rates, averages and money backed by fewer than MIN_BASE (`n`: sessions, visitors or purchases): "too little data"
 //   - money at 0 in this period: "no purchases", never a red "-100%"
 //   - rates: the difference in percentage points ("pt", read out as "points")
 import type { Basis } from '../api/types'
@@ -27,7 +27,7 @@ export function compare(cur: number | null, prev: number | null, kind: DeltaKind
   if (!finite(prev)) return quiet('none', 'no earlier data')
   if (!finite(cur)) return quiet('none', 'no data')
   if (kind === 'money' && cur === 0) return quiet('none', 'no purchases')
-  if ((kind === 'rate' || kind === 'duration') && n != null && n < MIN_BASE) return quiet('low', 'too little data')
+  if ((kind === 'rate' || kind === 'duration' || kind === 'money') && n != null && n < MIN_BASE) return quiet('low', 'too little data')
   if (cur === 0 && prev === 0) return quiet('flat', 'no change')
 
   let ch: number
@@ -48,10 +48,11 @@ export function compare(cur: number | null, prev: number | null, kind: DeltaKind
     mode = 'abs'
     text = 'new'
   } else {
-    ch = ((cur - prev) / prev) * 100
-    if (Math.abs(ch) < 0.5) ch = 0
+    ch = ((cur - prev) / Math.abs(prev)) * 100
+    const whole = Math.round(Math.abs(ch)) // round the magnitude: -0.5% and +0.5% both read 1%
+    if (whole === 0) ch = 0
     mode = 'pct'
-    text = `${fmtInt(Math.abs(Math.round(ch)))}%`
+    text = `${fmtInt(whole)}%`
   }
   if (ch === 0) return quiet('flat', 'no change')
   const up = ch > 0
@@ -68,7 +69,9 @@ export function deltaLabel(d: Delta, basis: Basis): { pill: string; sr: string; 
   const sr = directed ? `${d.up ? 'up' : 'down'} ${spoken}${vs ? ` ${vs}` : ''}` : `${spoken}${vs ? `, ${vs}` : ''}`
   const why =
     d.mode === 'abs'
-      ? '. Too few to compare as a percentage, so this is the plain difference.'
+      ? d.text === 'new'
+        ? '. Nothing in the earlier period, so there is no percentage.'
+        : '. Too few to compare as a percentage, so this is the plain difference.'
       : d.mode === 'low'
         ? '. Too little data in the earlier period for a fair change.'
         : ''

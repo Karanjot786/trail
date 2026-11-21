@@ -15,3 +15,13 @@ it('apiBase follows the url prefix', () => {
   expect(apiBase('/demonstration')).toBe('/api')
   expect(apiBase('/share/shr_abc/revenue')).toBe('/api/share/shr_abc')
 })
+
+// The shared vector: internal/query/fixturekey_test.go asserts the same string from Go.
+it('fixtureKey matches the Go recorder vector', () => {
+  const p = new URLSearchParams('site=demo&tz=X')
+  p.append('range', 'c:2026-11-01~2026-11-05')
+  p.append('f', 'path:/a*b é')
+  p.append('f', 'country:IN')
+  p.append('q', 'a+b&c')
+  expect(fixtureKey('/stats', p)).toBe('/stats?f=country%3AIN&f=path%3A%2Fa*b+%C3%A9&q=a%2Bb%26c&range=c%3A2026-11-01%7E2026-11-05&site=demo')
+})

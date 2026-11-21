@@ -156,6 +156,7 @@ func TestJourneyMergesEngage(t *testing.T) {
 	if st := j[0].Steps[0]; st.EngagedMs != 20000 || st.ScrollPct != 50 {
 		t.Fatalf("first step = %+v", st)
 	}
+	noNull(t, j) // v3: goals is [] until B1 fills it, never null
 }
 
 func TestBotsExcluded(t *testing.T) {

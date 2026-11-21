@@ -57,6 +57,13 @@ describe('url state', () => {
     expect(serializeUrl(parseUrl('/demo/activity/sessions', url.slice(url.indexOf('?'))).state)).toBe(url)
   })
 
+  it('round-trips person ids that contain ~', () => {
+    const a = parseUrl('/activity/visitors', '?person=u~1').redirect!
+    expect(parseUrl(a.split('?')[0], a.slice(a.indexOf('?'))).state.sheet).toEqual({ kind: 'journey', person: 'u~1' })
+    const b = serializeUrl({ ...parseUrl('/', '').state, sheet: { kind: 'journey', person: 'u~1', session: 's9' } })
+    expect(parseUrl(b.split('?')[0], b.slice(b.indexOf('?'))).state.sheet).toEqual({ kind: 'journey', person: 'u~1', session: 's9' })
+  })
+
   it('builds the api query', () => {
     const { state } = parseUrl('/', '?site=demo&f=country:IN')
     expect(apiQuery(state, 'Asia/Kolkata').toString()).toBe('site=demo&range=30d&cmp=prev&env=production&tz=Asia%2FKolkata&f=country%3AIN')
