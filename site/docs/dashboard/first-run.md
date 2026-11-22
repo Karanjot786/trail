@@ -80,4 +80,4 @@ The walkthrough comes back by itself for a site that has never received an event
 
 Open the site switcher at the top of the sidebar and choose **Add a website**. You get the same three steps. **Cancel** takes you back to the site you were on.
 
-The public demo never shows this walkthrough.
+The [public demo](https://trail.karanjot.co.in/demo) never shows this walkthrough.

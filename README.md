@@ -12,7 +12,7 @@
 
 Self-hosted web analytics for your own sites: the smallest tracker that still shows the whole visitor journey, private by default until your visitor says yes, on one self-hosted binary. It also shows how AI crawlers, assistants and browsing agents reach your site. Go, SQLite, an embedded React dashboard, and tracker files under 2 KB gzipped.
 
-**[Docs](https://trail.karanjot.co.in/docs/quickstart/)** · [Quickstart](https://trail.karanjot.co.in/docs/quickstart/) · [Live demo](https://demo.trail.karanjot.co.in)
+**[Docs](https://trail.karanjot.co.in/docs/quickstart/)** · [Quickstart](https://trail.karanjot.co.in/docs/quickstart/) · [Live demo](https://trail.karanjot.co.in/demo)
 
 ![Trail dashboard](docs/overview.png)
 
