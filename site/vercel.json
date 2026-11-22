@@ -16,7 +16,7 @@
     { "source": "/llms.txt", "destination": "/docs/llms.txt" },
     { "source": "/llms-full.txt", "destination": "/docs/llms-full.txt" },
     { "source": "/sitemap.xml", "destination": "/docs/sitemap.xml" },
-    { "source": "/demo/:path*", "destination": "/demo/index.html" },
+    { "source": "/demo/:path*", "destination": "/demo" },
     { "source": "/demo", "destination": "/demo/index.html" }
   ],
   "headers": [
