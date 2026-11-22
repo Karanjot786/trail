@@ -46,7 +46,7 @@ export function Shell() {
   const online = useOnline()
   const stats = useStats(s.screen !== 'settings')
   const share = s.prefix.startsWith('/share/')
-  const Screen = SCREEN_COMPONENTS.get(s.screen)!
+  const Screen = SCREEN_COMPONENTS.get(s.screen) ?? SCREEN_COMPONENTS.get('overview')!
   const title = SCREENS.find((r) => r.id === s.screen)?.label ?? 'Overview'
 
   useEffect(() => {

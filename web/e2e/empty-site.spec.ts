@@ -34,6 +34,8 @@ check('a fresh site: every screen renders an empty state with no NaN, Infinity o
 
 test('a fresh site: the three AI tabs and their reports render empty states (AI agents)', async ({ app }) => {
   const { page } = app
+  // The Overview of a site with no events shows onboarding; this test wants the empty Overview behind it.
+  await page.addInitScript(() => localStorage.setItem('trail.onboarding.skipped', JSON.stringify(['freshai'])))
   expect((await page.request.post('/api/sites', { data: { id: 'freshai', domain: 'freshai.example.com' } })).status()).toBe(201)
   try {
     for (const tab of ['funnel', 'crawlers', 'agents']) {
@@ -53,5 +55,43 @@ test('a fresh site: the three AI tabs and their reports render empty states (AI 
     await expect(page.getByRole('tablist', { name: 'Metrics' }).getByRole('tab', { name: /^Visitors/ })).toContainText('0')
   } finally {
     await page.request.delete('/api/sites/freshai?purge=1')
+  }
+})
+
+test('a fresh site: its Overview opens onboarding at Install, and “I’ll do this later” shows the empty Overview', async ({ app }) => {
+  const { page } = app
+  expect((await page.request.post('/api/sites', { data: { id: 'freshonb', domain: 'freshonb.example.com' } })).status()).toBe(201)
+  try {
+    await app.goto('/?site=freshonb')
+    await expect(page).toHaveURL(/\/welcome\/install\?site=freshonb$/)
+    await expect(page.getByRole('heading', { level: 1, name: 'Install the script' })).toBeVisible()
+    await expect(page.locator('pre').first()).toContainText('data-site="freshonb"')
+    await page.getByRole('button', { name: 'I’ll do this later' }).click()
+    await expect(page).toHaveURL(/\/\?site=freshonb$/)
+    await expect(page.getByRole('tablist', { name: 'Metrics' })).toBeVisible()
+    // Other screens never redirect.
+    await app.goto('/live?site=freshonb')
+    await expect(page).toHaveURL(/\/live\?site=freshonb$/)
+  } finally {
+    await page.request.delete('/api/sites/freshonb?purge=1')
+  }
+})
+
+test('onboarding verifies the first event and lands on the Overview', async ({ app }) => {
+  const { page } = app
+  expect((await page.request.post('/api/sites', { data: { id: 'freshv', domain: 'freshv.example.com' } })).status()).toBe(201)
+  try {
+    await app.goto('/welcome/verify?site=freshv')
+    await expect(page.getByTestId('onb-status')).toContainText('Waiting for your first visit')
+    await page.request.post('/_t/e', {
+      headers: { Origin: 'https://freshv.example.com', 'Content-Type': 'text/plain' },
+      data: JSON.stringify({ s: 'freshv', t: 'pageview', a: 'e2e-onb-1', ss: 'e2e-onb-s1', u: 'https://freshv.example.com/', env: 'production' }),
+    })
+    await expect(page.getByRole('heading', { level: 1, name: 'Receiving data' })).toBeVisible({ timeout: 15_000 })
+    await page.getByRole('button', { name: /Go to Overview/ }).click()
+    await expect(page).toHaveURL(/\/\?site=freshv$/)
+    await expect(page.getByRole('tablist', { name: 'Metrics' })).toBeVisible()
+  } finally {
+    await page.request.delete('/api/sites/freshv?purge=1')
   }
 })

@@ -2,7 +2,7 @@
 // parseUrl is total: any path and query yield a valid state, plus a replace-redirect for legacy or unknown links.
 import type { CmpKey, Dim, Env, Filter, Metric, RangeKey } from '../api/types'
 
-export type ScreenId = 'overview' | 'live' | 'acquisition' | 'activity' | 'conversions' | 'revenue' | 'crawlers' | 'settings'
+export type ScreenId = 'overview' | 'live' | 'acquisition' | 'activity' | 'conversions' | 'revenue' | 'crawlers' | 'settings' | 'welcome'
 export type Sheet =
   | { kind: 'journey'; person: string; session?: string } // v=person or v=person~session
   | { kind: 'row'; dim: Dim; key: string } // dr=dim|key
@@ -36,6 +36,7 @@ export const SCREEN_TABS: Record<ScreenId, readonly string[]> = {
   revenue: [],
   crawlers: ['funnel', 'crawlers', 'agents'],
   settings: ['sites', 'install', 'assistants', 'tokens', 'sharing', 'data', 'config'],
+  welcome: ['site', 'install', 'verify', 'done'], // first-run onboarding steps (lib/onboarding.ts)
 }
 /** Path segment per screen; the overview is the root. */
 export const SCREEN_PATH: Record<ScreenId, string> = {
@@ -47,6 +48,7 @@ export const SCREEN_PATH: Record<ScreenId, string> = {
   revenue: 'revenue',
   crawlers: 'ai', // the AI visibility screen keeps the id crawlers; legacy /crawlers redirects to /ai/crawlers
   settings: 'settings',
+  welcome: 'welcome',
 }
 /** Overview panel ids and their tabs, default tab first. */
 export const PANELS: Record<string, readonly string[]> = {
