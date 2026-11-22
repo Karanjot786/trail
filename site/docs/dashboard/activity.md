@@ -1,13 +1,22 @@
 ---
-title: Visitors and journeys
-description: Find a person and follow every visit they made, page by page.
+title: Activity
+description: Find a person, a visit or an event, and follow a visitor page by page.
 ---
 
-# Visitors and journeys
+# Activity
 
-The **Visitors** tab lists the people seen in the range: person, location, first source, number of visits, and first and last seen. Search by person id at the top.
+Four tabs, each a paged table:
 
-Click a person to open their journey.
+| Tab | One row per |
+|---|---|
+| **Visitors** | person seen in the range: location, first source, visits, first and last seen |
+| **Sessions** | visit in the range |
+| **Events** | event name. A row opens a sheet for that event |
+| **Paths** | way people reached a goal, ranked |
+
+## Journeys
+
+Click a visitor to open their journey.
 
 ![A visitor journey: visits grouped by day, each a row of steps from the referrer through each page to a Signup event and the identify moment.](../../src/assets/journey.png)
 
@@ -18,6 +27,8 @@ Each visit is one row, grouped by day, read left to right:
 - **Events**: custom events, named clicks, outbound links and form submits.
 - **identified**: the moment `trail.identify()` linked this anonymous visitor to your user id.
 - **left**: the end of the visit.
+
+Use `[` and `]` to move between visits.
 
 ## How visits join up
 
@@ -31,4 +42,4 @@ See [Privacy modes](/tracking/privacy) for how to choose.
 ## Next
 
 - Join visits to your users with [identify](/tracking/identify).
-- Count conversions with [goals](/dashboard/goals).
+- Count conversions with [goals](/dashboard/conversions).

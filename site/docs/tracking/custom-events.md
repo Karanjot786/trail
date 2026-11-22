@@ -9,7 +9,7 @@ description: Send your own events with flat properties using trail.track(), and 
 trail.track('Signup', { plan: 'pro', seats: 3 });
 ```
 
-- The name is what the Events panel shows and what [event goals](/dashboard/goals) match.
+- The name is what the Events panel shows and what [event goals](/dashboard/conversions) match.
 - Properties are optional and flat: each value is a string, number, boolean or `null`, with at most 20 keys. The server skips an event with nested objects, arrays or more keys. Events travel in batches, and the server keeps the valid ones in a batch and drops only the bad one. Keep properties flat so none get dropped.
 - Custom events are queued and sent together when the page is hidden, so calling `track` costs no request of its own.
 
@@ -39,5 +39,5 @@ To record a click without writing code, use a [named click](/tracking/named-clic
 
 ## Next
 
-- Count an event as a [goal](/dashboard/goals).
+- Count an event as a [goal](/dashboard/conversions).
 - Link events to people with [identify](/tracking/identify).

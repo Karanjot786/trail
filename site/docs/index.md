@@ -26,7 +26,7 @@ features:
     details: Events, named clicks, identify, privacy modes and the extras.
     link: /tracking/custom-events
   - title: Dashboard
-    details: Visitors, goals and delivery health, and how to read them.
+    details: Overview, Live, Acquisition, Activity, Conversions, Revenue, AI visibility and Settings.
     link: /dashboard/overview
   - title: API
     details: Read API, MCP endpoint and tokens.

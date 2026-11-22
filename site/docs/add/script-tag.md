@@ -37,7 +37,7 @@ To name clicks on buttons and links without code, add `data-trail="Name"` to the
 
 ## Add a site
 
-Open **Settings** in the dashboard, click **Add site** and enter the domain, such as `example.com`. Trail suggests a site id. That id goes in `data-site` and cannot change later. The site's **Install** panel has copy-ready code filled in with your id and Trail host. You can also seed sites at startup with `TRAIL_SITES=id=domain,...`. See [Settings](/dashboard/overview#settings) for the rest.
+Open **Settings** in the dashboard, click **Add website** and enter the domain, such as `example.com`. Trail suggests a site id. That id goes in `data-site` and cannot change later. The site's **Install** panel has copy-ready code filled in with your id and Trail host. You can also seed sites at startup with `TRAIL_SITES=id=domain,...`. See [Settings](/dashboard/settings) for the rest.
 
 ## Origins that can send events
 

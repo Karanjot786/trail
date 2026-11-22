@@ -5,7 +5,7 @@ description: See how many events reached the server and how many needed a retry,
 
 # Delivery health
 
-Open the `...` menu in the header and choose **Delivery health**. It shows, for the current range:
+Delivery health is on the [API](/api/read-api) (`GET /api/v1/delivery`). For a range it reports:
 
 - **Events**: non-bot events that reached the server.
 - **On a retry**: the share of them that arrived on a second or later attempt.

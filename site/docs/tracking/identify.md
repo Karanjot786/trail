@@ -12,7 +12,7 @@ trail.identify(user.id); // on login, and on page load while signed in
 trail.reset();           // on logout
 ```
 
-- The id is stored as the user id on this device, and every visit from this browser, earlier anonymous ones included, joins that person's [journey](/dashboard/visitors).
+- The id is stored as the user id on this device, and every visit from this browser, earlier anonymous ones included, joins that person's [journey](/dashboard/activity#journeys).
 - Sign in on a phone and a laptop, and both journeys join under one person.
 - If a different user signs in on the same device, the tracker starts a new anonymous id first, so the two people are never merged.
 - `reset` starts a fresh anonymous id and forgets the user id.
@@ -33,5 +33,5 @@ If the visitor has said no with `consent(false)`, `identify` does nothing until 
 
 ## Next
 
-- Read a person's [journey](/dashboard/visitors).
+- Read a person's [journey](/dashboard/activity#journeys).
 - Decide when to identify under [privacy modes](/tracking/privacy).

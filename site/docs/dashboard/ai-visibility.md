@@ -5,6 +5,8 @@ description: How AI systems reach your site, from crawler requests to referred v
 
 # AI visibility
 
+![AI visibility: the funnel from crawled to converted, with crawler and agent tabs.](../../src/assets/ai-visibility.png)
+
 **AI visibility** in the sidebar shows how AI systems reach your site. It has three tabs: **Funnel** (the default), **Crawlers** and **Agents**. The URL is `/ai`, and the old `/crawlers` link redirects to `/ai/crawlers`. Pick one website first: the screen does not work across all sites at once.
 
 AI systems reach a site in two different ways, and Trail counts them from two different sources:
@@ -32,7 +34,7 @@ Notes on the steps:
 
 - **Cited** shows **No public source** and no number. No AI provider publishes which answers cite your pages, so Trail does not guess. No ratio is computed through this step.
 - **Crawled** and **Fetched for an answer** show **Not set up** until crawler requests reach Trail. The **Unlock AI crawlers** card above the funnel sets that up in one command. Once requests arrive, a status line replaces the card.
-- **Converted** shows **Set up a goal** when the site has no goal. See [Goals](/dashboard/goals).
+- **Converted** shows **Set up a goal** when the site has no goal. See [Goals](/dashboard/conversions).
 - **Visited** and **Converted** use the same counting as the AI referrals report, so the numbers agree across screens.
 - Crawler data is daily, so a single-day range (today, yesterday or one date) is widened to the last 7 days for every step.
 

@@ -20,9 +20,9 @@ Four features live in `t.x.js`, a separate file the tracker loads from the same 
 
 They work with `t.js` and `t.p.js`, in every mode.
 
-Errors thrown before `t.x.js` has loaded are not caught. Rage clicks show in the Events panel as `rage_click`, so you can make one a [goal](/dashboard/goals) to watch it.
+Errors thrown before `t.x.js` has loaded are not caught. Rage clicks show in the Events panel as `rage_click`, so you can make one a [goal](/dashboard/conversions) to watch it.
 
 ## Next
 
-- Watch an extra event as a [goal](/dashboard/goals).
+- Watch an extra event as a [goal](/dashboard/conversions).
 - See what each file costs in [Tracker cost](/tracking/cost).
