@@ -5,12 +5,17 @@ import tailwindcss from '@tailwindcss/vite'
 import { existsSync, readFileSync } from 'node:fs'
 import type { Plugin } from 'vite'
 
+// The static demo (VITE_DATA=fixtures) lives under /demo/ on the public site (site/scripts/demo.mjs), so its
+// base is /demo/; the router already treats a /demo prefix as the open, read-only demo.
+const fixtures = process.env.VITE_DATA === 'fixtures' || process.env.VITE_MOCK === '1'
+const base = fixtures ? '/demo/' : '/'
+
 // `pnpm fixtures` records into web/demo-data (kept out of public/, so the Go binary never embeds it).
-// The dev server serves it at /demo-data; `pnpm build:demo` copies it into dist/demo-data.
+// The dev server serves it at {base}demo-data; `pnpm build:demo` copies it into dist-demo/demo-data.
 const demoData = (): Plugin => ({
   name: 'trail-demo-data',
   configureServer(server) {
-    server.middlewares.use('/demo-data', (req, res, next) => {
+    server.middlewares.use(`${base}demo-data`, (req, res, next) => {
       const file = new URL(`./demo-data${(req.url ?? '/').split('?')[0]}`, import.meta.url).pathname
       if (!file.includes('/demo-data/') || file.includes('..') || !existsSync(file)) return next()
       res.setHeader('content-type', 'application/json')
@@ -23,6 +28,7 @@ const demoData = (): Plugin => ({
 const api = process.env.TRAIL_API ?? 'http://localhost:8080'
 
 export default defineConfig({
+  base,
   plugins: [react(), tailwindcss(), demoData()],
   resolve: {
     alias: {
@@ -31,8 +37,9 @@ export default defineConfig({
     },
   },
   // dist/.keep is restored by scripts/keep.mjs after the build empties the dir.
+  // The demo builds into dist-demo, so it never replaces the dist that web/embed.go puts in the Go binary.
   // The manifest feeds the performance budget script.
-  build: { outDir: 'dist', emptyOutDir: true, manifest: true },
+  build: { outDir: fixtures ? 'dist-demo' : 'dist', emptyOutDir: true, manifest: true },
   server: {
     port: Number(process.env.VITE_PORT ?? 5173),
     strictPort: true,

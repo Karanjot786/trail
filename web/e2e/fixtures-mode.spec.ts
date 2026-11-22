@@ -4,7 +4,8 @@
  * and B2 task 10 (the recorder) have merged. */
 import { expect, test } from '@playwright/test'
 
-const SCREENS = ['/', '/live', '/acquisition', '/acquisition/ai', '/acquisition/campaigns', '/acquisition/landing', '/activity/visitors', '/activity/sessions', '/activity/events', '/activity/paths', '/conversions/goals', '/conversions/funnels', '/revenue', '/crawlers', '/settings/sites', '/settings/sharing']
+// The demo build's base is /demo/ (vite.config.ts), as on the public site.
+const SCREENS = ['/demo/', '/demo/live', '/demo/acquisition', '/demo/acquisition/ai', '/demo/acquisition/campaigns', '/demo/acquisition/landing', '/demo/activity/visitors', '/demo/activity/sessions', '/demo/activity/events', '/demo/activity/paths', '/demo/conversions/goals', '/demo/conversions/funnels', '/demo/revenue', '/demo/crawlers', '/demo/settings/sites', '/demo/settings/sharing']
 
 test.beforeEach(() => {
   test.fixme(!process.env.E2E_ALL, 'waits for the fixtures transport and the recorder (F1-8, B2-10)')
@@ -38,17 +39,17 @@ test('AI visibility tabs and actor=all load from fixtures with no preset banner 
 })
 
 test('the freshness line reads "Sample data as of"', async ({ page }) => {
-  await page.goto('/')
+  await page.goto('/demo/')
   await expect(page.getByTestId('freshness')).toContainText(/Sample data as of/)
 })
 
 test('an unrecorded filter combination shows the preset banner', async ({ page }) => {
-  await page.goto('/?f=country:ZZ&f=device:tablet&f=os:Plan9')
+  await page.goto('/demo/?f=country:ZZ&f=device:tablet&f=os:Plan9')
   await expect(page.getByRole('status').filter({ hasText: 'The demo shows preset views' })).toBeVisible()
 })
 
 test('Live numbers change between two polls', async ({ page }) => {
-  await page.goto('/live')
+  await page.goto('/demo/live')
   const read = () => page.getByTestId('live-active').innerText()
   const stream = () => page.getByRole('main').innerText()
   const a = await stream()
@@ -58,9 +59,9 @@ test('Live numbers change between two polls', async ({ page }) => {
 
 test('a write says "The demo is read-only"', async ({ page }) => {
   // Settings explains up front that the demo makes no links or tokens; a write from the shell is answered.
-  await page.goto('/settings/sharing')
+  await page.goto('/demo/settings/sharing')
   await expect(page.getByRole('main')).toContainText('The demo is read-only')
-  await page.goto('/?f=device:mobile')
+  await page.goto('/demo/?f=device:mobile')
   await page.getByRole('button', { name: 'Save the current view' }).click()
   await page.getByRole('button', { name: 'Pin to sidebar' }).click()
   await expect(page.getByText('The demo is read-only').first()).toBeVisible()

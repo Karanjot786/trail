@@ -17,6 +17,7 @@ demo-password.txt
 dev.db*
 web/test-results/
 web/demo-data/
+web/dist-demo/
 web/test-results-fixtures/
 demo-*.log
 demo-*.db*

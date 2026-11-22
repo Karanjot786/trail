@@ -1,4 +1,5 @@
-// The fixtures transport (plan §0.13, Task F1-8): serves recorded JSON from /demo-data with no server.
+// The fixtures transport (plan §0.13, Task F1-8): serves recorded JSON from {base}demo-data with no server
+// (/demo/demo-data in the demo build, whose Vite base is /demo/).
 // index.json maps canonical fixture keys to files. Unrecorded combinations fall back, in order: drop filters
 // beyond the first, drop all filters, cmp → prev, range → 30d, site → demo. A fallback answers with
 // `x-trail-preset: 1` and the shell shows "The demo shows preset views…". Writes answer 403. Live is replayed.
@@ -61,7 +62,7 @@ function envelope(raw: unknown): { status: number; body: unknown; headers: Recor
   return { status: 200, body: raw, headers: {} }
 }
 
-export function createFixtureTransport(base = '/demo-data', fetchImpl: typeof fetch = (...a) => fetch(...a)): Transport {
+export function createFixtureTransport(base = `${import.meta.env.BASE_URL}demo-data`, fetchImpl: typeof fetch = (...a) => fetch(...a)): Transport {
   let index: Promise<FixtureIndex> | null = null
   const files = new Map<string, Promise<unknown>>()
   const loadIndex = () =>
