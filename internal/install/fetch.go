@@ -115,7 +115,8 @@ func (f *SafeFetcher) client(host string) *http.Client {
 			if len(via) > fetchMaxHops {
 				return errors.New("too many redirects")
 			}
-			if req.URL.Scheme != "https" || !strings.EqualFold(req.URL.Host, host) {
+			// Follow the site's own www/apex hop (example.com -> www.example.com and back); the dialer still refuses private addresses.
+			if req.URL.Scheme != "https" || !sameSite(req.URL.Host, host) {
 				return fmt.Errorf("redirect to another host (%s) refused", req.URL.Host)
 			}
 			return nil
@@ -148,4 +149,10 @@ func (f *SafeFetcher) Fetch(ctx context.Context, host string) (Page, error) {
 		return Page{}, err
 	}
 	return Page{Status: resp.StatusCode, Header: resp.Header, Body: body}, nil
+}
+
+// sameSite reports whether to is host itself, a subdomain of it, or its parent when host is a www. name.
+func sameSite(to, host string) bool {
+	to, host = strings.ToLower(to), strings.ToLower(host)
+	return to == host || strings.HasSuffix(to, "."+host) || "www."+to == host
 }

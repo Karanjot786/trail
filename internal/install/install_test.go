@@ -172,3 +172,23 @@ func TestSafeFetcherNoCrossHostRedirect(t *testing.T) {
 		t.Fatal("redirect loop followed")
 	}
 }
+
+func TestSameSiteRedirect(t *testing.T) {
+	for _, c := range []struct {
+		to, host string
+		ok       bool
+	}{
+		{"www.example.com", "example.com", true},
+		{"example.com", "www.example.com", true},
+		{"EXAMPLE.com", "example.com", true},
+		{"blog.example.com", "example.com", true},
+		{"evil.com", "example.com", false},
+		{"example.com.evil.com", "example.com", false},
+		{"notexample.com", "example.com", false},
+		{"other.example.com", "www.example.com", false},
+	} {
+		if got := sameSite(c.to, c.host); got != c.ok {
+			t.Errorf("sameSite(%q, %q) = %v, want %v", c.to, c.host, got, c.ok)
+		}
+	}
+}

@@ -43,8 +43,9 @@ type Registry struct {
 	mu    sync.RWMutex
 	sites map[string]Site
 
-	rmu sync.Mutex
-	rej map[string]*[24]bucket // site -> hourly rejected-origin counts, ring by hour
+	rmu     sync.Mutex
+	rej     map[string]*[24]bucket // site -> hourly rejected-origin counts, ring by hour
+	lastRej map[string]string      // site -> host of the most recent refused event, for the install check
 }
 
 type bucket struct {
@@ -54,7 +55,7 @@ type bucket struct {
 
 // Open loads the registry from db, which must have the store schema applied.
 func Open(db *sql.DB) (*Registry, error) {
-	r := &Registry{db: db, now: time.Now, rej: map[string]*[24]bucket{}}
+	r := &Registry{db: db, now: time.Now, rej: map[string]*[24]bucket{}, lastRej: map[string]string{}}
 	return r, r.load()
 }
 
@@ -236,6 +237,27 @@ func (r *Registry) Reject(id string) {
 		*b = bucket{hour: h}
 	}
 	b.n++
+}
+
+// RejectFrom is Reject that also remembers the refused host, so the install check can name it.
+func (r *Registry) RejectFrom(id, host string) {
+	if _, ok := r.Get(id); !ok {
+		return
+	}
+	r.Reject(id)
+	if len(host) > 253 {
+		host = host[:253]
+	}
+	r.rmu.Lock()
+	r.lastRej[id] = host
+	r.rmu.Unlock()
+}
+
+// LastRejectedHost is the host of the most recent refused event for id ("" when none or no origin was sent).
+func (r *Registry) LastRejectedHost(id string) string {
+	r.rmu.Lock()
+	defer r.rmu.Unlock()
+	return r.lastRej[id]
 }
 
 // Rejected24h is how many events Reject counted for id in about the last day

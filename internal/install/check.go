@@ -42,8 +42,14 @@ func Check(ctx context.Context, db *sql.DB, reg *sites.Registry, site sites.Site
 	}
 
 	if n := reg.Rejected24h(site.ID); n > 0 {
+		var from string
+		if h := reg.LastRejectedHost(site.ID); h != "" {
+			from = fmt.Sprintf("a host this site does not allow (latest: %s)", h)
+		} else {
+			from = "a request with no Origin or Referer (a server or script, not a browser)"
+		}
 		out.Checks = append(out.Checks, item("origin", "Events come from an allowed address", "fail", CodeOriginNotAllowed,
-			fmt.Sprintf("%d events in the last 24 hours came from a host this site does not allow.", n),
+			fmt.Sprintf("%d events in the last 24 hours came from %s.", n, from),
 			"Add the host (or *.example.com) under the site's allowed origins."))
 	} else {
 		out.Checks = append(out.Checks, item("origin", "Events come from an allowed address", "pass", CodeOK, "No events were refused for their origin.", ""))

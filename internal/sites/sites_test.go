@@ -254,3 +254,18 @@ func TestPurgeCascades(t *testing.T) {
 		}
 	}
 }
+
+func TestRejectFromRemembersHost(t *testing.T) {
+	r, _ := open(t)
+	if _, err := r.Add(Site{ID: "s", Domain: "a.com"}); err != nil {
+		t.Fatal(err)
+	}
+	r.RejectFrom("s", "preview.other.app")
+	if r.Rejected24h("s") != 1 || r.LastRejectedHost("s") != "preview.other.app" {
+		t.Fatalf("count %d host %q", r.Rejected24h("s"), r.LastRejectedHost("s"))
+	}
+	r.RejectFrom("unknown", "x.com")
+	if r.LastRejectedHost("unknown") != "" {
+		t.Fatal("unknown site should not be tracked")
+	}
+}

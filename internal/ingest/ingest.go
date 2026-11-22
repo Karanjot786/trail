@@ -233,8 +233,8 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "unknown site", http.StatusBadRequest)
 		return
 	}
-	if !h.sites.Allowed(site.ID, sourceHost(r)) {
-		h.sites.Reject(site.ID)
+	if src := sourceHost(r); !h.sites.Allowed(site.ID, src) {
+		h.sites.RejectFrom(site.ID, src)
 		w.WriteHeader(http.StatusForbidden) // no detail: don't help probe the list
 		return
 	}
