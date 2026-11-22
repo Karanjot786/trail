@@ -40,7 +40,15 @@ test('skip mid-typing ends in the final state', async ({ page }) => {
   const stage = page.locator('#tstage')
   await stage.scrollIntoViewIfNeeded()
   await expect(stage).toHaveAttribute('data-seq', 'pre')
-  await page.locator('#tskip').click({ timeout: 300 })
+  await expect(page.locator('#tskip')).toBeVisible()
+  // The whole sequence lasts about two seconds, and a Playwright click's actionability wait can outlast that on a
+  // busy runner. Check "still typing" and press Skip in one step in the page, so the skip always lands mid-typing.
+  const midTyping = await page.locator('#tskip').evaluate((b: HTMLButtonElement) => {
+    const typing = document.getElementById('tstage')!.dataset.seq === 'pre'
+    b.click()
+    return typing
+  })
+  expect(midTyping).toBe(true)
   await expect(stage).toHaveAttribute('data-seq', 'done')
   for (const l of await page.locator('.tl').all()) await expect(l).toBeVisible()
   await expect(page.locator('#upcard')).toBeVisible()

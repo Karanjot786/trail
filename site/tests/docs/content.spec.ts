@@ -6,7 +6,8 @@ import { changes } from '../../src/lib/changelog'
 
 const title = (p: string) => {
   const f = p === '/docs' ? 'index' : p.replace(/^\/docs\//, '')
-  const src = readFileSync(`docs/${f}.md`, 'utf8')
+  // A section landing such as /docs/install is docs/install/index.md.
+  const src = readFileSync(existsSync(`docs/${f}.md`) ? `docs/${f}.md` : `docs/${f}/index.md`, 'utf8')
   return src.match(/^title:\s*(.+)$/m)![1].trim().replace(/^['"]|['"]$/g, '')
 }
 

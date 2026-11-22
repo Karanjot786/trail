@@ -8,9 +8,10 @@ test('no full reload between docs pages', async ({ page }) => {
   const marker = await mark(page)
   const docs: string[] = []
   page.on('request', (r) => { if (r.resourceType() === 'document') docs.push(r.url()) })
-  for (const link of ['Docker', 'Privacy modes and consent', 'Read API', 'Changelog']) {
+  // [sidebar link, page h1]: the sidebar may name a page more fully than its title.
+  for (const [link, h1] of [['Docker and Compose', 'Docker'], ['Privacy modes and consent'], ['Read API'], ['Changelog']]) {
     await page.locator('.VPSidebar').getByRole('link', { name: link, exact: true }).click()
-    await expect(page.locator('h1')).toHaveText(link)
+    await expect(page.locator('h1')).toHaveText(h1 ?? link)
   }
   expect(await getMark(page)).toBe(marker)
   expect(docs).toEqual([])

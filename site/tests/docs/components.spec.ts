@@ -56,7 +56,7 @@ test('feedback vote sends a Trail custom event', async ({ page }) => {
   expect((await row.boundingBox())!.height).toBe(box!.height)
   expect(await page.evaluate(() => (window as any).__tracked)).toEqual([['Docs feedback', { page: '/docs/quickstart', helpful: 'yes' }]])
   // The next page starts unvoted.
-  await page.locator('.VPSidebar').getByRole('link', { name: 'Docker', exact: true }).click()
+  await page.locator('.VPSidebar').getByRole('link', { name: 'Docker and Compose', exact: true }).click()
   await expect(page.locator('h1')).toHaveText('Docker')
   await page.locator('.DocFeedback').getByRole('button', { name: 'No' }).click()
   expect((await page.evaluate(() => (window as any).__tracked))[1]).toEqual(['Docs feedback', { page: '/docs/install/docker', helpful: 'no' }])
