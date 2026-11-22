@@ -1,0 +1,42 @@
+# Trail with automatic HTTPS from Caddy.
+#
+#   curl -fsSLO https://raw.githubusercontent.com/karanjot786/trail/main/deploy/compose.yaml
+#   DOMAIN=stats.example.com docker compose up -d
+#
+# Point the domain's DNS at this server and open ports 80 and 443 first.
+# Read the generated dashboard password with: docker compose logs trail
+# Settings can also go in a .env file next to this one (DOMAIN=..., TRAIL_PASSWORD=...).
+name: trail
+
+services:
+  trail:
+    image: ${TRAIL_IMAGE:-ghcr.io/karanjot786/trail:latest}
+    restart: unless-stopped
+    environment:
+      TRAIL_PASSWORD: ${TRAIL_PASSWORD:-} # empty: a password is generated and logged on first start
+      TRAIL_SITES: ${TRAIL_SITES:-}       # optional, e.g. blog=example.com; or add sites in Settings
+      TRAIL_TZ: ${TRAIL_TZ:-UTC}
+    volumes:
+      - trail-data:/data
+    # No published port: only Caddy reaches Trail, over the private compose network,
+    # so Trail trusts Caddy's X-Forwarded-For with the default TRAIL_TRUSTED_PROXIES.
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    command: caddy reverse-proxy --from ${DOMAIN:?set DOMAIN, e.g. DOMAIN=stats.example.com} --to trail:8080
+    ports:
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+      - "${HTTPS_PORT:-443}:443/udp"
+    volumes:
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      trail:
+        condition: service_healthy
+
+volumes:
+  trail-data:
+  caddy-data:
+  caddy-config:

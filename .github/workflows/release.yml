@@ -1,0 +1,42 @@
+name: Release
+# On a v* tag: test, build the binaries for every OS/CPU with the dashboard and
+# tracker embedded, and attach them plus checksums.txt to a GitHub release.
+# install.sh downloads from here.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version-file: go.mod }
+      - uses: pnpm/action-setup@v4
+        with: { version: 9 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: go test ./...
+      - name: Build the tracker and the dashboard
+        run: |
+          (cd tracker && npm ci && node build.mjs)
+          (cd web && pnpm install --frozen-lockfile && pnpm build)
+      - run: scripts/build-release.sh "$GITHUB_REF_NAME" dist/release
+      - name: Smoke test the linux/amd64 archive
+        run: |
+          mkdir -p /tmp/smoke && tar -xzf dist/release/trail_linux_amd64.tar.gz -C /tmp/smoke
+          /tmp/smoke/trail version
+          TRAIL_DB=/tmp/smoke/t.db /tmp/smoke/trail serve > /tmp/smoke/log 2>&1 &
+          for i in $(seq 1 20); do /tmp/smoke/trail health && break; sleep 0.5; done
+          grep -q 'Log in with:' /tmp/smoke/log
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          prerelease=""
+          case "$GITHUB_REF_NAME" in *-*) prerelease="--prerelease" ;; esac
+          gh release create "$GITHUB_REF_NAME" dist/release/* --verify-tag --generate-notes $prerelease
