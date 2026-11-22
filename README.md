@@ -10,7 +10,7 @@
 
 # Trail
 
-Self-hosted web analytics for your own sites: the smallest tracker that still shows the whole visitor journey, private by default until your visitor says yes, on one self-hosted binary. Go, SQLite, an embedded React dashboard, and tracker files under 2 KB gzipped.
+Self-hosted web analytics for your own sites: the smallest tracker that still shows the whole visitor journey, private by default until your visitor says yes, on one self-hosted binary. It also shows how AI crawlers, assistants and browsing agents reach your site. Go, SQLite, an embedded React dashboard, and tracker files under 2 KB gzipped.
 
 **[Docs](https://trail.karanjot.dev/docs/quickstart/)** · [Quickstart](https://trail.karanjot.dev/docs/quickstart/) · [Live demo](https://trail.karanjot.dev/demo)
 
@@ -20,17 +20,24 @@ Follow any visitor across visits and devices — where they came from, every pag
 
 ![Visitor journey](docs/journey.png)
 
+See which AI systems crawl your pages, fetch them to answer someone, and send people who convert:
+
+![AI visibility](docs/ai-visibility.png)
+
 ## Features
 
+- Overview with "what changed", Live (globe and event stream), Acquisition (sources, AI referrals, campaigns, landing pages), Activity (visitors, sessions, events, paths), Conversions (goals and funnels) and Revenue
 - Pageviews (including SPA `pushState`, `replaceState` and back/forward), referrers, UTM, country, device, browser, OS
-- Custom events, named clicks (`data-trail="Signup"`), `identify` / `reset`, outbound clicks
+- Custom events, named clicks (`data-trail="Signup"`), `identify` / `reset`, outbound clicks, `Purchase` revenue
 - Opt-in web vitals, rage clicks, form submits and JS errors (`t.x.js`, loaded only when asked for)
 - Per-visitor journey: source, pages in order, time on page, scroll depth, return visits, signup point
-- Goals with conversion rates, and a delivery health check
+- AI visibility: crawler requests, answer fetches, AI referrals and conversions, plus AI browsing agents marked Verified or Claimed
+- `npx trail-analytics init` sets up Next.js or Astro: first-party `/t/*` proxy, edge location and AI crawler capture
+- Country location out of the box (embedded DB-IP Lite), city with your own `.mmdb`
 - Three privacy modes; private until consent by default; Do Not Track and GPC honoured
-- A read API with bearer tokens and an MCP endpoint for AI assistants
-- Honest bounce rate, live "online" count, previous-period comparison
-- Multiple sites, one password, no raw IPs stored
+- A read API with scoped bearer tokens, share links, and an MCP endpoint with 25 tools for AI assistants
+- Honest bounce rate, previous-period comparison, the whole dashboard state in the URL
+- Multiple sites, one password, no raw IPs stored, trusted-proxy aware client IPs
 
 ## Quick start
 
@@ -70,6 +77,7 @@ Open the host in a browser and log in with `TRAIL_PASSWORD`. Run Trail behind HT
 | `TRAIL_GEO_DB` | unset | Path to your own City `.mmdb` (for example DB-IP Lite City) for region and city. Without it, the built-in database gives country only |
 | `TRAIL_SECRET` | random per start | Signs session cookies (32+ chars). Set it so logins survive restarts |
 | `TRAIL_API_TOKENS` | unset | `name:token:scope,...` for the read API and MCP. Scope `read` or `write`; tokens of 24+ chars |
+| `TRAIL_AGENT_LISTS` | unset | `off` stops downloading the published AI agent IP lists and signature keys; agents are then recognised by user agent only |
 | `TRAIL_DEMO` | unset | `1` serves a read-only demo with generated data at `/demo` |
 
 ## Add a site
@@ -130,6 +138,14 @@ import { Analytics } from 'trail-analytics/next';
 ```
 
 It injects the script, computes route patterns like `/blog/[slug]`, and exports typed `track`, `identify`, `reset`, `pageview`. See [packages/trail-analytics](packages/trail-analytics). The `/_t/*` rewrite above is still required.
+
+### Next.js and Astro in one command
+
+```sh
+npx trail-analytics@latest init --url https://<trail-host> --site mysite --token <crawl-token>
+```
+
+It shows a diff and asks before writing. It adds a `proxy.ts` / `middleware.ts` (Next.js) or the `trail()` integration (Astro) that serves the script and beacons first-party at `/t/*` with your host's edge location, reports AI crawler requests, and puts `<Analytics />` in your root layout. Get the crawl token from **AI visibility → Unlock AI crawlers**. Details: [packages/trail-analytics](packages/trail-analytics#track-ai-crawlers).
 
 ### Tracker API
 
@@ -227,7 +243,7 @@ Every tracker file must stay at or under 2,048 B gzipped; CI fails otherwise. Re
 
 ## API and MCP
 
-Give scripts and AI assistants read access with a token:
+Create a token in **Settings → API tokens** (scopes `read`, `notes`, `write`, `crawl`, optionally limited to one site), or set them in the environment:
 
 ```sh
 TRAIL_API_TOKENS="laptop:$(openssl rand -hex 24):read"
@@ -240,9 +256,9 @@ curl -H "Authorization: Bearer $TOKEN" "https://stats.example.com/api/v1/stats?s
 # {"visitors":1,"pageviews":1,"bounce":1,"prev":{"visitors":0,"pageviews":0,"bounce":0},"online":1}
 ```
 
-Routes: `sites`, `stats`, `series`, `breakdown`, `visitors`, `journey`, `goals`, `goals/report`, `delivery`. Creating or deleting goals and sites needs a `write` token. 300 requests per minute per token.
+Every dashboard report is a route: `stats`, `series`, `breakdown`, `changes`, `live`, `visitors`, `sessions`, `journey`, `events`, `paths`, `campaigns`, `ai-referrals`, `goals`, `funnels`, `revenue`, `heatmap`, `crawlers`, `ai-visibility`, `agents` and more. Changes need a `write` token (chart notes: `notes`). 300 requests per minute per token.
 
-MCP: `POST /mcp` speaks the Model Context Protocol over streamable HTTP, with tools `list_sites`, `get_stats`, `get_series`, `get_breakdown`, `list_visitors`, `get_journey` and `goal_report`.
+MCP: `POST /mcp` speaks the Model Context Protocol over streamable HTTP, with 25 tools: `list_sites`, `what_changed`, `get_stats`, `get_series`, `get_breakdown`, `get_live`, `list_visitors`, `get_sessions`, `get_journey`, `goal_report`, `get_funnel`, `get_revenue`, `get_ai_visibility`, `get_crawlers`, `get_agents` and more. All read, except `add_note`.
 
 ```sh
 claude mcp add --transport http trail https://stats.example.com/mcp \

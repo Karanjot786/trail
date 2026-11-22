@@ -8,6 +8,13 @@ export const changes = [
       'An AI visibility screen with a funnel, Crawlers and Agents tabs. AI browsing agents are recognised from the script’s own requests, marked Verified or Claimed, and left out of visitor numbers unless you count them. npx trail-analytics init adds crawler capture and a first-party /t/* proxy with signed edge location to Next.js and Astro.',
   },
   {
+    id: 'dashboard-v3',
+    title: 'Dashboard v3',
+    date: '2026-11-21',
+    summary:
+      'A new dashboard with a sidebar: Overview with what changed, Live with a globe, Acquisition, Activity, Conversions (goals and funnels), Revenue from Purchase events, and Settings with API tokens, share links and AI assistants. The whole state lives in the URL, old links redirect, and the MCP endpoint grows to 25 tools. The trail-analytics npm package is 0.2.0.',
+  },
+  {
     id: 'v2',
     title: 'Trail v2',
     date: '2026-11-20',

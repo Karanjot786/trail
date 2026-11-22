@@ -7,7 +7,7 @@ description: Let Claude Code, Cursor, VS Code and other assistants read your Tra
 
 Trail serves a [Model Context Protocol](https://modelcontextprotocol.io) endpoint at `POST /mcp`, over streamable HTTP. Any MCP client can connect with a [read token](/api/tokens) and ask about your sites in plain language: "which pages brought signups this week?", "show me the journey of the last identified visitor".
 
-The seven tools only read. They cannot change goals, sites or settings.
+Every tool but `add_note` only reads. No tool can change goals, sites or settings.
 
 ## Connect a client
 
@@ -49,15 +49,35 @@ Cursor reads this from `~/.cursor/mcp.json`, and VS Code from `.vscode/mcp.json`
 
 ## Tools
 
-| Tool | Arguments | Returns |
-|---|---|---|
-| `list_sites` | none | Site ids and domains. Call this first |
-| `get_stats` | `site`, `range?`, `env?`, `filters?` | Visitors, pageviews, bounce rate, the previous period, and visitors online |
-| `get_series` | `site`, `metric`, `range?` | `visitors`, `pageviews` or `bounce` over time |
-| `get_breakdown` | `site`, `dim`, `range?`, `limit?` | Top values of one dimension |
-| `list_visitors` | `site`, `range?`, `q?`, `limit?` | People with first and last seen, visits, country, device and source |
-| `get_journey` | `site`, `person` | One person's sessions and every step |
-| `goal_report` | `site`, `range?` | Conversions and rate per goal, with the previous period |
+| Tool | Returns |
+|---|---|
+| `list_sites` | Site ids and domains. Call this first |
+| `what_changed` | The few biggest changes against the comparison period. A good second call |
+| `get_stats` | Visitors, pageviews, sessions, duration, bounce, conversions and revenue, with the previous period and visitors online |
+| `get_series` | One metric over time, by hour or day, with the previous period |
+| `get_breakdown` | Top values of one dimension (pages, sources, channels, countries, devices, events) |
+| `get_live` | Active visitors, countries, sources, pages and the latest events right now |
+| `get_heatmap` | Visitors by weekday and hour over the last four weeks |
+| `list_visitors` | People with first and last seen, visits, location, device and source |
+| `get_sessions` | Sessions with duration, pages, entry and exit, source, goals and revenue |
+| `get_journey` | One person's sessions and every step |
+| `goal_report` | Conversions, converting visitors and rate per goal, with the previous period |
+| `get_goal` | One goal in detail: series, first-touch sources, landing pages and converter paths |
+| `list_funnels` | The site's funnel definitions |
+| `get_funnel` | People reaching each funnel step, step conversion and the biggest drop |
+| `get_funnel_dropoff` | People who reached a step and not the next one |
+| `get_campaigns` | UTM campaigns with visitors, sessions, bounce, conversion and revenue |
+| `list_events` | Custom and outbound events with counts, people and properties |
+| `get_event` | One event in detail: series, property values and the latest occurrences |
+| `get_revenue` | Net revenue, purchases, buyers, average order and the latest purchases |
+| `get_ai_referrals` | AI assistants that sent visitors |
+| `get_ai_visibility` | The AI visibility funnel: crawled, fetched for an answer, visited from AI assistants and converted |
+| `get_crawlers` | AI crawler requests by category, provider, crawler and page |
+| `get_agents` | AI browsing agents that ran the script, verified or claimed |
+| `list_notes` | Chart notes (deploys, campaigns, press) in the range |
+| `add_note` | Adds a chart note. Needs a `notes` or `write` token |
+
+Every tool takes `site` (except `list_sites`); most also take `range`, `env` and `filters`. `tools/list` returns each tool's full input schema.
 
 `range` is `24h`, `7d`, `30d`, `90d` or `12mo` (default `7d`), or `{"from": ms, "to": ms}`. `env` defaults to `production`. `dim` and `filters` use the same dimensions as the [read API](/api/read-api#common-parameters).
 
