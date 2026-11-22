@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs'
 // @ts-ignore
 import { pages } from '../../scripts/pages.mjs'
 
-const O = 'https://trail.karanjot.dev'
+const O = 'https://trail.karanjot.co.in'
 
 test('every page has one h1, description, canonical', async ({ page }) => {
   test.setTimeout(120_000)
@@ -15,9 +15,9 @@ test('every page has one h1, description, canonical', async ({ page }) => {
   }
 })
 
-test('llms.txt lists 36 md links', () => {
+test('llms.txt lists 43 md links', () => {
   const t = readFileSync('dist/docs/llms.txt', 'utf8')
-  expect(t.match(/\]\([^)]*\.md\)/g)?.length).toBe(36)
+  expect(t.match(/\]\([^)]*\.md\)/g)?.length).toBe(43)
 })
 
 test('sitemap has landing and quickstart', () => {

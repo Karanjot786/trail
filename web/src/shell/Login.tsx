@@ -6,7 +6,7 @@ import { api, HttpError } from '../api/client'
 import { Button } from '../ui/button'
 import { Mark } from './Mark'
 
-export const DOCS_FIRST_RUN = 'https://trail.karanjot.dev/docs/dashboard/first-run#where-is-my-password'
+export const DOCS_FIRST_RUN = 'https://trail.karanjot.co.in/docs/dashboard/first-run#where-is-my-password'
 
 export type LoginError = 'wrong' | 'unreachable' | 'busy' | 'other'
 

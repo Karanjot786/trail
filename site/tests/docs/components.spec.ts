@@ -36,7 +36,7 @@ test('copy menu links point at the markdown twin', async ({ page }) => {
   await page.goto('/docs/quickstart')
   await page.getByRole('button', { name: 'More copy options' }).click()
   await expect(page.getByRole('menuitem', { name: 'View as Markdown' })).toHaveAttribute('href', '/docs/quickstart.md')
-  const md = encodeURIComponent('https://trail.karanjot.dev/docs/quickstart.md')
+  const md = encodeURIComponent('https://trail.karanjot.co.in/docs/quickstart.md')
   await expect(page.getByRole('menuitem', { name: 'Open in ChatGPT' })).toHaveAttribute('href', new RegExp('^https://chatgpt\\.com/\\?q=.*' + md.replace(/[.%]/g, '\\$&')))
   await expect(page.getByRole('menuitem', { name: 'Open in Claude' })).toHaveAttribute('href', new RegExp('^https://claude\\.ai/new\\?q=.*' + md.replace(/[.%]/g, '\\$&')))
   await expect(page.locator('.PageHeader nav[aria-label=Breadcrumb]')).toHaveText(/Getting started\s*\/?\s*Quickstart/)

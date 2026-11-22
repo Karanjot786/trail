@@ -12,7 +12,7 @@
 
 Self-hosted web analytics for your own sites: the smallest tracker that still shows the whole visitor journey, private by default until your visitor says yes, on one self-hosted binary. It also shows how AI crawlers, assistants and browsing agents reach your site. Go, SQLite, an embedded React dashboard, and tracker files under 2 KB gzipped.
 
-**[Docs](https://trail.karanjot.dev/docs/quickstart/)** · [Quickstart](https://trail.karanjot.dev/docs/quickstart/) · [Live demo](https://trail.karanjot.dev/demo)
+**[Docs](https://trail.karanjot.co.in/docs/quickstart/)** · [Quickstart](https://trail.karanjot.co.in/docs/quickstart/) · [Live demo](https://demo.trail.karanjot.co.in)
 
 ![Trail dashboard](docs/overview.png)
 
@@ -240,7 +240,7 @@ Measured, not promised. Sizes are gzip level 9; timings are the median of 15 run
 | `t.js` with `data-mode="full"` | same file | 2.15 ms | 126 KB | 2 |
 | `t.x.js`, extras loaded on demand | 740 B | — | — | — |
 
-Every tracker file must stay at or under 2,048 B gzipped; CI fails otherwise. Rerun with `cd tracker && npm run bench`. Method: [Tracker cost](https://trail.karanjot.dev/docs/tracking/cost/).
+Every tracker file must stay at or under 2,048 B gzipped; CI fails otherwise. Rerun with `cd tracker && npm run bench`. Method: [Tracker cost](https://trail.karanjot.co.in/docs/tracking/cost/).
 
 ## API and MCP
 
@@ -266,7 +266,7 @@ claude mcp add --transport http trail https://stats.example.com/mcp \
   --header "Authorization: Bearer <read-token>"
 ```
 
-Details: [Read API](https://trail.karanjot.dev/docs/api/read-api/), [MCP](https://trail.karanjot.dev/docs/api/mcp/).
+Details: [Read API](https://trail.karanjot.co.in/docs/api/read-api/), [MCP](https://trail.karanjot.co.in/docs/api/mcp/).
 
 ## Development
 
