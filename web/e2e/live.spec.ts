@@ -22,7 +22,7 @@ chk(55, 'a test visit appears in Live immediately; "Watch it live" shows it', as
 
 chk(64, 'equal values get equal bars: Live tracks share one x and width', async ({ page, goto }) => {
   // Live covers the last five minutes only. The seeded data is older, so on a long CI run nothing is live by the time
-  // this test runs; it sends its own two visits (one person each, two pages) so the tracks have equal values to show.
+  // this test runs; it sends its own two visits (one person each, two pages) so the page tracks have equal values.
   const run = `${test.info().project.name}-${test.info().retry}-${Date.now()}`
   for (const n of [1, 2]) {
     await page.request.post('/_t/e', {
@@ -31,11 +31,18 @@ chk(64, 'equal values get equal bars: Live tracks share one x and width', async 
     })
   }
   await goto('/live')
-  const bars = page.getByRole('region', { name: /pages|sources|countries/i }).first().locator('[data-bar]')
-  // evaluateAll does not wait, so wait for the rows first.
-  await expect(bars.first()).toBeVisible({ timeout: 15_000 })
-  const xs = await bars.evaluateAll((els) => els.map((e) => { const r = (e.parentElement ?? e).getBoundingClientRect(); return [Math.round(r.x), Math.round(r.width)] }))
-  expect(new Set(xs.map((x) => x[0])).size).toBe(1)
-  expect(new Set(xs.map((x) => x[1])).size).toBe(1)
+  const side = page.getByRole('region', { name: /pages|sources|countries/i }).first()
+  const bars = side.locator('[data-bar]')
+  // Live re-renders on its refresh timer, so a click can land mid-render under load. Retry the grouping click and the
+  // measurement together until the page tracks are on screen and share one x and width.
+  await expect(async () => {
+    // Group by page: test visits from 127.0.0.1 have no country, so the default Country list can be empty.
+    await side.getByText('Page', { exact: true }).click({ timeout: 2_000 })
+    await expect(bars.first()).toBeVisible({ timeout: 2_000 })
+    const xs = await bars.evaluateAll((els) => els.map((e) => { const r = (e.parentElement ?? e).getBoundingClientRect(); return [Math.round(r.x), Math.round(r.width)] }))
+    expect(xs.length).toBeGreaterThan(0)
+    expect(new Set(xs.map((x) => x[0])).size).toBe(1)
+    expect(new Set(xs.map((x) => x[1])).size).toBe(1)
+  }).toPass({ timeout: 20_000 })
   expect(num('1')).toBe(1)
 })
