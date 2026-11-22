@@ -5,10 +5,8 @@ import { onMounted, ref } from 'vue'
 import { useData, withBase } from 'vitepress'
 
 const { frontmatter: fm } = useData()
-const CMD = `git clone https://github.com/karanjot786/trail && cd trail \\
-  && docker build -t trail . \\
-  && docker run -d -p 8080:8080 -v trail-data:/data \\
-       -e TRAIL_PASSWORD=change-me trail`
+const CMD = `docker run -d --name trail -p 8080:8080 -v trail-data:/data \\
+       ghcr.io/karanjot786/trail`
 
 const mod = ref('⌘')
 onMounted(() => {

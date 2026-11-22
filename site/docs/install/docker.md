@@ -1,67 +1,88 @@
 ---
 title: Docker
-description: Build the Trail image and run it with a volume for the SQLite file.
+description: Run the published Trail image with one command, or with Docker Compose and Caddy for automatic HTTPS.
 ---
 
 # Docker
 
-The repository ships a three-stage `Dockerfile`: it builds the tracker and the dashboard with Node, compiles a static Go binary, and copies that binary into a distroless image that runs as a non-root user. There is no published image yet, so you build it yourself.
+The image `ghcr.io/karanjot786/trail` is built for `linux/amd64` and `linux/arm64`. It holds one static binary on a distroless base, runs as a non-root user (uid 65532), keeps its database in `/data`, and has a health check.
 
-```sh
-git clone https://github.com/karanjot786/trail && cd trail
-docker build -t trail .
-```
+| Tag | What it is |
+|---|---|
+| `latest` | The newest release |
+| `0.3`, `0.3.1` | A release line, or one exact release |
+| `edge` | The `main` branch, rebuilt on every push |
 
-Run it with a named volume, because the database lives at `/data/trail.db` inside the container:
+## One command
 
 ```sh
 docker run -d --name trail --restart unless-stopped \
   -p 8080:8080 -v trail-data:/data \
-  -e TRAIL_PASSWORD=change-me \
-  -e TRAIL_SITES=mysite=example.com \
-  -e TRAIL_SECRET=$(openssl rand -hex 32) \
-  trail
+  ghcr.io/karanjot786/trail
 ```
 
-The image sets `TRAIL_DB=/data/trail.db` and `TRAIL_ADDR=:8080`. Every other setting is an environment variable; see [Configuration](/operations/configuration).
+The first start prints a generated dashboard password:
 
-`TRAIL_SITES` is optional: you can also add sites in the dashboard under **Settings → Add site**, see [Script tag](/add/script-tag#add-a-site).
+```sh
+docker logs trail 2>&1 | grep 'Log in'
+```
 
-`TRAIL_SECRET` is optional, but without it the session-signing key is random on every start, so a restart signs you out. It must be at least 32 characters.
+Open `http://<server>:8080` and log in. To choose the password yourself, add `-e TRAIL_PASSWORD=...`. Other settings are environment variables too, such as `-e TRAIL_TZ=Europe/Berlin` or `-e TRAIL_SITES=mysite=example.com`; see [Configuration](/operations/configuration).
 
-Each client IP may send 50 event requests per second to `/_t/e`. Change it with `TRAIL_INGEST_RPS`; see [Rate limit](/operations/configuration#rate-limit).
+The image sets `TRAIL_DB=/data/trail.db` and `TRAIL_ADDR=:8080`. Use a named volume as above: it takes the ownership of the image's `/data`, so the non-root user can write there. For a bind mount, run `sudo chown 65532:65532 /path/on/host` first.
 
-## Docker Compose
+`docker ps` shows `healthy` once the server answers `/healthz`. You can check it by hand with `docker exec trail /trail health`.
+
+Plain HTTP is fine for a trial. For real sites, serve Trail over HTTPS: use Compose below, or publish the port on `127.0.0.1` only (`-p 127.0.0.1:8080:8080`) and put your own proxy in front (see [HTTPS](#https)).
+
+## Docker Compose with automatic HTTPS {#compose}
+
+[`deploy/compose.yaml`](https://github.com/karanjot786/trail/blob/main/deploy/compose.yaml) runs Trail behind Caddy, which gets and renews a Let's Encrypt certificate by itself. Point the domain's DNS at the server and open ports 80 and 443, then:
+
+```sh
+curl -fsSLO https://raw.githubusercontent.com/karanjot786/trail/main/deploy/compose.yaml
+DOMAIN=stats.example.com docker compose up -d
+```
+
+Read the password with `docker compose logs trail | grep 'Log in'` and open `https://stats.example.com`.
+
+Settings can live in a `.env` file next to `compose.yaml`, so later `docker compose` commands pick them up:
 
 ::: code-group
-```yaml [compose.yaml]
-services:
-  trail:
-    build: .
-    restart: unless-stopped
-    ports: ['8080:8080']
-    volumes: ['trail-data:/data']
-    environment:
-      TRAIL_PASSWORD: change-me
-      TRAIL_SITES: mysite=example.com
-      TRAIL_TZ: Europe/Berlin
-volumes:
-  trail-data:
+```sh [.env]
+DOMAIN=stats.example.com
+TRAIL_PASSWORD=choose-a-long-one   # optional
+TRAIL_TZ=Europe/Berlin             # optional, default UTC
+TRAIL_SITES=blog=example.com       # optional
 ```
 :::
 
-## HTTPS
+Trail's port is not published. Only Caddy reaches it, over the private Compose network, so the visitor IP that Caddy forwards is trusted with the default `TRAIL_TRUSTED_PROXIES`. The data is in the `trail_trail-data` volume.
 
-Put Trail behind a reverse proxy that terminates TLS, such as Caddy, nginx or your platform's load balancer. The dashboard cookie is marked `Secure` when the request arrives over TLS or with `X-Forwarded-Proto: https`.
+To test the stack on your own machine, use `DOMAIN=localhost`: Caddy then serves a certificate from its own local authority, which your browser will warn about. `HTTP_PORT` and `HTTPS_PORT` move it off ports 80 and 443.
+
+## HTTPS with your own proxy {#https}
+
+Put Trail behind any reverse proxy that terminates TLS, such as Caddy, nginx or your platform's load balancer. The dashboard cookie is marked `Secure` when the request arrives over TLS or with `X-Forwarded-Proto: https`.
 
 Trail believes `X-Forwarded-For` only from a trusted proxy. By default that is loopback and private addresses, which covers a proxy on the same host or Docker network, plus Cloudflare. A client that connects to port 8080 directly cannot fake its IP, but it can skip the proxy, so publish the port on `127.0.0.1` only. Other setups are in [Client IP and proxies](/operations/configuration#client-ip).
+
+## Build the image yourself
+
+```sh
+git clone https://github.com/karanjot786/trail && cd trail
+docker build -t trail .
+docker run -d --name trail -p 8080:8080 -v trail-data:/data trail
+```
+
+The `Dockerfile` builds the tracker and the dashboard with Node, cross-compiles the Go binary for the target platform, and copies it into the distroless image. `docker buildx build --platform linux/amd64,linux/arm64 .` builds both architectures without emulation.
 
 ## Geo data
 
 Countries work with no setup: the image carries the built-in DB-IP Lite Country database. For region and city, mount a DB-IP Lite City file and point `TRAIL_GEO_DB` at it. See [Geo database](/operations/geo).
 
 ```sh
-docker run ... -v /srv/geo:/geo:ro -e TRAIL_GEO_DB=/geo/dbip-city-lite.mmdb trail
+docker run ... -v /srv/geo:/geo:ro -e TRAIL_GEO_DB=/geo/dbip-city-lite.mmdb ghcr.io/karanjot786/trail
 ```
 
 ## Next

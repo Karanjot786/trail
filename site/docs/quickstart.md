@@ -5,7 +5,7 @@ description: Run Trail, add the script to a page and see your first visitor onli
 
 # Quickstart
 
-You need Docker, or Go 1.26+ with Node 22+ and pnpm to build from source. It takes about two minutes.
+You need Docker, or Go 1.26+ with Node 22+ and pnpm to build from source. It takes about two minutes. For a server with HTTPS, see [Self-hosting](/install/).
 
 <div class="steps">
 
@@ -13,12 +13,10 @@ You need Docker, or Go 1.26+ with Node 22+ and pnpm to build from source. It tak
 
 ::: code-group
 ```sh [Docker]
-git clone https://github.com/karanjot786/trail && cd trail
-docker build -t trail .
 docker run -d --name trail -p 8080:8080 -v trail-data:/data \
   -e TRAIL_PASSWORD=change-me \
   -e TRAIL_SITES=mysite=localhost \
-  trail
+  ghcr.io/karanjot786/trail
 ```
 ```sh [From source]
 git clone https://github.com/karanjot786/trail && cd trail

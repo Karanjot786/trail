@@ -1,13 +1,39 @@
 ---
 title: Binary, systemd and Caddy
-description: Build one static binary, run it under systemd and put Caddy in front for HTTPS.
+description: Install the Trail binary and a systemd service with one command, or build it yourself, and put Caddy in front for HTTPS.
 ---
 
 # Binary, systemd and Caddy
 
 Trail compiles to a single static file (`CGO_ENABLED=0`) with the tracker and the dashboard embedded. Copy it to any Linux server and run it.
 
-## Build
+## Install script
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/karanjot786/trail/main/install.sh | sh
+```
+
+The script:
+
+1. downloads `trail_<os>_<cpu>.tar.gz` from the latest [GitHub release](https://github.com/karanjot786/trail/releases) (Linux, macOS and FreeBSD; amd64 and arm64);
+2. checks it against the release's `checksums.txt` and stops on a mismatch;
+3. installs `/usr/local/bin/trail`;
+4. on Linux with systemd: creates a `trail` system user, `/var/lib/trail`, `/etc/trail.env` (mode 600, listening on `127.0.0.1:8080`) and the hardened `trail.service` shown [below](#systemd), starts it and prints the generated dashboard password.
+
+Running it again updates the binary and restarts the service. It never touches an existing `/etc/trail.env` or the database.
+
+| Variable | Effect |
+|---|---|
+| `TRAIL_VERSION=v0.3.1` | Install that release instead of the latest |
+| `TRAIL_ADDR=:8080` | Listen address for a new `/etc/trail.env` (default `127.0.0.1:8080`) |
+| `TRAIL_INSTALL_DIR=$HOME/.local/bin` | Put the binary elsewhere |
+| `TRAIL_NO_SERVICE=1` | Install the binary only |
+
+Pass them to `sh`, e.g. `curl -fsSL .../install.sh | TRAIL_NO_SERVICE=1 sh`. To read the script first, download it, look, then run `sh install.sh`. Or do it by hand: download the archive and `checksums.txt` from the release page, run `sha256sum -c --ignore-missing checksums.txt`, and unpack `trail`.
+
+Then add HTTPS with [Caddy](#caddy).
+
+## Build from source
 
 On your machine, with Go 1.26+, Node 22+ and pnpm:
 
@@ -29,13 +55,12 @@ Create a user and a data directory:
 sudo useradd --system --home /var/lib/trail --create-home trail
 ```
 
-Put the settings in an environment file readable only by root:
+Put the settings in an environment file readable only by root. `TRAIL_PASSWORD` and `TRAIL_SECRET` are optional: without them the first start logs a generated password (`journalctl -u trail | grep 'Log in'`) and keeps the session key in the database.
 
 ::: code-group
 ```ini [/etc/trail.env]
 TRAIL_PASSWORD=change-me
 TRAIL_SITES=mysite=example.com
-TRAIL_SECRET=paste-the-output-of-openssl-rand-hex-32
 TRAIL_DB=/var/lib/trail/trail.db
 TRAIL_ADDR=127.0.0.1:8080
 TRAIL_TZ=Europe/Berlin

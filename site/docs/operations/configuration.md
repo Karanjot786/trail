@@ -9,12 +9,12 @@ Trail reads its settings from the environment at startup. Nothing is stored in a
 
 | Variable | Default | What it does |
 |---|---|---|
-| `TRAIL_PASSWORD` | required | Password for the dashboard. The server exits if it is empty |
+| `TRAIL_PASSWORD` | generated | Password for the dashboard. When unset, Trail generates one on the first start of a new database, prints it once in the log (`Log in with: ...`) and stores only its SHA-256. `trail reset-password` makes a new one. A set `TRAIL_PASSWORD` always wins |
 | `TRAIL_SITES` | empty | Optional comma list of `id=domain`, e.g. `blog=example.com,docs=docs.example.com`. Each entry is added at startup if the database lacks it; sites you edited in the dashboard keep their edits. You can add sites in Settings instead. Events for ids that are not registered are rejected. The domain decides the environment tag (below) |
 | `TRAIL_DB` | `trail.db` (`/data/trail.db` in the Docker image) | Path of the SQLite file |
 | `TRAIL_ADDR` | `:8080` | Listen address. Use `127.0.0.1:8080` behind a local proxy |
 | `TRAIL_TZ` | `Asia/Kolkata` | IANA timezone for daily buckets and the private-mode key rotation |
-| `TRAIL_SECRET` | random per start | Signs dashboard session cookies. At least 32 characters. Set it so logins survive restarts: `openssl rand -hex 32` |
+| `TRAIL_SECRET` | stored in the database | Signs dashboard session cookies. At least 32 characters. When unset, a random key is created on first start and kept in the database, so logins survive restarts with no setup. Set it only to share one key between databases or to rotate it |
 | `TRAIL_GEO_DB` | unset | Path to your own City `.mmdb`, such as GeoLite2 City, for region and city. Without it, the built-in database gives country only. See [Geo database](/operations/geo) |
 | `TRAIL_API_TOKENS` | unset | Comma list of `name:token:scope` for the [read API and MCP](/api/tokens). Scope is `read` or `write`; tokens shorter than 24 characters stop the server at startup |
 | `TRAIL_INGEST_RPS` | `50` | Requests per second per client IP on `/_t/e`, with a burst of twice that. Over the limit is `429`. `0` turns the limit off. See [Rate limit](#rate-limit) |
@@ -138,7 +138,14 @@ trail serve      # run the server
 trail seed       # fill TRAIL_DB with ~30 days of generated data, for trying the dashboard
 trail crawlers import --site ID [--format combined|caddy] [--since auto|RFC3339] [--url URL --token T] FILE|-
                  # import AI crawler requests from an access log, see AI crawlers
+trail health     # exit 0 if the server on TRAIL_ADDR answers /healthz (the Docker health check)
+trail reset-password  # replace the generated dashboard password in TRAIL_DB and print it; restart afterwards
+trail version    # print the version
 ```
+
+In Docker, run them with `docker exec trail /trail <command>`.
+
+`GET /healthz` answers `200 ok` without a login when the server and its database respond, and `503` when the database does not. Point uptime monitors and load balancers at it.
 
 `trail seed` uses the ids in `TRAIL_SITES`, or `demo` and `docs` when it is empty. It writes events only, so add the same ids in Settings (or `TRAIL_SITES`) to see them in the dashboard. Do not run it against a production database.
 

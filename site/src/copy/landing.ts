@@ -183,7 +183,7 @@ export const selfhost = {
   // One HTML string per terminal line (.tl). Lines 0, 1 and 3 are typed.
   term: [
     '<span class="pr">$</span> docker run -d -p 8080:8080 -v trail-data:/data \\',
-    '    -e TRAIL_PASSWORD=… -e TRAIL_SITES=mysite=example.com trail',
+    '    -e TRAIL_PASSWORD=… -e TRAIL_SITES=mysite=example.com ghcr.io/karanjot786/trail',
     '3f9c2a1e8b7d41c6a0e5d2b9', // rendered with .dim
     '<span class="pr">$</span> docker logs 3f9c',
     '<span class="dim">2026/11/20 09:14:02</span> <span class="hi">trail listening on :8080</span> <span class="dim">(sites: 1, api tokens: 0)</span>',
@@ -193,21 +193,17 @@ export const selfhost = {
   deployLabel: 'Deploy with',
   deployTabs: { docker: 'Docker', fly: 'Fly', bin: 'Binary' },
   deploy: {
-    docker: `docker build -t trail .
-docker run -d -p 8080:8080 -v trail-data:/data \\
-  -e TRAIL_PASSWORD=change-me \\
-  -e TRAIL_SITES=mysite=example.com \\
-  trail`,
+    docker: `docker run -d --name trail -p 8080:8080 -v trail-data:/data \\
+  ghcr.io/karanjot786/trail
+docker logs trail 2>&1 | grep 'Log in'   # generated password`,
     fly: `cp fly.toml.example fly.toml   # set app
 fly launch --no-deploy --copy-config
 fly volumes create trail_data --size 1
 fly secrets set TRAIL_PASSWORD=change-me \\
   TRAIL_SITES=mysite=example.com
 fly deploy`,
-    bin: `make build   # tracker, dashboard, ./trail
-TRAIL_PASSWORD=change-me \\
-TRAIL_SITES=mysite=example.com \\
-./trail`,
+    bin: `# checksum-verified binary + systemd service
+curl -fsSL https://raw.githubusercontent.com/karanjot786/trail/main/install.sh | sh`,
   },
   shnums: [
     { dt: 'binary, dashboard inside', dd: facts.binaryMB },

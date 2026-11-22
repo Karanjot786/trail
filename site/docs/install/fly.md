@@ -12,12 +12,11 @@ git clone https://github.com/karanjot786/trail && cd trail
 cp fly.toml.example fly.toml          # then set `app` to your app name
 fly launch --no-deploy --copy-config
 fly volumes create trail_data --size 1
-fly secrets set TRAIL_PASSWORD=change-me TRAIL_SITES=mysite=example.com
-fly secrets set TRAIL_SECRET=$(openssl rand -hex 32)   # 32+ chars, keeps logins across restarts
+fly secrets set TRAIL_PASSWORD=change-me   # optional: without it, the first start logs a generated password
 fly deploy
 ```
 
-Open `https://<app>.fly.dev` and sign in with `TRAIL_PASSWORD`. If you skipped `TRAIL_SITES`, add your site under **Settings → Add site**.
+Open `https://<app>.fly.dev` and sign in with `TRAIL_PASSWORD`, or with the generated password from `fly logs | grep 'Log in'`. The session key is kept in the database on the volume, so logins survive deploys without `TRAIL_SECRET`. If you skipped `TRAIL_SITES`, add your site under **Settings → Add site**.
 
 ## What the example config sets
 

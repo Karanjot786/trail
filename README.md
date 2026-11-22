@@ -39,35 +39,36 @@ See which AI systems crawl your pages, fetch them to answer someone, and send pe
 - Honest bounce rate, previous-period comparison, the whole dashboard state in the URL
 - Multiple sites, one password, no raw IPs stored, trusted-proxy aware client IPs
 
-## Quick start
+## Self-host in one or two commands
 
-Docker:
-
-```sh
-docker build -t trail .
-docker run -d --name trail -p 8080:8080 -v trail-data:/data \
-  -e TRAIL_PASSWORD=change-me \
-  -e TRAIL_SITES=mysite=example.com \
-  trail
-```
-
-Fly.io:
+**Docker**, one command:
 
 ```sh
-cp fly.toml.example fly.toml      # set `app`
-fly launch --no-deploy --copy-config
-fly volumes create trail_data --size 1
-fly secrets set TRAIL_PASSWORD=change-me TRAIL_SITES=mysite=example.com
-fly deploy
+docker run -d --name trail --restart unless-stopped -p 8080:8080 -v trail-data:/data ghcr.io/karanjot786/trail
 ```
 
-Open the host in a browser and log in with `TRAIL_PASSWORD`. Run Trail behind HTTPS (Fly does this for you).
+**Docker Compose with automatic HTTPS** (Caddy and Let's Encrypt), two commands:
+
+```sh
+curl -fsSLO https://raw.githubusercontent.com/karanjot786/trail/main/deploy/compose.yaml
+DOMAIN=stats.example.com docker compose up -d
+```
+
+**No Docker**: a checksum-verified binary plus a systemd service:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/karanjot786/trail/main/install.sh | sh
+```
+
+No password or secret to set up: the first start prints a generated dashboard password in the log (`docker logs trail 2>&1 | grep 'Log in'`), and the session key is kept in the database. Set `TRAIL_PASSWORD` to choose your own.
+
+**[SELF_HOSTING.md](SELF_HOSTING.md)** is the full guide: HTTPS, reverse proxies, updates, backups, every setting and troubleshooting. Fly.io works too, with `fly.toml.example`.
 
 ## Configuration
 
 | Variable | Default | Notes |
 |---|---|---|
-| `TRAIL_PASSWORD` | none, required | Dashboard login password |
+| `TRAIL_PASSWORD` | generated | Dashboard login password. Unset: generated on first start and printed once in the log; `trail reset-password` makes a new one |
 | `TRAIL_DB` | `trail.db` (`/data/trail.db` in Docker) | SQLite file path |
 | `TRAIL_ADDR` | `:8080` | Listen address |
 | `TRAIL_SITES` | empty | Optional `id=domain,id2=domain2`, added at startup if missing. Sites edited in the dashboard keep their edits. You can also add sites in **Settings** |
@@ -75,7 +76,7 @@ Open the host in a browser and log in with `TRAIL_PASSWORD`. Run Trail behind HT
 | `TRAIL_TRUSTED_PROXIES` | `private,cloudflare` | Which TCP peers may report the visitor IP in `X-Forwarded-For` (or `CF-Connecting-IP` from Cloudflare). Comma list of IPs, CIDRs, `private` (loopback and private ranges) and `cloudflare`. `none` trusts no header. Headers from any other peer are ignored, so they cannot dodge the rate limit or fake geo |
 | `TRAIL_TZ` | `Asia/Kolkata` | Timezone for daily buckets |
 | `TRAIL_GEO_DB` | unset | Path to your own City `.mmdb` (for example DB-IP Lite City) for region and city. Without it, the built-in database gives country only |
-| `TRAIL_SECRET` | random per start | Signs session cookies (32+ chars). Set it so logins survive restarts |
+| `TRAIL_SECRET` | stored in the database | Signs session cookies (32+ chars). Unset: a random key is created once and kept in the database, so logins survive restarts |
 | `TRAIL_API_TOKENS` | unset | `name:token:scope,...` for the read API and MCP. Scope `read` or `write`; tokens of 24+ chars |
 | `TRAIL_AGENT_LISTS` | unset | `off` stops downloading the published AI agent IP lists and signature keys; agents are then recognised by user agent only |
 | `TRAIL_DEMO` | unset | `1` serves a read-only demo with generated data at `/demo` |

@@ -5,7 +5,8 @@ export const sidebar: DefaultTheme.Sidebar = [
   {
     text: 'Install',
     items: [
-      { text: 'Docker', link: '/install/docker' },
+      { text: 'Self-hosting', link: '/install/' },
+      { text: 'Docker and Compose', link: '/install/docker' },
       { text: 'Fly.io', link: '/install/fly' },
       { text: 'Binary, systemd and Caddy', link: '/install/binary' },
       { text: 'Rewrites (Vercel and others)', link: '/install/rewrites' },
