@@ -68,4 +68,5 @@ docker run ... -v /srv/geo:/geo:ro -e TRAIL_GEO_DB=/geo/dbip-city-lite.mmdb trai
 
 - Serve the tracker from your own domain: [Rewrites](/install/rewrites).
 - Back up the volume: [Backups](/operations/backups).
+- Open the dashboard and sign in: [First run in the dashboard](/dashboard/first-run) walks you through adding your site.
 - Then [add the script tag](/add/script-tag) to your site.
