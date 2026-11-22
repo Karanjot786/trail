@@ -26,11 +26,31 @@ export function playhead(asOf: number, now: number, span = RECORDED_SPAN_MS): nu
   return asOf - loop + d
 }
 
+/**
+ * A recording shorter than the replay span (the recorder keeps only Live's own 5-minute window) is
+ * repeated back in time until it covers the span, so the replay never runs through empty minutes.
+ */
+export function fillSpan(recorded: Live, span = RECORDED_SPAN_MS): LiveEvent[] {
+  if (!recorded.stream.length) return recorded.stream
+  const start = recorded.asOf - span
+  const first = Math.min(...recorded.stream.map((e) => e.ts))
+  if (first <= start + LIVE_WINDOW_MS) return recorded.stream
+  const period = Math.max(recorded.asOf - first + 15_000, 60_000)
+  const out: LiveEvent[] = []
+  for (let k = 0; recorded.asOf - k * period > start; k++) {
+    for (const e of recorded.stream) {
+      const ts = e.ts - k * period
+      if (ts > start) out.push(k ? { ...e, ts } : e)
+    }
+  }
+  return out
+}
+
 export function simulateLive(recorded: Live, now: number, span = RECORDED_SPAN_MS): Live {
   const head = playhead(recorded.asOf, now, span)
   const shift = now - head
   const stream: LiveEvent[] = []
-  for (const e of recorded.stream) {
+  for (const e of fillSpan(recorded, span)) {
     if (e.ts > head - LIVE_WINDOW_MS && e.ts <= head) stream.push({ ...e, ts: e.ts + shift })
   }
   stream.sort((a, b) => b.ts - a.ts)

@@ -56,4 +56,13 @@ describe('simulateLive', () => {
     const looped = simulateLive(recorded, asOf + 25 * MIN)
     expect(looped.stream.map((e) => e.person)).toEqual(simulateLive(recorded, asOf).stream.map((e) => e.person))
   })
+
+  it('repeats a recording shorter than the span, so Live is never empty mid-loop', () => {
+    const short: Live = { ...recorded, stream: [ev(0.2, 'p'), ev(1.5, 'q'), ev(3.9, 'r')], streamTotal: 3 }
+    for (let m = 0; m < 25; m++) {
+      const l = simulateLive(short, asOf + m * MIN)
+      expect(l.events5m).toBeGreaterThan(0)
+      expect(l.active).toBeGreaterThan(0)
+    }
+  })
 })
