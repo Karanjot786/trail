@@ -22,3 +22,5 @@ check /docs/quickstart.md 200 '^content-type: text/markdown'
 check /llms.txt 200
 check /sitemap.xml 200
 check /docs/nope 404
+check /demo 200 '^content-type: text/html'
+check /demo/activity/visitors 200 '^content-type: text/html'
