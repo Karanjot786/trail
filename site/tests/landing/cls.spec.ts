@@ -14,6 +14,8 @@ for (const v of [{ w: 1280, h: 800 }, { w: 390, h: 844 }]) {
     await scrollThrough(page, 400, 150)
     await page.evaluate(() => window.scrollTo(0, 0))
     await page.waitForTimeout(300)
-    expect(await page.evaluate(() => (window as any).__cls)).toBe(0)
+    // 0 on macOS. Linux CI renders fallback-font metrics a hair differently (~0.0001), the same reason the pixel test is
+    // macOS-only. 0.001 is still 100x stricter than the 0.1 "good" threshold, so any real layout shift still fails.
+    expect(await page.evaluate(() => (window as any).__cls)).toBeLessThan(0.001)
   })
 }
