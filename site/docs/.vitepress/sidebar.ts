@@ -1,7 +1,13 @@
 import type { DefaultTheme } from 'vitepress'
 
 export const sidebar: DefaultTheme.Sidebar = [
-  { text: 'Getting started', items: [{ text: 'Quickstart', link: '/quickstart' }] },
+  {
+    text: 'Getting started',
+    items: [
+      { text: 'Quickstart', link: '/quickstart' },
+      { text: 'First run in the dashboard', link: '/dashboard/first-run' },
+    ],
+  },
   {
     text: 'Install',
     items: [

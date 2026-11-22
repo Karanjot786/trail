@@ -44,7 +44,9 @@ On a real site you proxy `/_t/*` through your own domain, and the tag shrinks to
 
 Go to `http://localhost:8080`, sign in with `TRAIL_PASSWORD`, and open your page in another tab. The header shows **1 online** within a few seconds.
 
-To track another site, open **Settings**, click **Add site** and enter its domain. Its **Install** panel gives you the snippet for a script tag, npm, Next.js, React or a Vercel rewrite, and shows "Receiving data" once the first event arrives.
+If the server has no sites yet, or your site has not received an event, the dashboard walks you through setup: add your website, install the script, and watch for the first visit. See [First run in the dashboard](/dashboard/first-run).
+
+To track another site, open the site switcher and choose **Add a website**. You get the same steps, with the snippet for a script tag, Next.js, Astro or npm, and "Receiving data" once the first event arrives.
 
 </div>
 

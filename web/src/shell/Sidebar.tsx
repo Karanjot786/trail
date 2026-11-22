@@ -1,7 +1,7 @@
 // The rail (plan F1-5; lib shell/sidebar + collapsible-label). The grid snaps; only the labels fade, and only
 // on pointer toggles. Under 960 px it is a push drawer with a focus trap, Esc, focus return and a body lock.
 import { useEffect, useRef, type ComponentType, type KeyboardEvent } from 'react'
-import { Activity, Bot, CircleDollarSign, Compass, ExternalLink, LayoutGrid, Moon, Search, Settings, Sun, Target, Users } from 'lucide-react'
+import { Activity, Bot, CircleDollarSign, Compass, ExternalLink, LayoutGrid, Moon, Search, Settings, Sparkles, Sun, Target, Users } from 'lucide-react'
 import { SCREENS } from '../routes'
 import type { ScreenId } from '../state/url'
 import { useUrlState } from '../state/useUrlState'
@@ -25,8 +25,9 @@ export const NAV_ICON: Record<ScreenId, ComponentType<{ size?: number; 'aria-hid
   revenue: CircleDollarSign,
   crawlers: Bot,
   settings: Settings,
+  welcome: Sparkles,
 }
-export const NAV_KEY: Record<ScreenId, string> = { overview: 'O', live: 'L', acquisition: 'A', activity: 'V', conversions: 'C', revenue: 'M', crawlers: 'R', settings: 'S' }
+export const NAV_KEY: Record<ScreenId, string> = { overview: 'O', live: 'L', acquisition: 'A', activity: 'V', conversions: 'C', revenue: 'M', crawlers: 'R', settings: 'S', welcome: '' }
 export const MOD = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent) ? '⌘' : 'Ctrl'
 
 /** The screens shown in the rail, in IA order. Revenue only when the site has revenue; Settings sits at the bottom. */

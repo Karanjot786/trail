@@ -121,4 +121,5 @@ Then add the `/_t/*` rewrite on the sites you track, so the tracker loads from t
 ## Next
 
 - Back up the database: [Backups](/operations/backups).
+- Open the dashboard and sign in: [First run in the dashboard](/dashboard/first-run) walks you through adding your site.
 - Then [add the script tag](/add/script-tag) to your site.

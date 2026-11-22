@@ -80,7 +80,13 @@ export function SiteSwitcher() {
         )
       })}
       <MenuSeparator />
-      <MenuItem onSelect={() => setUi({ addSite: true })}>
+      <MenuItem
+        onSelect={() => {
+          // The same guided flow as the first run: add, install, verify.
+          if (ui.drawer) setUi({ drawer: false })
+          navigate({ screen: 'welcome', tab: 'site', id: null, filters: [], sheet: null })
+        }}
+      >
         <Plus size={14} aria-hidden="true" />
         Add a website
       </MenuItem>

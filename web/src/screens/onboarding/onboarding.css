@@ -1,0 +1,53 @@
+/* First-run onboarding. A focused page outside the shell: brand bar, step list, one card. Tokens only. */
+.onb { min-height: 100dvh; display: flex; flex-direction: column; background: var(--bg); }
+.onb-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; height: var(--layout-header-product, 60px); padding: 0 24px; border-bottom: 1px solid var(--border); }
+.onb-main { flex: 1; width: min(680px, 100%); margin: 0 auto; padding: 40px 24px 64px; outline: none; }
+
+.onb-steps { list-style: none; margin: 0 0 20px; padding: 0; display: flex; gap: 8px; counter-reset: s; }
+.onb-steps li { flex: 1 1 0; min-width: 0; display: flex; align-items: center; gap: 8px; padding-top: 10px; border-top: 2px solid var(--border); color: var(--subtle); font-size: 13px; font-weight: 500; }
+.onb-steps li[data-state="now"] { border-top-color: var(--primary); color: var(--fg); }
+.onb-steps li[data-state="done"] { border-top-color: var(--success); color: var(--muted); }
+.onb-steps .dot { width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; flex: none; background: var(--raised); border: 1px solid var(--border-strong); font-size: 11px; font-variant-numeric: tabular-nums; }
+.onb-steps li[data-state="now"] .dot { background: var(--primary); border-color: var(--primary); color: var(--on-primary); }
+.onb-steps li[data-state="done"] .dot { background: var(--success-bg); border-color: transparent; color: var(--success); }
+.onb-steps .lbl { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.onb-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-panel); padding: 28px; }
+.onb-head { margin-bottom: 20px; }
+.onb-kicker { color: var(--muted); font-size: 12px; font-weight: 500; margin-bottom: 6px; overflow-wrap: anywhere; }
+.onb-head h1 { font: var(--type-heading-lg, var(--type-heading)); letter-spacing: -.01em; text-wrap: balance; outline: none; }
+.onb-lead { color: var(--muted); font-size: 14px; margin-top: 6px; max-width: 60ch; text-wrap: pretty; }
+
+.onb-form { gap: 16px; }
+.onb-form .input { height: var(--layout-control-lg, 40px); font-size: 14px; }
+.onb-preview:empty { display: none; }
+.onb-preview { color: var(--fg); }
+.onb-acts { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; margin-top: 24px; }
+.onb-acts .btn { height: var(--layout-control-lg, 40px); padding: 0 16px; font-size: 14px; }
+.onb-panel { margin-top: 4px; }
+.onb-panel .codeblock { margin: 0; }
+.onb-mint { display: flex; flex-direction: column; gap: 12px; align-items: flex-start; padding: 14px; border: 1px dashed var(--border-strong); border-radius: 12px; }
+.onb-mint code { font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+.onb-state { margin-bottom: 12px; }
+.onb-checks { margin-top: 16px; }
+.onb-checks .scard { margin-bottom: 0; }
+.onb-done { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; margin-bottom: 16px; background: var(--success-bg); color: var(--success); }
+@media (prefers-reduced-motion: no-preference) {
+  .onb-done { animation: onb-pop 360ms cubic-bezier(.2, .9, .3, 1.2) both; }
+  .onb-card { animation: onb-in 220ms ease-out both; }
+}
+@keyframes onb-pop { from { transform: scale(.6); opacity: 0; } }
+@keyframes onb-in { from { opacity: 0; transform: translateY(4px); } }
+.onb-foot { margin-top: 16px; color: var(--muted); font-size: 13px; text-align: center; }
+.linkish { color: var(--link); text-decoration: underline; text-underline-offset: 3px; }
+
+@media (max-width: 600px) {
+  .onb-top { padding: 0 16px; }
+  .onb-main { padding: 24px 16px 48px; }
+  .onb-card { padding: 20px 16px; }
+  .onb-steps .lbl { font-size: 12px; }
+  .onb-acts { flex-direction: column-reverse; align-items: stretch; }
+}
+.onb .method a, .onb-foot a { text-decoration: underline; text-underline-offset: 3px; }
+/* Snippets wrap here, so the whole line is readable on a phone and never runs under the copy button. */
+.onb .code { white-space: pre-wrap; overflow-wrap: anywhere; }
