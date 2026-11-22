@@ -4,7 +4,7 @@
 // missing (a fresh Vercel build), the toolchain named in go.mod is downloaded into node_modules/.cache first.
 // Set TRAIL_DEMO_RECORD=1 to record again even when web/demo-data exists.
 import { execFileSync } from 'node:child_process'
-import { cpSync, existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { arch, platform } from 'node:os'
 import { delimiter, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -42,7 +42,16 @@ function goEnv() {
 }
 
 if (!existsSync(join(web, 'node_modules'))) run('pnpm', ['install', '--frozen-lockfile'])
-if (process.env.TRAIL_DEMO_RECORD === '1' || !existsSync(join(web, 'demo-data/index.json'))) run('pnpm', ['fixtures'], goEnv())
+if (process.env.TRAIL_DEMO_RECORD === '1' || !existsSync(join(web, 'demo-data/index.json'))) {
+  // The Go binary embeds web/dist (gitignored, so absent on a fresh Vercel checkout) and won't compile without a file in
+  // it. The recorder only calls the API, so a stub page is enough.
+  const dist = join(web, 'dist')
+  if (!existsSync(join(dist, 'index.html'))) {
+    mkdirSync(dist, { recursive: true })
+    writeFileSync(join(dist, 'index.html'), '<!doctype html><title>Trail</title>')
+  }
+  run('pnpm', ['fixtures'], goEnv())
+}
 run('pnpm', ['build:demo'])
 
 const out = join(site, 'dist/demo')
