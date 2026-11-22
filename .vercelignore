@@ -1,0 +1,17 @@
+# Upload only what the site build needs (site + web demo + Go to record fixtures). Vercel installs deps itself.
+.git
+**/node_modules
+**/dist
+**/dist-demo
+web/demo-data
+site/src/generated
+site/docs/.vitepress/cache
+**/test-results
+**/playwright-report
+**/.superpowers
+*.db
+*.db-*
+*.log
+/trail
+demo-password.txt
+.env*
