@@ -55,10 +55,21 @@ for (const theme of ['dark', 'light'] as const) {
         return route.continue({ postData: JSON.stringify({ ...body, name: `${body.name} ${info.project.name} ${theme} a11y` }) })
       })
       await app.goto('/ai/agents')
-      await page.getByRole('table', { name: 'Latest agent sessions' }).getByRole('row').nth(1).click()
-      // CSS locators, not getByRole with a name: see the Firefox note on the command palette test.
+      // CSS locators only before axe, not getByRole with a name: see the Firefox note on the command palette test.
+      const table = page.locator('table', { has: page.locator('caption', { hasText: 'Latest agent sessions' }) })
+      await table.locator('tbody tr:not([data-skeleton])').first().click()
       await expect(page.locator('[role=dialog] h3', { hasText: 'AI agent' }).first()).toBeVisible()
-      expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([])
+      // Firefox (Playwright's build) crashes the page in axe's aria-dialog-name rule, i.e. while computing this sheet's
+      // accessible name (seen in CI on both themes, about 4 runs in 10 locally; every other rule is fine). There the
+      // rule is replaced by the same check done by hand: the dialog is labelled by a heading with text.
+      const axe = new AxeBuilder({ page })
+      if (info.project.name === 'firefox') {
+        axe.disableRules(['aria-dialog-name'])
+        const by = await page.locator('[role=dialog]').getAttribute('aria-labelledby')
+        expect(by).toBeTruthy()
+        await expect(page.locator(`[id="${by}"]`)).toHaveText(/\S/)
+      }
+      expect((await axe.analyze()).violations).toEqual([])
       await page.keyboard.press('Escape')
       const made = page.waitForResponse((r) => r.url().includes('/api/tokens') && r.request().method() === 'POST' && r.status() === 201)
       await app.goto('/ai/funnel?site=docs')
