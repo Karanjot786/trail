@@ -95,3 +95,7 @@ CREATE TABLE IF NOT EXISTS api_tokens(id TEXT PRIMARY KEY, name TEXT NOT NULL UN
 CREATE TABLE IF NOT EXISTS crawl_hits(site_id TEXT NOT NULL, hour INTEGER NOT NULL, bot TEXT NOT NULL, path TEXT NOT NULL,
   status INTEGER NOT NULL, verified INTEGER NOT NULL DEFAULT 0, n INTEGER NOT NULL, last_ts INTEGER NOT NULL,
   PRIMARY KEY(site_id, hour, bot, path, status, verified)) WITHOUT ROWID;
+
+-- Server settings generated on first start: the session-signing secret and, when TRAIL_PASSWORD
+-- is unset, the SHA-256 of a generated dashboard password. The plaintext password is never stored.
+CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY, value BLOB NOT NULL) WITHOUT ROWID;

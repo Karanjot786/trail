@@ -1,6 +1,8 @@
 // Command trail is a self-hosted web analytics server.
 //
 //	trail [serve]  run the server (default)
+//	trail health   exit 0 if the local server answers /healthz (Docker HEALTHCHECK)
+//	trail reset-password  replace the generated dashboard password and print it
 //	trail seed     fill TRAIL_DB with fake data
 //	trail demo record --out DIR --plan FILE [--now RFC3339]
 //	trail crawlers import --site ID [--format combined|caddy] [--since auto|RFC3339] [--url URL --token T] FILE|-
@@ -9,6 +11,7 @@ package main
 import (
 	"context"
 	"crypto/rand"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -17,6 +20,7 @@ import (
 	"io/fs"
 	"log"
 	mrand "math/rand/v2"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -65,8 +69,14 @@ func main() {
 		err = runDemo(os.Args[2:], os.Stdout)
 	case "crawlers":
 		err = runCrawlers(os.Args[2:], os.Stdin, os.Stdout)
+	case "health":
+		err = runHealth(env("TRAIL_ADDR", ":8080"), 3*time.Second)
+	case "reset-password":
+		err = runResetPassword(env("TRAIL_DB", "trail.db"), os.Getenv("TRAIL_PASSWORD") != "", os.Stdout)
+	case "version", "--version", "-v":
+		fmt.Println("trail", version)
 	default:
-		fmt.Fprintln(os.Stderr, "usage: trail [serve|seed|crawlers import]")
+		fmt.Fprintln(os.Stderr, "usage: trail [serve|seed|crawlers import|health|reset-password|version]")
 		os.Exit(2)
 	}
 	if err != nil {
@@ -223,11 +233,6 @@ func seedDB(path string, o seedOpts, now time.Time) error {
 }
 
 func runServe() error {
-	password := os.Getenv("TRAIL_PASSWORD")
-	if password == "" {
-		fmt.Fprintln(os.Stderr, "trail: TRAIL_PASSWORD is required (it protects the dashboard)")
-		os.Exit(1)
-	}
 	envSites, err := parseSites(os.Getenv("TRAIL_SITES"))
 	if err != nil {
 		return err
@@ -256,9 +261,10 @@ func runServe() error {
 	if gi := geo.Info(); gi.Source != enrich.SourceNone {
 		log.Printf("geo: %s database, built %s", gi.Source, gi.Build)
 	}
-	secret, err := parseSecret(os.Getenv("TRAIL_SECRET"))
-	if err != nil {
-		return err
+	if s := os.Getenv("TRAIL_SECRET"); s != "" {
+		if _, err := parseSecret(s); err != nil {
+			return err
+		}
 	}
 	tokens, err := auth.ParseTokens(os.Getenv("TRAIL_API_TOKENS"))
 	if err != nil {
@@ -271,6 +277,10 @@ func runServe() error {
 	reg, err := sites.Open(st.DB())
 	if err == nil {
 		err = addEnvSites(reg, envSites)
+	}
+	var a *auth.Auth
+	if err == nil {
+		a, err = serverAuth(st.DB(), os.Getenv("TRAIL_PASSWORD"), os.Getenv("TRAIL_SECRET"), log.Printf)
 	}
 	if err != nil {
 		return errors.Join(err, st.Close())
@@ -294,7 +304,6 @@ func runServe() error {
 	if err != nil {
 		return err
 	}
-	a := auth.New(password, secret)
 	a.SetTokens(tokens)
 	var demoH http.Handler
 	if os.Getenv("TRAIL_DEMO") == "1" {
@@ -425,6 +434,16 @@ func routes(st *store.Store, geo *enrich.Geo, reg *sites.Registry, tz *time.Loca
 	v1 := a.API(rewrite("/api/v1/", "/api/", apiH))
 
 	mux := http.NewServeMux()
+	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-store")
+		ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+		defer cancel()
+		if err := st.DB().PingContext(ctx); err != nil {
+			http.Error(w, "database unavailable", http.StatusServiceUnavailable)
+			return
+		}
+		_, _ = io.WriteString(w, "ok\n")
+	})
 	mux.Handle("/_t/e", ingest.New(st, geo, reg, ingestOpts...))
 	mux.Handle("/_t/", ingest.TrackerFiles())
 	mux.HandleFunc("POST /api/login", a.Login)
@@ -456,6 +475,85 @@ func rewrite(from, to string, h http.Handler) http.Handler {
 		r2.URL.RawPath = ""
 		h.ServeHTTP(w, r2)
 	})
+}
+
+// serverAuth builds the dashboard guard. TRAIL_PASSWORD wins; without it the
+// password generated on first start is used, and printed that one time.
+// TRAIL_SECRET wins too; without it the secret stored in the database signs
+// cookies, so logins survive restarts with no setup.
+func serverAuth(db *sql.DB, password, secretEnv string, logf func(string, ...any)) (*auth.Auth, error) {
+	var secret []byte
+	var err error
+	if secretEnv != "" {
+		secret, err = parseSecret(secretEnv)
+	} else {
+		secret, err = meta.SessionSecret(db)
+	}
+	if err != nil {
+		return nil, err
+	}
+	if password != "" {
+		return auth.New(password, secret), nil
+	}
+	hash, plain, err := meta.GeneratedPassword(db)
+	if err != nil {
+		return nil, err
+	}
+	if plain != "" {
+		bar := strings.Repeat("=", 64)
+		logf("%s", bar)
+		logf("TRAIL_PASSWORD is not set, so Trail generated a dashboard password.")
+		logf("Log in with:  %s", plain)
+		logf("It is shown only this once. Set TRAIL_PASSWORD to choose your own,")
+		logf("or run `trail reset-password` to make a new one.")
+		logf("%s", bar)
+	} else {
+		logf("auth: TRAIL_PASSWORD is not set; using the password generated on first start (`trail reset-password` makes a new one)")
+	}
+	return auth.NewHashed(hash, secret), nil
+}
+
+// runResetPassword replaces the generated password in the database at path
+// and prints the new one. A running server keeps the old one until restarted.
+func runResetPassword(path string, envSet bool, out io.Writer) error {
+	if _, err := os.Stat(path); err != nil {
+		return fmt.Errorf("database %s: %w (set TRAIL_DB)", path, err)
+	}
+	st, err := store.Open(path)
+	if err != nil {
+		return err
+	}
+	_, plain, err := meta.ResetPassword(st.DB())
+	if err = errors.Join(err, st.Close()); err != nil {
+		return err
+	}
+	fmt.Fprintf(out, "New dashboard password: %s\nRestart Trail to use it.\n", plain)
+	if envSet {
+		fmt.Fprintln(out, "Note: TRAIL_PASSWORD is set, and it wins over the generated password.")
+	}
+	return nil
+}
+
+// runHealth asks the server listening on addr for /healthz. A wildcard or
+// empty host means this machine.
+func runHealth(addr string, timeout time.Duration) error {
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		return fmt.Errorf("TRAIL_ADDR %q: %w", addr, err)
+	}
+	if host == "" || host == "0.0.0.0" || host == "::" {
+		host = "127.0.0.1"
+	}
+	c := &http.Client{Timeout: timeout}
+	resp, err := c.Get("http://" + net.JoinHostPort(host, port) + "/healthz")
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("healthz: %s", resp.Status)
+	}
+	return nil
 }
 
 // parseSecret returns TRAIL_SECRET's bytes, which sign session cookies so

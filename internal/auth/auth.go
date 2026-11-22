@@ -30,7 +30,13 @@ type Auth struct {
 // New returns an Auth for password. secret signs cookies; a random per-boot
 // secret means a restart logs the owner out.
 func New(password string, secret []byte) *Auth {
-	return &Auth{pwHash: sha256.Sum256([]byte(password)), secret: secret, now: time.Now}
+	return NewHashed(sha256.Sum256([]byte(password)), secret)
+}
+
+// NewHashed is New for a password known only by its SHA-256, such as the one
+// Trail generates on first start when TRAIL_PASSWORD is unset.
+func NewHashed(pwHash [32]byte, secret []byte) *Auth {
+	return &Auth{pwHash: pwHash, secret: secret, now: time.Now}
 }
 
 // Login handles POST /api/login {"password": "..."}: 204 plus cookie, or 401.
