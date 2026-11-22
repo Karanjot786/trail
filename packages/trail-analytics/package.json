@@ -96,7 +96,7 @@
     "./package.json": "./package.json"
   },
   "bin": {
-    "trail-analytics": "./dist/cli.js"
+    "trail-analytics": "dist/cli.js"
   },
   "files": [
     "dist"
