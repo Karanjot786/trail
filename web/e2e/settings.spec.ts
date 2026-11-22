@@ -15,6 +15,10 @@ const check = (title: string, body: (app: App) => Promise<void>, opts: { phone?:
     await body(app)
   })
 
+// Token names are unique per workspace (409 on a repeat). Chromium and Firefox share one server, and a retry reruns
+// against the same data, so each run names its token after the project and the attempt.
+const tokenName = (base: string) => `${base} ${test.info().project.name} ${test.info().retry}`
+
 const loc = (p: import('@playwright/test').Page) => p.evaluate(() => decodeURIComponent(location.pathname + location.search))
 
 chk(40, 'Add website is a real form; the test visit and the checklist never disagree', async ({ page, goto, api }) => {
@@ -40,12 +44,13 @@ chk(41, 'assistants: Claude Desktop/claude.ai tab, inline named and scoped token
   for (const t of ['Claude Desktop / claude.ai', 'Claude Code', 'Cursor', 'VS Code', 'Codex']) await expect(page.getByRole('tab', { name: t })).toBeVisible()
   await page.getByRole('tab', { name: 'Cursor' }).click()
   await expect(page.getByRole('main')).toContainText('TRAIL_TOKEN')
-  await page.getByLabel(/token name/i).fill('Cursor at work')
+  const name = tokenName('Cursor at work')
+  await page.getByLabel(/token name/i).fill(name)
   await page.getByRole('radio', { name: /read/i }).check()
   await page.getByRole('button', { name: /create token/i }).click()
   await expect(page.getByRole('main')).toContainText(/trl_/)
   await expect(page.getByRole('main')).not.toContainText('${env:TRAIL_TOKEN}')
-  await expect(page.getByRole('main')).toContainText('Cursor at work')
+  await expect(page.getByRole('main')).toContainText(name)
 })
 
 chk(42, 'the share dialog says who can open it, sets an expiry, creates and revokes', async ({ page, goto }) => {
@@ -66,7 +71,7 @@ chk(66, 'MCP: a site-scoped token chosen at creation; test connection succeeds a
   await page.getByRole('button', { name: /test connection/i }).click()
   await expect(page.getByRole('status').filter({ hasText: /no token yet/i })).toBeVisible()
   await page.getByRole('checkbox', { name: /docs/ }).check()
-  await page.getByLabel(/token name/i).fill('docs only')
+  await page.getByLabel(/token name/i).fill(tokenName('docs only'))
   await page.getByRole('button', { name: /create token/i }).click()
   await expect(page.getByRole('main')).toContainText(/docs\.trail\.dev only/)
   await page.getByRole('button', { name: /test connection/i }).click()

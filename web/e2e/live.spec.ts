@@ -23,6 +23,8 @@ chk(55, 'a test visit appears in Live immediately; "Watch it live" shows it', as
 chk(64, 'equal values get equal bars: Live tracks share one x and width', async ({ page, goto }) => {
   await goto('/live')
   const bars = page.getByRole('region', { name: /pages|sources|countries/i }).first().locator('[data-bar]')
+  // Wait for the rows: evaluateAll does not wait, and on a slower engine it ran before Live had rendered any bar.
+  await expect(bars.first()).toBeVisible()
   const xs = await bars.evaluateAll((els) => els.map((e) => { const r = (e.parentElement ?? e).getBoundingClientRect(); return [Math.round(r.x), Math.round(r.width)] }))
   expect(new Set(xs.map((x) => x[0])).size).toBe(1)
   expect(new Set(xs.map((x) => x[1])).size).toBe(1)
