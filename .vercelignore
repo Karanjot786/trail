@@ -1,8 +1,10 @@
 # Upload only what the site build needs (site + web demo + Go to record fixtures). Vercel installs deps itself.
 .git
 **/node_modules
-**/dist
-**/dist-demo
+# No blanket **/dist: web/design-system/dist and web/dist hold committed files the build needs.
+site/dist
+web/dist-demo
+packages/*/dist
 web/demo-data
 site/src/generated
 site/docs/.vitepress/cache
