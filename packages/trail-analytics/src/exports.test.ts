@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const pkg = JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8'));
@@ -18,6 +18,12 @@ const entries = Object.entries(pkg.exports as Record<string, string | Entry>).fi
 const load = (path: string) => import(pathToFileURL(resolve(root, path)).href);
 
 describe('package exports', () => {
+  beforeAll(() => {
+    if (!existsSync(resolve(root, 'dist/index.js'))) {
+      throw new Error('dist/ is missing: this suite checks the built package, so run `npm run build` before `npm test`.');
+    }
+  });
+
   it('lists the 0.2.0 entry points and the CLI bin', () => {
     expect(pkg.version).toBe('0.2.0');
     expect(entries.map(([k]) => k)).toEqual(['.', './react', './next', './next/proxy', './astro', './astro/middleware', './crawl']);

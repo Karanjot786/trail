@@ -122,8 +122,8 @@ jobs:
         with: { node-version: 22, cache: npm, cache-dependency-path: packages/trail-analytics/package-lock.json }
       - run: npm ci
       - run: npm run typecheck
+      - run: npm run build # src/exports.test.ts checks the built dist/
       - run: npm test
-      - run: npm run build
       # Size budgets: crawl <= 3 KB gzip, next/proxy <= 4 KB gzip (the core entry is guarded by its own test).
       - run: |
           crawl=$(gzip -9 -c dist/crawl/index.js | wc -c); proxy=$(gzip -9 -c dist/next/proxy/index.js | wc -c)
