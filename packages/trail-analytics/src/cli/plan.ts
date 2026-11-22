@@ -193,6 +193,6 @@ export function plan(p: Project, o: PlanOptions, fs: PlanFs): Plan {
   if (p.framework === 'next') planNext(fs, p, o, out);
   else planAstro(fs, p, o, out);
   planEnv(fs, p, o, out);
-  if (needsInstall(p.trailDep)) out.install = { cmd: p.pm, args: [...INSTALL[p.pm], 'trail-analytics@^0.3.0'] };
+  if (needsInstall(p.trailDep)) out.install = { cmd: p.pm, args: [...INSTALL[p.pm], 'trail-analytics@^0.2.0'] };
   return out;
 }

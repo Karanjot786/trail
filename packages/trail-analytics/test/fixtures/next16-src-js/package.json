@@ -2,5 +2,5 @@
   "name": "next16-src-js",
   "private": true,
   "scripts": { "build": "next build", "start": "next start" },
-  "dependencies": { "next": "16.0.3", "react": "19.2.0", "react-dom": "19.2.0", "trail-analytics": "^0.3.0" }
+  "dependencies": { "next": "16.0.3", "react": "19.2.0", "react-dom": "19.2.0", "trail-analytics": "^0.2.0" }
 }

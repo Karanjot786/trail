@@ -234,7 +234,7 @@ describe('init', () => {
     writeFileSync(join(d, 'pnpm-lock.yaml'), 'lockfileVersion: 9.0\n');
     const r = await run(d, ['--yes']);
     expect(r.code).toBe(0);
-    expect(r.spawn).toHaveBeenCalledWith('pnpm', ['add', 'trail-analytics@^0.3.0'], { cwd: d, shell: false });
+    expect(r.spawn).toHaveBeenCalledWith('pnpm', ['add', 'trail-analytics@^0.2.0'], { cwd: d, shell: false });
   });
 
   it('TestInitDryRunWritesNothing', async () => {

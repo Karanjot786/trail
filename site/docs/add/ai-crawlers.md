@@ -31,7 +31,7 @@ npx trail-analytics@latest init --url https://trail.example.com --site mysite --
 | `--no-install` | Do not install `trail-analytics` |
 | `--help`, `-h` | Show the help |
 
-Init prints a diff, the warnings and any manual steps, then asks `Apply these changes? [y/N]`. Without a terminal it refuses unless you pass `--yes`. It never replaces a file you wrote, and running it again changes nothing. Unless you pass `--no-install`, it adds `trail-analytics@^0.3.0` with the package manager your lockfile uses.
+Init prints a diff, the warnings and any manual steps, then asks `Apply these changes? [y/N]`. Without a terminal it refuses unless you pass `--yes`. It never replaces a file you wrote, and running it again changes nothing. Unless you pass `--no-install`, it adds `trail-analytics@^0.2.0` with the package manager your lockfile uses.
 
 Exit codes: `0` applied or nothing to do, `1` error, `2` unsupported framework or manual steps needed (they are printed).
 
