@@ -6,10 +6,14 @@ import { STAR_MIN } from './nav.mjs'
 export async function fetchStars({ repo = 'karanjot786/trail', env = process.env, fetchImpl = fetch, timeoutMs = 3000 } = {}) {
   if (env.TRAIL_STARS === 'off') return null
   if (/^\d+$/.test(env.TRAIL_STARS ?? '')) return Number(env.TRAIL_STARS)
+  // A plain ref'd timer, not AbortSignal.timeout(): that timer is unref'd, so on Node 22 a fetch that only
+  // settles on abort leaves an empty event loop and node --test cancels the test (and a build could exit early).
+  const ac = new AbortController()
+  const timer = setTimeout(() => ac.abort(new Error(`timeout after ${timeoutMs}ms`)), timeoutMs)
   try {
     const headers = { Accept: 'application/vnd.github+json', 'User-Agent': 'trail-site-build' }
     if (env.GITHUB_TOKEN) headers.Authorization = `Bearer ${env.GITHUB_TOKEN}`
-    const res = await fetchImpl(`https://api.github.com/repos/${repo}`, { headers, signal: AbortSignal.timeout(timeoutMs) })
+    const res = await fetchImpl(`https://api.github.com/repos/${repo}`, { headers, signal: ac.signal })
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
     const n = (await res.json())?.stargazers_count
     if (!Number.isInteger(n) || n < 0) throw new Error('no stargazers_count')
@@ -17,6 +21,8 @@ export async function fetchStars({ repo = 'karanjot786/trail', env = process.env
   } catch (e) {
     console.warn(`[github-stars] no star count (${e?.message ?? e}); the button reads "Star"`)
     return null
+  } finally {
+    clearTimeout(timer)
   }
 }
 
