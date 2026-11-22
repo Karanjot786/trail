@@ -144,7 +144,9 @@ func TestClassifyNeverBlocksOnFetch(t *testing.T) {
 	start := time.Now()
 	in := d.InList("google-agents", "192.0.2.1")
 	r := d.Classify(Input{Site: "s", UA: claudeAgentUA, IP: "192.0.2.1"})
-	if el := time.Since(start); in || el > 5*time.Millisecond {
+	// The stalled fetch hangs for 30s, so a blocking lookup would take seconds. 500ms leaves room for a busy CI runner
+	// (5ms flaked at 5.17ms) while still failing loudly on any real block.
+	if el := time.Since(start); in || el > 500*time.Millisecond {
 		t.Fatalf("InList = %v after %v", in, el)
 	}
 	if r != (Result{ID: "claude-agent", Via: ViaUA}) {
