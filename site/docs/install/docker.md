@@ -41,7 +41,7 @@ Plain HTTP is fine for a trial. For real sites, serve Trail over HTTPS: use Comp
 
 ```sh
 curl -fsSLO https://raw.githubusercontent.com/karanjot786/trail/main/deploy/compose.yaml
-DOMAIN=stats.example.com docker compose up -d
+echo "DOMAIN=stats.example.com" > .env && docker compose up -d
 ```
 
 Read the password with `docker compose logs trail | grep 'Log in'` and open `https://stats.example.com`.

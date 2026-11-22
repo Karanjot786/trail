@@ -51,7 +51,7 @@ docker run -d --name trail --restart unless-stopped -p 8080:8080 -v trail-data:/
 
 ```sh
 curl -fsSLO https://raw.githubusercontent.com/karanjot786/trail/main/deploy/compose.yaml
-DOMAIN=stats.example.com docker compose up -d
+echo "DOMAIN=stats.example.com" > .env && docker compose up -d
 ```
 
 **No Docker**: a checksum-verified binary plus a systemd service:

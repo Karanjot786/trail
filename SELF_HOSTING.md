@@ -46,7 +46,7 @@ Plain HTTP is fine for trying Trail out. For real sites, put it behind HTTPS: br
 
 ```sh
 curl -fsSLO https://raw.githubusercontent.com/karanjot786/trail/main/deploy/compose.yaml
-DOMAIN=stats.example.com docker compose up -d
+echo "DOMAIN=stats.example.com" > .env && docker compose up -d
 ```
 
 Open `https://stats.example.com` and log in with the password from:

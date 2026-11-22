@@ -1,7 +1,7 @@
 # Trail with automatic HTTPS from Caddy.
 #
 #   curl -fsSLO https://raw.githubusercontent.com/karanjot786/trail/main/deploy/compose.yaml
-#   DOMAIN=stats.example.com docker compose up -d
+#   echo "DOMAIN=stats.example.com" > .env && docker compose up -d
 #
 # Point the domain's DNS at this server and open ports 80 and 443 first.
 # Read the generated dashboard password with: docker compose logs trail

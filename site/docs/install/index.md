@@ -23,7 +23,7 @@ Point a domain at the server, open ports 80 and 443, then:
 
 ```sh
 curl -fsSLO https://raw.githubusercontent.com/karanjot786/trail/main/deploy/compose.yaml
-DOMAIN=stats.example.com docker compose up -d
+echo "DOMAIN=stats.example.com" > .env && docker compose up -d
 ```
 
 Caddy gets a Let's Encrypt certificate for the domain and proxies to Trail. Read the password with `docker compose logs trail | grep 'Log in'` and open `https://stats.example.com`. Details: [Docker Compose with HTTPS](/install/docker#compose).
