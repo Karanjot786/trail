@@ -3,7 +3,9 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Project } from './detect';
 import type { Change } from './diff';
+import { insertImport, parse } from './ast';
 import { wrapHook } from './hook';
+import { editLayout, findRootLayouts, handScriptLines } from './layout';
 import { readNextConfig } from './nextconfig';
 import * as T from './templates';
 
@@ -58,21 +60,6 @@ export function nodeFs(cwd: string, gitIgnored: (rel: string) => boolean, gitTra
 const eolOf = (s: string | null) => (s && /\r\n/.test(s) ? '\r\n' : '\n');
 const firstExisting = (fs: PlanFs, names: string[]) => names.find((n) => fs.read(n) !== null);
 
-/** Inserts `line` after the last top-level import statement (or at the top). */
-function addImport(src: string, line: string, eol: string): string {
-  const re = /^import[\s\S]*?(?:from\s*)?['"][^'"]+['"];?[ \t]*$/gm;
-  let end = -1;
-  for (let m; (m = re.exec(src)); ) end = m.index + m[0].length;
-  if (end < 0) return line + eol + src;
-  const semi = /;[ \t]*$/.test(src.slice(0, end)) ? '' : '';
-  return src.slice(0, end) + eol + line + semi + src.slice(end);
-}
-
-const usesSemi = (src: string) => {
-  const m = src.match(/^import .*$/m);
-  return m ? /;\s*$/.test(m[0]) : true;
-};
-
 interface TagPaths { src: string; api: string }
 
 function planLayout(fs: PlanFs, p: Project, o: PlanOptions, out: Plan, tp: TagPaths) {
@@ -81,37 +68,19 @@ function planLayout(fs: PlanFs, p: Project, o: PlanOptions, out: Plan, tp: TagPa
     out.manual.push(T.pagesSnippet(o.site, at, tp.src, tp.api));
     return;
   }
-  const file = firstExisting(fs, ['tsx', 'jsx', 'ts', 'js'].map((e) => `${at}app/layout.${e}`));
-  if (!file) {
-    out.manual.push(T.layoutSnippet(o.site, `${at}app/layout`, tp.src, tp.api));
+  const appDir = `${at}app`;
+  const files = findRootLayouts(fs, appDir);
+  if (!files.length) {
+    out.manual.push(`No root layout (a layout with <html>) found in ${appDir}/layout.* or ${appDir}/[*]/layout.*.\n\n${T.layoutSnippet(o.site, `${appDir}/layout`, tp.src, tp.api)}`);
     return;
   }
-  const before = fs.read(file)!;
-  const eol = eolOf(before);
-  const hasImport = /from\s*['"]trail-analytics\/next['"]/.test(before);
-  const tag = /<Analytics\b[^>]*\/>/.exec(before);
-  if (hasImport && tag) {
-    if (/\bsrc=/.test(tag[0]) && /\bapi=/.test(tag[0])) return;
-    let t = tag[0].replace(/\s*\/>$/, '');
-    if (!/\bsrc=/.test(t)) t += ` src="${tp.src}"`;
-    if (!/\bapi=/.test(t)) t += ` api="${tp.api}"`;
-    out.changes.push({ path: file, before, after: before.replace(tag[0], t + ' />') });
-    return;
+  for (const file of files) {
+    const before = fs.read(file)!;
+    const e = editLayout(before, file, { site: o.site, ...tp });
+    if (e && 'manual' in e) out.manual.push(`${e.manual}\n\n${T.layoutSnippet(o.site, file, tp.src, tp.api)}`);
+    else if (e) out.changes.push({ path: file, before, after: e.after });
+    for (const n of handScriptLines(before, file)) out.warnings.push(`${file} also loads the Trail script by hand (line ${n}); remove it, the component replaces it.`);
   }
-  const bodies = before.split('</body>').length - 1;
-  if (bodies !== 1) {
-    out.manual.push(T.layoutSnippet(o.site, file, tp.src, tp.api));
-    return;
-  }
-  let after = hasImport ? before : addImport(before, `import { Analytics } from 'trail-analytics/next'${usesSemi(before) ? ';' : ''}`, eol);
-  const i = after.indexOf('</body>');
-  const lineStart = after.lastIndexOf('\n', i - 1) + 1;
-  const indent = after.slice(lineStart, i);
-  const tagText = T.analyticsTag(o.site, tp.src, tp.api);
-  after = /^[ \t]*$/.test(indent)
-    ? after.slice(0, lineStart) + indent + '  ' + tagText + eol + after.slice(lineStart)
-    : after.slice(0, i) + tagText + after.slice(i);
-  out.changes.push({ path: file, before, after });
 }
 
 function planNext(fs: PlanFs, p: Project, o: PlanOptions, out: Plan) {
@@ -175,7 +144,12 @@ function planAstro(fs: PlanFs, p: Project, o: PlanOptions, out: Plan) {
     out.manual.push(T.astroSnippet(o.site));
     return;
   }
-  after = addImport(after, `import trail from 'trail-analytics/astro'${usesSemi(before) ? ';' : ''}`, eol);
+  const ast = parse(before, file);
+  if (!ast) {
+    out.manual.push(T.astroSnippet(o.site));
+    return;
+  }
+  after = insertImport(after, ast, "import trail from 'trail-analytics/astro'");
   out.changes.push({ path: file, before, after });
 }
 

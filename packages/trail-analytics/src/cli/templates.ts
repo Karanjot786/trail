@@ -46,7 +46,7 @@ export const pagesSnippet = (site: string, at: string, src?: string, api?: strin
   // inside the returned JSX, next to <Component {...pageProps} />:
   ${analyticsTag(site, src, api)}`;
 
-export const layoutSnippet = (site: string, file: string, src?: string, api?: string) => `Add the script to ${file} yourself (init needs exactly one </body>):
+export const layoutSnippet = (site: string, file: string, src?: string, api?: string) => `Add the script inside the <body> of ${file} yourself:
 
   import { Analytics } from 'trail-analytics/next';
   // just before </body>:

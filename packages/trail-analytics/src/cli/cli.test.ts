@@ -182,12 +182,16 @@ describe('init', () => {
     expect(l.after.match(/trail-analytics\/next/g)).toHaveLength(1);
   });
 
-  it('two </body> is manual', () => {
+  it('a commented </body> no longer blocks the edit, two <body> elements do', () => {
     const d = fixture('next16-app');
     writeFileSync(join(d, 'app/layout.tsx'), read(d, 'app/layout.tsx') + '\n// </body>\n');
     const p = plan(detect(d), { url: 'u', site: 'shop', token: TOKEN }, nodeFs(d, () => true));
-    expect(p.changes.some((c) => c.path === 'app/layout.tsx')).toBe(false);
-    expect(p.manual.join('\n')).toContain('<Analytics');
+    expect(p.changes.some((c) => c.path === 'app/layout.tsx')).toBe(true);
+    writeFileSync(join(d, 'app/layout.tsx'), read(d, 'app/layout.tsx').replace('</html>', '<body>b</body></html>'));
+    const q = plan(detect(d), { url: 'u', site: 'shop', token: TOKEN }, nodeFs(d, () => true));
+    expect(q.changes.some((c) => c.path === 'app/layout.tsx')).toBe(false);
+    expect(q.manual.join('\n')).toContain('Found 2 <body> elements in app/layout.tsx');
+    expect(q.manual.join('\n')).toContain('<Analytics');
   });
 
   it('TestInitWarnsOnTRoute', () => {
@@ -385,7 +389,8 @@ describe('init', () => {
   describe('install report shapes', () => {
     it('TestInitReportAgentSkills wraps the next-intl middleware and widens its matcher', async () => {
       const d = fixture('report-agent-skills');
-      await run(d, ['--yes', '--no-install']);
+      const r = await run(d, ['--yes', '--no-install']);
+      expect(r.code).toBe(0);
       const mw = read(d, 'src/middleware.ts');
       expect(mw).toContain('export default withTrail(middleware);');
       expect(mw).toContain("'/t/t.js', '/t/t.x.js', '/t/t.p.js', '/t/e']");
@@ -475,6 +480,61 @@ describe('init', () => {
       const r = await run(d, ['--yes', '--no-install']);
       expect(r.text()).toContain('api="/t/e"');
       expect(r.text()).not.toContain('/de/t/e');
+    });
+  });
+
+  describe('root layouts', () => {
+    it('TestInitReportAgentSkillsLayout edits src/app/[locale]/layout.tsx', async () => {
+      const d = fixture('report-agent-skills');
+      const r = await run(d, ['--yes', '--no-install']);
+      expect(r.code).toBe(0);
+      expect(read(d, 'src/app/[locale]/layout.tsx')).toContain('<Analytics site="shop" src="/t/t.js" api="/t/e" />');
+      expect(existsSync(join(d, 'src/app/layout.tsx'))).toBe(false);
+    });
+
+    it('TestInitReportPlumb aliases next to the Vercel tag in a .jsx layout', async () => {
+      const d = fixture('report-plumb');
+      const r = await run(d, ['--yes', '--no-install']);
+      expect(r.code).toBe(0);
+      const l = read(d, 'app/layout.jsx');
+      expect(l).toContain('import { Analytics } from "@vercel/analytics/next";');
+      expect(l).toContain("import { Analytics as TrailAnalytics } from 'trail-analytics/next';");
+      expect(l).toContain('        <Analytics />\n        <TrailAnalytics site="shop" src="/t/t.js" api="/t/e" />\n      </body>');
+    });
+
+    it('TestInitReportTermui keeps the body attributes and aliases', async () => {
+      const d = fixture('report-termui');
+      const r = await run(d, ['--yes', '--no-install']);
+      expect(r.code).toBe(0);
+      const l = read(d, 'src/app/layout.tsx');
+      expect(l).toContain('<body className="dark">');
+      expect(l).toContain('<TrailAnalytics site="shop"');
+      expect(read(d, 'src/proxy.ts')).toContain('export default function proxy');
+    });
+
+    it('TestInitReportGenzcareer aliases next to the local Analytics component', async () => {
+      const d = fixture('report-genzcareer');
+      await run(d, ['--yes', '--no-install']);
+      const l = read(d, 'app/layout.tsx');
+      expect(l).toContain('import { Analytics } from "@/components/analytics";');
+      expect(l).toContain("import { Analytics as TrailAnalytics } from 'trail-analytics/next';");
+    });
+
+    it('warns about a hand-added Trail script', async () => {
+      const d = fixture('next16-app');
+      writeFileSync(join(d, 'app/layout.tsx'), read(d, 'app/layout.tsx').replace('{children}', '{children}\n<script defer src="https://t.example.com/_t/t.js" data-site="shop" />'));
+      const r = await run(d, ['--dry-run']);
+      expect(r.text()).toContain('also loads the Trail script by hand (line 10); remove it, the component replaces it.');
+    });
+
+    it('TestInitIdempotent on every report fixture: a second plan has no changes', async () => {
+      for (const name of ['report-agent-skills', 'report-genzcareer', 'report-reelcn', 'report-plumb', 'report-termui']) {
+        const d = fixture(name);
+        const cwd = name === 'report-reelcn' ? join(d, 'apps/www') : d;
+        await run(cwd, ['--yes', '--no-install']);
+        const p = plan(detect(cwd), { url: 'https://trail.example.com', site: 'shop', token: TOKEN }, nodeFs(cwd, () => false));
+        expect(p.changes, name).toEqual([]);
+      }
     });
   });
 });

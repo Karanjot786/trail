@@ -50,7 +50,11 @@ export function importEdit(src: string, ast: Ast, line: string): Edit {
   const eol = eolOf(src);
   const imports = ast.program.body.filter((n: Node) => n.type === 'ImportDeclaration');
   const last = imports[imports.length - 1];
-  if (!last) return { start: 0, end: 0, text: `${line};${eol}` };
+  if (!last) {
+    const dirs: Node[] = ast.program.directives ?? [];
+    const d = dirs[dirs.length - 1];
+    return d ? { start: d.end, end: d.end, text: `${eol}${line};` } : { start: 0, end: 0, text: `${line};${eol}` };
+  }
   const semi = src[last.end - 1] === ';' ? ';' : imports.length ? '' : ';';
   return { start: last.end, end: last.end, text: eol + line + semi };
 }
@@ -82,4 +86,20 @@ export function stringValue(n: Node): string | undefined {
   if (n.type === 'StringLiteral') return n.value;
   if (n.type === 'TemplateLiteral' && n.expressions.length === 0) return n.quasis[0].value.cooked ?? undefined;
   return undefined;
+}
+
+/** Every node of `type` under `root`, in source order. */
+export function findAll(root: Node, type: string, out: Node[] = []): Node[] {
+  if (!root || typeof root !== 'object') return out;
+  if (Array.isArray(root)) {
+    for (const x of root) findAll(x, type, out);
+    return out;
+  }
+  if (root.type === type) out.push(root);
+  for (const k of Object.keys(root)) {
+    if (k === 'loc' || k === 'tokens' || k === 'leadingComments' || k === 'trailingComments' || k === 'innerComments' || k === 'extra') continue;
+    const v = root[k];
+    if (v && typeof v === 'object') findAll(v, type, out);
+  }
+  return out;
 }
