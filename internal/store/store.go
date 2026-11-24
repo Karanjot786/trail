@@ -53,11 +53,13 @@ type Store struct {
 	closed                              bool
 	dropped                             atomic.Int64
 	failed                              atomic.Int64
-	pending                             []Event       // drained from the queue, not yet committed; guarded by mu
-	pendCap                             int           // most events pending may hold (queueCap; tests lower it)
-	every                               time.Duration // the timer flush interval (flushEvery; tests raise it)
-	foldReady, foldFinished, foldWarned bool          // history fold state; only the writer goroutine touches them
-	noFold                              atomic.Bool   // true: engage events are stored as rows (tests write unfolded history)
+	pending                             []Event        // drained from the queue, not yet committed; guarded by mu
+	pendCap                             int            // most events pending may hold (queueCap; tests lower it)
+	every                               time.Duration  // the timer flush interval (flushEvery; tests raise it)
+	foldReady, foldFinished, foldWarned bool           // history fold state; only the writer goroutine touches them
+	backingUp                           atomic.Bool    // the pre-fold backup goroutine is running
+	bwg                                 sync.WaitGroup // joins that goroutine at Close
+	noFold                              atomic.Bool    // true: engage events are stored as rows (tests write unfolded history)
 }
 
 // Open opens (or creates) the database at path, enabling WAL and a 5 s busy timeout.
@@ -490,6 +492,7 @@ func (s *Store) write(batch []Event) error {
 
 // Close flushes pending events and closes the database.
 func (s *Store) Close() error {
+	s.bwg.Wait() // a running backup holds a read transaction
 	flushErr := s.Flush()
 	s.mu.Lock()
 	defer s.mu.Unlock()

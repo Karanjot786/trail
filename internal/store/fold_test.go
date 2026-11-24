@@ -3,6 +3,7 @@ package store
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -273,9 +274,18 @@ func unfoldedDB(t *testing.T, n int) *Store {
 	return s
 }
 
+// beginFold runs foldBegin, waiting for the background pre-fold backup it may start.
+func beginFold(s *Store) bool {
+	if s.foldBegin() {
+		return true
+	}
+	s.bwg.Wait()
+	return s.foldBegin()
+}
+
 func foldAll(t *testing.T, s *Store, chunk int64) {
 	t.Helper()
-	if !s.foldBegin() {
+	if !beginFold(s) {
 		t.Fatal("foldBegin refused")
 	}
 	for i := 0; i < 1000; i++ {
@@ -336,7 +346,7 @@ func TestFoldBackfillMatchesWritePath(t *testing.T) {
 func TestFoldBackfillResumesAfterCrash(t *testing.T) {
 	want := dump(t, func() *Store { s := unfoldedDB(t, 30); foldAll(t, s, 1000); return s }())
 	s := unfoldedDB(t, 30)
-	if !s.foldBegin() {
+	if !beginFold(s) {
 		t.Fatal("foldBegin refused")
 	}
 	for i := 0; i < 2; i++ {
@@ -389,6 +399,8 @@ func TestFoldBackupBeforeFirstDelete(t *testing.T) {
 	s := unfoldedDB(t, 5)
 	before := count(t, s, "SELECT count(*) FROM events")
 	s.foldTick()
+	s.bwg.Wait()
+	s.foldTick()
 	b, err := Open(s.path + ".pre-fold")
 	if err != nil {
 		t.Fatal(err)
@@ -436,11 +448,10 @@ func TestFoldRunsBetweenFlushes(t *testing.T) {
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
-	for i := 0; i < 400; i++ {
+	for end := time.Now().Add(60 * time.Second); time.Now().Before(end); time.Sleep(25 * time.Millisecond) {
 		if _, ok, _ := setting(s.DB(), "fold_done"); ok {
 			break
 		}
-		time.Sleep(25 * time.Millisecond)
 	}
 	if _, ok, _ := setting(s.DB(), "fold_done"); !ok {
 		t.Fatal("fold did not finish")
@@ -453,10 +464,54 @@ func TestFoldRunsBetweenFlushes(t *testing.T) {
 func TestCompactAfterFold(t *testing.T) {
 	s := unfoldedDB(t, 5)
 	s.foldTick()
+	s.bwg.Wait()
 	for i := 0; i < 5 && !s.foldFinished; i++ {
 		s.foldTick()
 	}
 	if v, ok, _ := setting(s.DB(), "fold_compacted"); !ok || v != "1" {
 		t.Error("not compacted")
+	}
+}
+
+// A slow first-run backup must not stop the writer: events keep flushing and the
+// fold waits for the copy.
+func TestFoldBackupDoesNotBlockFlush(t *testing.T) {
+	s := unfoldedDB(t, 50)
+	release := make(chan struct{})
+	old := backupFn
+	backupFn = func(db *sql.DB, p string) (string, error) {
+		<-release
+		return old(db, p)
+	}
+	defer func() { backupFn = old }()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	s.every = 5 * time.Millisecond
+	s.Start(ctx)
+	deadline := time.Now().Add(60 * time.Second)
+	for i := 0; i < 30; i++ {
+		s.Enqueue(pv(fmt.Sprintf("/b%d", i), int64(1e10+i)))
+		for s.Pending() > 0 {
+			if time.Now().After(deadline) {
+				t.Fatalf("flush stalled during the backup: %d pending", s.Pending())
+			}
+			time.Sleep(5 * time.Millisecond)
+		}
+	}
+	if _, ok, _ := setting(s.DB(), "fold_cursor"); ok {
+		t.Error("fold started before the backup finished")
+	}
+	close(release)
+	for time.Now().Before(deadline) {
+		if _, ok, _ := setting(s.DB(), "fold_done"); ok {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if _, ok, _ := setting(s.DB(), "fold_done"); !ok {
+		t.Fatal("fold did not finish after the backup")
+	}
+	if _, err := os.Stat(s.path + ".pre-fold"); err != nil {
+		t.Error("no backup file")
 	}
 }

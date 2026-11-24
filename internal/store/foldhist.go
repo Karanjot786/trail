@@ -55,10 +55,19 @@ func (s *Store) foldBegin() bool {
 				}
 				return false
 			}
-			if _, err := backup(s.db, s.path); err != nil {
-				log.Printf("store: history fold paused: %v", err)
-				return false
+			// The copy takes minutes on a big database: run it off the writer goroutine so
+			// Flush keeps going. Chunks wait (return false) until the file exists.
+			if s.backingUp.CompareAndSwap(false, true) {
+				s.bwg.Add(1)
+				go func() {
+					defer s.bwg.Done()
+					defer s.backingUp.Store(false)
+					if _, err := backupFn(s.db, s.path); err != nil {
+						log.Printf("store: history fold paused: %v", err)
+					}
+				}()
 			}
+			return false
 		}
 	}
 	var maxID sql.NullInt64

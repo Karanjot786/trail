@@ -31,6 +31,9 @@ func setSetting(q execer, key, value string) error {
 	return nil
 }
 
+// backupFn is backup; tests swap it to slow the copy.
+var backupFn = backup
+
 // backup copies the database to <dbPath>.pre-fold with VACUUM INTO, a read transaction, so
 // ingest keeps writing. The copy is written to <dst>.tmp and renamed, so the final name only
 // ever holds a complete copy; an existing one is kept and returned untouched.
