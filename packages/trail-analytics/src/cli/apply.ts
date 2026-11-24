@@ -28,3 +28,14 @@ export function gitIgnored(cwd: string): (rel: string) => boolean {
     }
   };
 }
+
+/** `git ls-files --error-unmatch -- rel` exits 0: the file is tracked. */
+export function gitTracked(cwd: string): (rel: string) => boolean {
+  return (rel) => {
+    try {
+      return spawnSync('git', ['ls-files', '--error-unmatch', '--', rel], { cwd, stdio: 'ignore', shell: false }).status === 0;
+    } catch {
+      return false;
+    }
+  };
+}

@@ -34,12 +34,19 @@ function io(over: Partial<Io> = {}) {
     ask: async () => false,
     spawn,
     gitIgnored: () => false,
+    gitTracked: () => false,
+    env: {},
+    readStdin: async () => '',
+    askSecret: async () => '',
   };
   return { io: { ...base, ...over }, out, err, spawn, text: () => out.join('') + err.join('') };
 }
 
 const read = (d: string, p: string) => readFileSync(join(d, p), 'utf8');
 const run = (d: string, extra: string[] = [], o = io()) => main([...ARGS, '--cwd', d, ...extra], o.io).then((code) => ({ code, ...o }));
+
+const URL_FLAGS = ['init', '--url', 'https://trail.example.com', '--site', 'shop'];
+const runNoToken = (d: string, extra: string[] = [], o = io()) => main([...URL_FLAGS, '--cwd', d, ...extra], o.io).then((code) => ({ code, ...o }));
 
 const hook = (name: 'proxy' | 'middleware', ts: boolean) =>
   [
@@ -270,5 +277,107 @@ describe('init', () => {
     cpSync(join(d, 'package.json'), join(d, 'node_modules/next/package.json'));
     writeFileSync(join(d, 'node_modules/next/package.json'), '{"version":"15.5.4"}');
     expect(detect(d)).toMatchObject({ framework: 'next', nextMajor: 15, router: 'app', srcDir: false, ext: 'ts', pm: 'npm' });
+  });
+
+  describe('token, url and env file safety', () => {
+    it('reads the token from TRAIL_CRAWL_TOKEN', async () => {
+      const d = fixture('next16-app');
+      const r = await runNoToken(d, ['--yes', '--no-install'], io({ env: { TRAIL_CRAWL_TOKEN: TOKEN } }));
+      expect(r.code).toBe(0);
+      expect(read(d, '.env.local')).toContain(`TRAIL_CRAWL_TOKEN=${TOKEN}`);
+      expect(r.text()).not.toContain(TOKEN);
+      expect(r.text()).not.toContain('shell history');
+    });
+
+    it('reads the token from stdin with --token -', async () => {
+      const d = fixture('next16-app');
+      const r = await runNoToken(d, ['--yes', '--no-install', '--token', '-'], io({ readStdin: async () => `${TOKEN}\n` }));
+      expect(r.code).toBe(0);
+      expect(read(d, '.env.local')).toContain(`TRAIL_CRAWL_TOKEN=${TOKEN}\n`);
+      expect(r.text()).not.toContain('shell history');
+    });
+
+    it('tells the user a literal --token is in shell history', async () => {
+      const d = fixture('next16-app');
+      const r = await run(d, ['--yes', '--no-install']);
+      expect(r.text()).toContain('shell history');
+      expect(r.text()).toContain('--token -');
+    });
+
+    it('asks for the token on a TTY when nothing else gives one', async () => {
+      const d = fixture('next16-app');
+      const askSecret = vi.fn(async () => TOKEN);
+      const r = await runNoToken(d, ['--yes', '--no-install'], io({ isTTY: true, askSecret }));
+      expect(askSecret).toHaveBeenCalled();
+      expect(r.code).toBe(0);
+      expect(read(d, '.env.local')).toContain(`TRAIL_CRAWL_TOKEN=${TOKEN}`);
+    });
+
+    it('exits 1 with a clear message when no token is available', async () => {
+      const d = fixture('next16-app');
+      const r = await runNoToken(d, ['--yes', '--no-install']);
+      expect(r.code).toBe(1);
+      expect(r.text()).toContain('missing --token (or set TRAIL_CRAWL_TOKEN)');
+    });
+
+    it('keeps the token on rerun from .env.local without --token', async () => {
+      const d = fixture('next16-app');
+      expect((await run(d, ['--yes', '--no-install'])).code).toBe(0);
+      const before = read(d, '.env.local');
+      const again = await runNoToken(d, ['--yes', '--no-install']);
+      expect(again.code).toBe(0);
+      expect(read(d, '.env.local')).toBe(before);
+      expect(again.text()).toContain('Nothing to change');
+    });
+
+    it('rejects http for a public host, allows http://localhost:8080', async () => {
+      const d = fixture('next16-app');
+      const bad = io();
+      const r = await main(['init', '--url', 'http://trail.example.com', '--site', 'shop', '--token', TOKEN, '--cwd', d, '--yes', '--no-install'], bad.io);
+      expect(r).toBe(1);
+      expect(bad.text()).toContain('--url must be https (the crawl token would travel in clear text)');
+      expect(existsSync(join(d, '.env.local'))).toBe(false);
+      for (const ok of ['http://localhost:8080', 'http://127.0.0.1:8080', 'http://[::1]:8080', 'http://10.1.2.3', 'http://192.168.0.5', 'http://172.20.0.1']) {
+        const g = io();
+        expect(await main(['init', '--url', ok, '--site', 'shop', '--token', TOKEN, '--cwd', d, '--dry-run'], g.io), ok).toBe(0);
+      }
+      for (const no of ['http://172.32.0.1', 'http://11.0.0.1', 'http://localhost.evil.com']) {
+        const g = io();
+        expect(await main(['init', '--url', no, '--site', 'shop', '--token', TOKEN, '--cwd', d, '--dry-run'], g.io), no).toBe(1);
+      }
+    });
+
+    it('refuses to write a git-tracked .env.local', async () => {
+      const d = fixture('next16-app');
+      writeFileSync(join(d, '.env.local'), 'OTHER=1\n');
+      const r = await run(d, ['--yes', '--no-install'], io({ gitTracked: (f) => f === '.env.local' }));
+      expect(r.code).toBe(2);
+      expect(read(d, '.env.local')).toBe('OTHER=1\n');
+      expect(r.text()).toContain('tracked by git');
+      expect(r.text()).toContain('git rm --cached .env.local');
+    });
+
+    it('updates a changed TRAIL_URL and token on rerun', async () => {
+      const d = fixture('next16-app');
+      writeFileSync(join(d, '.env.local'), 'A=1\nTRAIL_URL=https://old.example.com\nTRAIL_SITE=shop\nTRAIL_CRAWL_TOKEN=tk_old_000000000000AAAA\nB=2\n');
+      const r = await run(d, ['--yes', '--no-install']);
+      expect(r.code).toBe(0);
+      expect(read(d, '.env.local')).toBe(`A=1\nTRAIL_URL=https://trail.example.com\nTRAIL_SITE=shop\nTRAIL_CRAWL_TOKEN=${TOKEN}\nB=2\n`);
+      expect(r.text()).toContain('••••WXYZ');
+      expect(r.text()).toContain('••••AAAA');
+      expect(r.text()).not.toContain(TOKEN);
+      expect(r.text()).not.toContain('tk_old_000000000000AAAA');
+    });
+
+    it('gitignores .dev.vars when wrangler config exists', async () => {
+      const d = fixture('next16-app');
+      writeFileSync(join(d, 'wrangler.jsonc'), '{}');
+      expect((await run(d, ['--yes', '--no-install'])).code).toBe(0);
+      const gi = read(d, '.gitignore');
+      expect(gi).toContain('.dev.vars');
+      const plain = fixture('next16-app');
+      await run(plain, ['--yes', '--no-install']);
+      expect(read(plain, '.gitignore')).not.toContain('.dev.vars');
+    });
   });
 });

@@ -18,7 +18,9 @@ AI crawler capture, a first-party /t/* route with your host's edge geo, and the 
 Options:
   --url <url>       Your Trail server, e.g. https://trail.example.com
   --site <id>       The site id in Trail
-  --token <token>   A crawl token from Trail > AI visibility (kept in your env file only)
+  --token <token>   A crawl token from Trail > AI visibility (kept in your env file only).
+                    Use "--token -" to read it from stdin, or set TRAIL_CRAWL_TOKEN; on a
+                    rerun it is read from your env file, and on a terminal it is asked for.
   --yes, -y         Apply without asking
   --dry-run         Show the changes and write nothing
   --cwd <dir>       Project directory (default: the current directory)

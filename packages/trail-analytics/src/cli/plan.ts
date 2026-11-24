@@ -1,5 +1,5 @@
 import { installSpec, needsInstall, VERSION } from './version';
-import { readFileSync, statSync } from 'node:fs';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Project } from './detect';
 import type { Change } from './diff';
@@ -10,6 +10,10 @@ export interface PlanFs {
   isDir(rel: string): boolean;
   /** `git check-ignore -q rel` exited 0. */
   gitIgnored(rel: string): boolean;
+  /** `git ls-files --error-unmatch -- rel` exited 0. */
+  gitTracked(rel: string): boolean;
+  /** Entry names of a directory, [] on error. */
+  list(rel: string): string[];
 }
 
 export interface PlanOptions { url: string; site: string; token: string }
@@ -21,7 +25,7 @@ export interface Plan {
   install?: { cmd: string; args: string[] };
 }
 
-export function nodeFs(cwd: string, gitIgnored: (rel: string) => boolean): PlanFs {
+export function nodeFs(cwd: string, gitIgnored: (rel: string) => boolean, gitTracked: (rel: string) => boolean = () => false): PlanFs {
   return {
     read: (rel) => {
       try {
@@ -38,6 +42,14 @@ export function nodeFs(cwd: string, gitIgnored: (rel: string) => boolean): PlanF
       }
     },
     gitIgnored,
+    gitTracked,
+    list: (rel) => {
+      try {
+        return readdirSync(join(cwd, rel));
+      } catch {
+        return [];
+      }
+    },
   };
 }
 
@@ -156,22 +168,53 @@ function ignoredByText(gitignore: string | null, name: string): boolean {
   });
 }
 
+export const envFileFor = (p: Pick<Project, 'framework'>) => (p.framework === 'next' ? '.env.local' : '.env');
+
+const ENV_LINE = /^(\s*(?:export\s+)?)([A-Z0-9_]+)(\s*=\s*)(.*?)(\s*)$/;
+const unquote = (v: string) => (/^(["']).*\1$/.test(v) ? v.slice(1, -1) : v);
+
+/** The value of `key` in a dotenv text, quotes removed, or undefined. */
+export function readEnvValue(text: string | null, key: string): string | undefined {
+  for (const l of (text ?? '').split(/\r?\n/)) {
+    const m = ENV_LINE.exec(l);
+    if (m && m[2] === key) return unquote(m[4]);
+  }
+  return undefined;
+}
+
+const WRANGLER = ['wrangler.toml', 'wrangler.json', 'wrangler.jsonc'];
+
 function planEnv(fs: PlanFs, p: Project, o: PlanOptions, out: Plan) {
-  const file = p.framework === 'next' ? '.env.local' : '.env';
+  const file = envFileFor(p);
   const before = fs.read(file);
   const eol = eolOf(before);
-  const have = new Set((before ?? '').split(/\r?\n/).map((l) => /^\s*(?:export\s+)?([A-Z0-9_]+)\s*=/.exec(l)?.[1]).filter(Boolean));
-  const add = ([['TRAIL_URL', o.url], ['TRAIL_SITE', o.site], ['TRAIL_CRAWL_TOKEN', o.token]] as const).filter(([k]) => !have.has(k)).map(([k, v]) => `${k}=${v}`);
-  if (add.length) {
-    const base = before ?? '';
-    const sep = base === '' || base.endsWith('\n') ? '' : eol;
-    out.changes.push({ path: file, before, after: base + sep + add.join(eol) + eol });
+  const wanted = [['TRAIL_URL', o.url], ['TRAIL_SITE', o.site], ['TRAIL_CRAWL_TOKEN', o.token]] as const;
+  const tracked = before !== null && fs.gitTracked(file);
+  if (tracked) {
+    out.manual.push(`${file} is tracked by git, so init will not write the token into it. Run: git rm --cached ${file} && echo ${file} >> .gitignore, then rerun init. Or set the three variables only in your host (see below).`);
+  } else {
+    const lines = (before ?? '').split(/\r?\n/);
+    const seen = new Set<string>();
+    for (let i = 0; i < lines.length; i++) {
+      const m = ENV_LINE.exec(lines[i]);
+      const want = m && wanted.find(([k]) => k === m[2]);
+      if (!m || !want) continue;
+      seen.add(m[2]);
+      if (unquote(m[4]) !== want[1]) lines[i] = `${m[1]}${m[2]}${m[3]}${want[1]}${m[5]}`;
+    }
+    const add = wanted.filter(([k]) => !seen.has(k)).map(([k, v]) => `${k}=${v}`);
+    let after = lines.join(eol);
+    if (add.length) after += (after === '' || after.endsWith('\n') ? '' : eol) + add.join(eol) + eol;
+    if (after !== (before ?? '') || before === null) out.changes.push({ path: file, before, after });
   }
+  const names = tracked ? [] : [file];
+  if (WRANGLER.some((w) => fs.read(w) !== null)) names.push('.dev.vars');
   const gi = fs.read('.gitignore');
-  if (!fs.gitIgnored(file) && !ignoredByText(gi, file)) {
-    const ge = eolOf(gi);
+  const ge = eolOf(gi);
+  const todo = names.filter((n) => !fs.gitIgnored(n) && !ignoredByText(gi, n));
+  if (todo.length) {
     const base = gi ?? '';
-    out.changes.push({ path: '.gitignore', before: gi, after: base + (base === '' || base.endsWith('\n') ? '' : ge) + file + ge });
+    out.changes.push({ path: '.gitignore', before: gi, after: base + (base === '' || base.endsWith('\n') ? '' : ge) + todo.join(ge) + ge });
   }
 }
 
