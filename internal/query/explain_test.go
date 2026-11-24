@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"database/sql/driver"
+	"regexp"
 	"strings"
 	"sync"
 	"testing"
@@ -120,13 +121,26 @@ func TestPlanGuard(t *testing.T) {
 				t.Errorf("plan uses dropped index %s\n%s", old, q)
 			}
 		}
-		if strings.Contains(plan, "events_site_name_ts") {
+		if nameLookup.MatchString(q) && !nameLookupExempt(q, plan) && !strings.Contains(plan, "events_site_name_ts") {
+			t.Errorf("name lookup does not use events_site_name_ts (name<>'' term lost?)\n%s\n%s", plan, q)
+		}
+		if nameLookup.MatchString(q) && strings.Contains(plan, "events_site_name_ts") {
 			named++
 		}
 	}
-	// The name lookups must keep an index; fewer means the literal
-	// name<>'' term was lost from a query and SQLite stopped using the partial index.
 	if named < 10 {
-		t.Errorf("only %d statements use events_site_name_ts, want at least 10", named)
+		t.Errorf("only %d name lookups were checked, the classifier lost its statements", named)
 	}
+}
+
+// nameLookup matches a WHERE that looks an event up by name: purchaseWhere, eventWhere, goalWhere's
+// event branch and the ev CTE filters built from them.
+var nameLookup = regexp.MustCompile(`WHERE [^\n]*?type='event'( AND name<>'')? AND (ev\.)?name( IN \(|=\?)`)
+
+// nameLookupExempt lists the shapes that legitimately plan on another index: a session_id IN (...) list
+// (events_site_session_ts), a goal OR-chain (several goals in one scan), and the Purchase list read
+// newest first (events_site_ts gives the order).
+func nameLookupExempt(q, plan string) bool {
+	return strings.Contains(plan, "events_site_session_ts") || strings.Contains(q, ") OR (") ||
+		strings.Contains(q, "json_valid(props) ORDER BY ts DESC")
 }
