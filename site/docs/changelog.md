@@ -7,7 +7,7 @@ description: What changed in each Trail release, newest first.
 
 Subscribe with the [RSS feed](/changelog.xml).
 
-## Unreleased {#unreleased}
+## v0.2.0: bug-fix pass {#v0-2-0}
 
 <time datetime="2026-11-24">2026-11-24</time>
 
