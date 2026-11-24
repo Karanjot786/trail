@@ -219,3 +219,23 @@ func parseHop(s string) (netip.Addr, bool) {
 	}
 	return a.WithZone("").Unmap(), true
 }
+
+// Bucket is the key a client is limited and pseudonymised by. IPv4 (and
+// IPv4-mapped IPv6) is the dotted address; IPv6 is its /64, because one
+// subscriber usually holds a whole /64 and can rotate within it at will.
+// Unparseable input is returned unchanged.
+func Bucket(ip string) string {
+	a, err := netip.ParseAddr(ip)
+	if err != nil {
+		return ip
+	}
+	a = a.Unmap()
+	if a.Is4() {
+		return a.String()
+	}
+	p, err := a.WithZone("").Prefix(64)
+	if err != nil {
+		return ip
+	}
+	return p.String()
+}

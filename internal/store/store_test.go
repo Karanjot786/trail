@@ -3,7 +3,10 @@ package store
 import (
 	"context"
 	"database/sql"
+	"errors"
+	"fmt"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -235,5 +238,170 @@ func TestEventAgentRoundTrip(t *testing.T) {
 	}
 	if agent != "claude-agent" || via != "ua" || geoSrc != "vercel" || bot != 1 {
 		t.Errorf("got agent=%q via=%q geo_src=%q is_bot=%d", agent, via, geoSrc, bot)
+	}
+}
+
+func TestEnqueueBatchAllOrNothing(t *testing.T) {
+	s := openTest(t)
+	for range queueCap - 1 {
+		if !s.Enqueue(ev("pageview")) {
+			t.Fatal("enqueue refused before the queue was full")
+		}
+	}
+	if s.EnqueueBatch([]Event{ev("pageview"), ev("pageview")}) {
+		t.Fatal("a batch that does not fit must be refused whole")
+	}
+	if got := s.Dropped(); got != 2 {
+		t.Fatalf("Dropped()=%d, want 2", got)
+	}
+	if !s.EnqueueBatch([]Event{ev("pageview")}) {
+		t.Fatal("a batch of 1 fits the last slot")
+	}
+	if err := s.Flush(); err != nil {
+		t.Fatal(err)
+	}
+	if n := count(t, s, "SELECT count(*) FROM events"); n != queueCap {
+		t.Fatalf("got %d rows, want %d", n, queueCap)
+	}
+}
+
+// limitDisk makes every write fail with SQLITE_FULL by capping the page count at its current size.
+func limitDisk(t *testing.T, s *Store) {
+	t.Helper()
+	s.DB().SetMaxOpenConns(1)
+	s.DB().SetMaxIdleConns(1)
+	var pages int
+	if err := s.DB().QueryRow("PRAGMA page_count").Scan(&pages); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.DB().Exec(fmt.Sprintf("PRAGMA max_page_count=%d", pages)); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func freeDisk(t *testing.T, s *Store) {
+	t.Helper()
+	if _, err := s.DB().Exec("PRAGMA max_page_count=1000000"); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func bigEv() Event {
+	e := ev("pageview")
+	e.Props = strings.Repeat("x", 1024)
+	return e
+}
+
+func TestFlushRetriesAfterDiskFull(t *testing.T) {
+	s := openTest(t)
+	limitDisk(t, s)
+	for range 300 {
+		s.Enqueue(bigEv())
+	}
+	if err := s.Flush(); err == nil {
+		t.Fatal("Flush should fail while the disk is full")
+	}
+	if s.Pending() != 300 || count(t, s, "SELECT count(*) FROM events") != 0 {
+		t.Fatalf("pending=%d, want 300 and no rows", s.Pending())
+	}
+	freeDisk(t, s)
+	if err := s.Flush(); err != nil {
+		t.Fatal(err)
+	}
+	if n := count(t, s, "SELECT count(*) FROM events"); n != 300 || s.Pending() != 0 {
+		t.Fatalf("rows=%d pending=%d, want 300 and 0", n, s.Pending())
+	}
+}
+
+func TestFlushSalvagesBadRows(t *testing.T) {
+	s := openTest(t)
+	if _, err := s.DB().Exec(`CREATE TRIGGER bad BEFORE INSERT ON events WHEN NEW.path='/bad' BEGIN SELECT RAISE(ABORT,'bad'); END`); err != nil {
+		t.Fatal(err)
+	}
+	for range 3 {
+		s.Enqueue(ev("pageview"))
+	}
+	b := ev("pageview")
+	b.Path = "/bad"
+	s.Enqueue(b)
+	if err := s.Flush(); err != nil {
+		t.Fatal(err)
+	}
+	if n := count(t, s, "SELECT count(*) FROM events"); n != 3 || s.Failed() != 1 || s.Pending() != 0 {
+		t.Fatalf("rows=%d failed=%d pending=%d, want 3, 1, 0", n, s.Failed(), s.Pending())
+	}
+}
+
+func TestFlushPendingCap(t *testing.T) {
+	s := openTest(t)
+	s.pendCap = 5
+	limitDisk(t, s)
+	for range 8 {
+		s.Enqueue(bigEv())
+	}
+	_ = s.Flush()
+	if s.Pending() != 5 || len(s.queue) != 3 {
+		t.Fatalf("pending=%d queue=%d, want 5 and 3", s.Pending(), len(s.queue))
+	}
+}
+
+func TestRetryable(t *testing.T) {
+	s := openTest(t)
+	limitDisk(t, s)
+	for range 300 {
+		s.Enqueue(bigEv())
+	}
+	full := s.Flush()
+	if full == nil || !retryable(full) {
+		t.Fatalf("disk full must be retryable, got %v", full)
+	}
+	freeDisk(t, s)
+	_ = s.Flush()
+	if _, err := s.DB().Exec(`CREATE TRIGGER bad BEFORE INSERT ON events WHEN NEW.path='/bad' BEGIN SELECT RAISE(ABORT,'bad'); END`); err != nil {
+		t.Fatal(err)
+	}
+	_, err := s.DB().Exec(`INSERT INTO events(site_id, ts, type, path) VALUES ('s1',1,'pageview','/bad')`)
+	if err == nil || retryable(err) {
+		t.Fatalf("a constraint-class error must not be retryable, got %v", err)
+	}
+	if !retryable(errors.New("x")) {
+		t.Fatal("unknown errors are retryable")
+	}
+}
+
+func TestNextBackoff(t *testing.T) {
+	for _, c := range []struct{ in, want time.Duration }{
+		{0, time.Second}, {time.Second, 2 * time.Second}, {16 * time.Second, 30 * time.Second}, {30 * time.Second, 30 * time.Second},
+	} {
+		if got := nextBackoff(c.in); got != c.want {
+			t.Errorf("nextBackoff(%v)=%v, want %v", c.in, got, c.want)
+		}
+	}
+}
+
+func TestCloseFlushesPending(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "c.db")
+	s, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	limitDisk(t, s)
+	for range 300 {
+		s.Enqueue(bigEv())
+	}
+	if err := s.Flush(); err == nil {
+		t.Fatal("expected failure")
+	}
+	freeDisk(t, s)
+	if err := s.Close(); err != nil {
+		t.Fatal(err)
+	}
+	s2, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s2.Close()
+	if n := count(t, s2, "SELECT count(*) FROM events"); n != 300 {
+		t.Fatalf("rows after reopen=%d, want 300", n)
 	}
 }

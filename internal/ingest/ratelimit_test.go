@@ -111,3 +111,21 @@ func TestRateLimitTrustedNone(t *testing.T) {
 		t.Fatalf("got %d, want 429: XFF must be ignored with none", w.Code)
 	}
 }
+
+func TestRateLimitIPv6Slash64(t *testing.T) {
+	_, h := newHandler(t, map[string]string{"s1": "example.com"}, WithRateLimit(1, 3))
+	from := func(ip string) int {
+		return postFrom(h, pageview, map[string]string{"Origin": "https://example.com", "X-Forwarded-For": ip}).Code
+	}
+	for _, ip := range []string{"2001:db8:1:2::1", "2001:db8:1:2::2", "2001:db8:1:2::3"} {
+		if c := from(ip); c != http.StatusNoContent {
+			t.Fatalf("%s: %d", ip, c)
+		}
+	}
+	if c := from("2001:db8:1:2::4"); c != http.StatusTooManyRequests {
+		t.Fatalf("same /64: %d, want 429", c)
+	}
+	if c := from("2001:db8:1:3::1"); c != http.StatusNoContent {
+		t.Fatalf("other /64: %d", c)
+	}
+}

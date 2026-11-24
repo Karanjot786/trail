@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"golang.org/x/time/rate"
+
+	"trail/internal/netx"
 )
 
 // maxLimiters bounds the per-IP rate limit map; /_t/e is unauthenticated.
@@ -38,7 +40,7 @@ func newLimiter(rps float64, burst int, now func() time.Time) *limiter {
 // allow takes one token from ip's bucket.
 func (l *limiter) allow(ip string) bool {
 	m := hmac.New(sha256.New, l.key[:])
-	m.Write([]byte(ip))
+	m.Write([]byte(netx.Bucket(ip)))
 	k := hex.EncodeToString(m.Sum(nil)[:12])
 
 	l.mu.Lock()

@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log"
 	"net"
 	"net/http"
 	"net/url"
@@ -66,6 +67,7 @@ const (
 	maxProps = 20
 	maxRetry = 1000
 	maxEngMs = 24 * 60 * 60 * 1000
+	maxAge   = 7 * 24 * 60 * 60 * 1000 // oldest event the tracker may report (ms)
 )
 
 var (
@@ -73,7 +75,7 @@ var (
 		"pageview": true, "engage": true, "event": true, "identify": true,
 		"error": true, "outbound": true, "form": true, "vital": true,
 	}
-	// Anon ids go into Set-Cookie, so keep them to a cookie-safe charset.
+	// Anon ids are stored and shown in reports, so keep them to a plain charset.
 	reID = regexp.MustCompile(`^[A-Za-z0-9_-]{1,64}$`)
 )
 
@@ -94,6 +96,7 @@ type payload struct {
 	Env string                     `json:"env"`
 	W   int                        `json:"w"`
 	RC  float64                    `json:"rc"`
+	C   float64                    `json:"c"` // age of the event in ms at send time
 	M   string                     `json:"m"` // "f" full (default), "p" private
 }
 
@@ -107,6 +110,7 @@ type handler struct {
 	ips   *netx.Resolver
 	rv    *edgegeo.Resolver // nil: no edge geo; the client IP comes from ips
 	cls   Classifier        // nil: no AI agent classification
+	log   *sampler          // rate-limited refusal log
 }
 
 // Classifier recognises AI browsing agents (agents.Directory).
@@ -157,6 +161,9 @@ func New(st *store.Store, geo *enrich.Geo, reg *sites.Registry, opts ...Option) 
 	for _, o := range opts {
 		o(h)
 	}
+	if h.log == nil {
+		h.log = newSampler(time.Minute, time.Now, log.Printf)
+	}
 	if h.priv == nil {
 		h.priv = NewPrivate(time.UTC, time.Now)
 	}
@@ -167,6 +174,30 @@ func New(st *store.Store, geo *enrich.Geo, reg *sites.Registry, opts ...Option) 
 		h.rv.Net = h.ips
 	}
 	return h
+}
+
+// refuse answers an error and logs it once a minute per reason. The line has
+// the reason and the site id, never an IP, a user agent or a signature.
+func (h *handler) refuse(w http.ResponseWriter, code int, msg, site string) {
+	if code == http.StatusForbidden {
+		w.WriteHeader(code) // no detail: don't help probe the list
+	} else {
+		http.Error(w, msg, code)
+	}
+	switch code {
+	case http.StatusBadRequest:
+		if site == "" {
+			h.log.Log("400:"+msg, "ingest: 400 %s", msg)
+		} else {
+			h.log.Log("400:"+msg, "ingest: 400 %s site=%q", msg, short(site))
+		}
+	case http.StatusForbidden:
+		h.log.Log("403", "ingest: 403 origin not allowed for site=%q", short(site))
+	case http.StatusTooManyRequests:
+		h.log.Log("429", "ingest: 429 rate limited")
+	case http.StatusServiceUnavailable:
+		h.log.Log("503", "ingest: 503 queue full, events refused")
+	}
 }
 
 func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -202,7 +233,7 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "read error", http.StatusBadRequest)
 		return
 	}
-	ps, msg := decode(body)
+	ps, bad, msg := decode(body)
 	// Who the client is, decided once. The site id is the one the proxy's
 	// HMAC covers; a forward for an unknown site simply fails to verify.
 	var claimed string
@@ -210,32 +241,40 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		claimed = ps[0].S
 	}
 	res := h.resolve(r, claimed, body)
+	// Tell the first-party proxy whether its signature verified; no header
+	// from the proxy means no status (the caller reads that as "unknown").
+	if res.Proxied {
+		w.Header().Set("X-Trail-Proxy-Status", "ok")
+	} else if r.Header.Get("X-Trail-Proxy") != "" {
+		w.Header().Set("X-Trail-Proxy-Status", "invalid")
+		h.log.Log("proxy", "ingest: proxy signature not verified site=%q (check TRAIL_CRAWL_TOKEN and clock)", short(claimed))
+	}
 	// Per visitor: behind a verified proxy that is the forwarded IP, or every
 	// proxied visitor would share the site server's bucket.
 	if h.limit != nil && !h.limit.allow(res.IP) {
 		w.Header().Set("Retry-After", "1")
-		http.Error(w, "too many requests", http.StatusTooManyRequests)
+		h.refuse(w, http.StatusTooManyRequests, "too many requests", "")
 		return
 	}
 	if msg != "" {
-		http.Error(w, msg, http.StatusBadRequest)
+		h.refuse(w, http.StatusBadRequest, msg, "")
 		return
 	}
 	// Whole-batch failures: mixed sites and unknown site.
 	for i := range ps {
 		if ps[i].S != ps[0].S {
-			http.Error(w, "mixed sites in batch", http.StatusBadRequest)
+			h.refuse(w, http.StatusBadRequest, "mixed sites in batch", "")
 			return
 		}
 	}
 	site, ok := h.sites.Get(ps[0].S)
 	if !ok {
-		http.Error(w, "unknown site", http.StatusBadRequest)
+		h.refuse(w, http.StatusBadRequest, "unknown site", ps[0].S)
 		return
 	}
 	if src := sourceHost(r); !h.sites.Allowed(site.ID, src) {
 		h.sites.RejectFrom(site.ID, src)
-		w.WriteHeader(http.StatusForbidden) // no detail: don't help probe the list
+		h.refuse(w, http.StatusForbidden, "", site.ID)
 		return
 	}
 	domain := site.Domain
@@ -263,23 +302,21 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		evs = append(evs, h.event(r, p, domain, props, res))
 	}
 	if len(evs) == 0 {
-		http.Error(w, firstErr, http.StatusBadRequest)
+		h.refuse(w, http.StatusBadRequest, firstErr, site.ID)
 		return
 	}
-	rejected := len(ps) - len(evs)
+	rejected := bad + len(ps) - len(evs)
 	ps = valid
 
 	// Private events get a server-side identity. One request has one IP and
 	// UA, so Identify runs once; the IP is used only for this hash.
-	var anon, sess, cookie string
+	var anon, sess string
 	for i := range evs {
 		if ps[i].M == "p" {
 			if anon == "" {
 				anon, sess = h.priv.Identify(ps[i].S, res.IP, r.UserAgent())
 			}
 			evs[i].AnonID, evs[i].SessionID, evs[i].UserID = anon, sess, ""
-		} else if cookie == "" {
-			cookie = ps[i].A
 		}
 	}
 
@@ -288,13 +325,10 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			evs[i].Agent, evs[i].AgentVia, evs[i].IsBot = ag.ID, string(ag.Via), true
 		}
 	}
-	for _, e := range evs {
-		h.st.Enqueue(e)
-	}
-	if cookie != "" {
-		http.SetCookie(w, &http.Cookie{
-			Name: "_t_id", Value: cookie, Path: "/", MaxAge: 31536000, SameSite: http.SameSiteLaxMode,
-		})
+	if !h.st.EnqueueBatch(evs) {
+		w.Header().Set("Retry-After", "5")
+		h.refuse(w, http.StatusServiceUnavailable, "busy", "")
+		return
 	}
 	w.Header().Set("X-Trail-Accepted", strconv.Itoa(len(evs)))
 	w.Header().Set("X-Trail-Rejected", strconv.Itoa(rejected))
@@ -316,26 +350,40 @@ func sourceHost(r *http.Request) string {
 	return u.Hostname()
 }
 
-// decode parses a single event object or an array of 1 to 50 of them.
-func decode(body []byte) ([]payload, string) {
+// decode parses a single event object or an array of 1 to 50 of them. Array
+// elements decode one by one: bad counts the ones that did not, so a wrong-typed
+// field rejects its own event and not the batch. msg is set when nothing decoded.
+func decode(body []byte) (ps []payload, bad int, msg string) {
 	if t := bytes.TrimSpace(body); len(t) > 0 && t[0] == '[' {
-		var ps []payload
-		if err := json.Unmarshal(t, &ps); err != nil {
-			return nil, "malformed json"
+		var raws []json.RawMessage
+		if err := json.Unmarshal(t, &raws); err != nil {
+			return nil, 0, "malformed json"
 		}
 		switch {
-		case len(ps) == 0:
-			return nil, "empty batch"
-		case len(ps) > maxBatch:
-			return nil, "batch too large"
+		case len(raws) == 0:
+			return nil, 0, "empty batch"
+		case len(raws) > maxBatch:
+			return nil, 0, "batch too large"
 		}
-		return ps, ""
+		ps = make([]payload, 0, len(raws))
+		for _, raw := range raws {
+			var p payload
+			if err := json.Unmarshal(raw, &p); err != nil {
+				bad++
+				continue
+			}
+			ps = append(ps, p)
+		}
+		if len(ps) == 0 {
+			return nil, bad, "malformed json"
+		}
+		return ps, bad, ""
 	}
 	var p payload
 	if err := json.Unmarshal(body, &p); err != nil {
-		return nil, "malformed json"
+		return nil, 1, "malformed json"
 	}
-	return []payload{p}, ""
+	return []payload{p}, 0, ""
 }
 
 func validate(p *payload, knownSite bool) string {
@@ -344,6 +392,8 @@ func validate(p *payload, knownSite bool) string {
 		return "unknown site"
 	case !validTypes[p.T]:
 		return "unknown type"
+	case p.C > maxAge:
+		return "event too old"
 	case p.M == "p":
 		// Private mode: the server derives a and ss, so the client's are ignored.
 		if p.T == "identify" {
@@ -474,7 +524,7 @@ func (h *handler) event(r *http.Request, p *payload, domain, props string, res e
 		Country: country, Region: region, City: city, GeoSrc: geoSrc,
 		Device: device, Browser: browser, OS: os,
 		Env:       enrich.DeriveEnv(host, domain, p.Env),
-		TS:        h.now().UnixMilli(),
+		TS:        h.now().UnixMilli() - int64(clamp(p.C, maxAge)),
 		EngagedMs: clamp(p.E, maxEngMs),
 		ScrollPct: clamp(p.SC, 100),
 		IsBot:     bot || p.W == 1,

@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	_ "embed"
+	"errors"
 	"fmt"
 	"log"
 	"net/url"
@@ -12,7 +13,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	_ "modernc.org/sqlite"
+	sqlite "modernc.org/sqlite"
+	sqlite3 "modernc.org/sqlite/lib"
 )
 
 //go:embed schema.sql
@@ -45,8 +47,12 @@ type Store struct {
 	queue   chan Event
 	kick    chan struct{}
 	mu      sync.Mutex // serialises Flush and guards closed
+	qmu     sync.Mutex // serialises producers so a batch is admitted whole
 	closed  bool
 	dropped atomic.Int64
+	failed  atomic.Int64
+	pending []Event       // drained from the queue, not yet committed; guarded by mu
+	pendCap int           // most events pending may hold (queueCap; tests lower it)
 	every   time.Duration // the timer flush interval (flushEvery; tests raise it)
 }
 
@@ -66,10 +72,11 @@ func Open(path string) (*Store, error) {
 		return nil, err
 	}
 	return &Store{
-		db:    db,
-		queue: make(chan Event, queueCap),
-		kick:  make(chan struct{}, 1),
-		every: flushEvery,
+		db:      db,
+		queue:   make(chan Event, queueCap),
+		kick:    make(chan struct{}, 1),
+		every:   flushEvery,
+		pendCap: queueCap,
 	}, nil
 }
 
@@ -152,28 +159,75 @@ func (s *Store) DB() *sql.DB { return s.db }
 // Dropped reports how many events were discarded because the queue was full.
 func (s *Store) Dropped() int64 { return s.dropped.Load() }
 
-// Enqueue queues e for the next flush. It never blocks: a full queue drops the event.
-func (s *Store) Enqueue(e Event) {
-	select {
-	case s.queue <- e:
-	default:
-		s.dropped.Add(1)
-		return
+// Enqueue queues e for the next flush. It never blocks: a full queue refuses
+// the event and reports false.
+func (s *Store) Enqueue(e Event) bool { return s.EnqueueBatch([]Event{e}) }
+
+// EnqueueBatch queues all of evs or none. It never blocks. On refusal it counts
+// len(evs) as dropped and returns false, so the caller can tell the client to retry
+// without a half-stored batch being duplicated.
+func (s *Store) EnqueueBatch(evs []Event) bool {
+	s.qmu.Lock()
+	// Only Flush receives from the queue, so free space can only grow while qmu is held.
+	if cap(s.queue)-len(s.queue) < len(evs) {
+		s.qmu.Unlock()
+		s.dropped.Add(int64(len(evs)))
+		return false
 	}
-	if len(s.queue) >= batchSize {
+	for _, e := range evs {
+		s.queue <- e
+	}
+	full := len(s.queue) >= batchSize
+	s.qmu.Unlock()
+	if full {
 		select {
 		case s.kick <- struct{}{}:
 		default:
 		}
 	}
+	return true
+}
+
+// Pending reports how many events wait for a write retry.
+func (s *Store) Pending() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return len(s.pending)
+}
+
+// Failed reports events dropped because SQLite rejected the row itself.
+func (s *Store) Failed() int64 { return s.failed.Load() }
+
+// retryable is false only for data errors, which a retry can never fix. Anything else
+// (busy, locked, disk full, I/O, unknown) keeps the data: losing it silently is worse.
+func retryable(err error) bool {
+	var se *sqlite.Error
+	if !errors.As(err, &se) {
+		return true
+	}
+	switch se.Code() & 0xff {
+	case sqlite3.SQLITE_CONSTRAINT, sqlite3.SQLITE_MISMATCH, sqlite3.SQLITE_TOOBIG, sqlite3.SQLITE_RANGE:
+		return false
+	}
+	return true
+}
+
+// nextBackoff is 1 s after the first failure, doubling up to 30 s.
+func nextBackoff(d time.Duration) time.Duration {
+	if d <= 0 {
+		return time.Second
+	}
+	return min(d*2, 30*time.Second)
 }
 
 // Start runs the background writer: it flushes every second, or as soon as
-// 500 events are waiting, until ctx is cancelled.
+// 500 events are waiting, until ctx is cancelled. After a failed write it backs
+// off (1 s doubling to 30 s) and keeps the batch for retry.
 func (s *Store) Start(ctx context.Context) {
 	go func() {
 		t := time.NewTicker(s.every)
 		defer t.Stop()
+		var backoff time.Duration
 		for {
 			select {
 			case <-ctx.Done():
@@ -181,29 +235,76 @@ func (s *Store) Start(ctx context.Context) {
 			case <-t.C:
 			case <-s.kick:
 			}
-			if err := s.Flush(); err != nil {
-				log.Printf("store: flush: %v", err)
+			err := s.Flush()
+			if err == nil {
+				if backoff > 0 {
+					log.Printf("store: write recovered")
+					backoff = 0
+				}
+				continue
+			}
+			if backoff == 0 {
+				log.Printf("store: flush failed, keeping %d events for retry: %v", s.Pending(), err)
+			}
+			backoff = nextBackoff(backoff)
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(backoff):
 			}
 		}
 	}()
 }
 
-// Flush writes every queued event in one transaction.
+// Flush writes the queued events, plus any batch a failed write left pending, in one
+// transaction. A retryable failure keeps the batch pending and returns the error. A
+// data error falls back to one transaction per event and drops only the rows SQLite rejects.
 func (s *Store) Flush() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.closed {
 		return nil
 	}
-	n := len(s.queue)
-	if n == 0 {
+	for n := len(s.queue); n > 0 && len(s.pending) < s.pendCap; n-- {
+		s.pending = append(s.pending, <-s.queue)
+	}
+	if len(s.pending) == 0 {
 		return nil
 	}
-	batch := make([]Event, 0, n)
-	for range n {
-		batch = append(batch, <-s.queue)
+	err := s.write(s.pending)
+	if err == nil {
+		s.pending = nil
+		return nil
 	}
-	return s.write(batch)
+	if retryable(err) {
+		return err
+	}
+	return s.salvage()
+}
+
+// salvage writes pending events one by one after a data error.
+func (s *Store) salvage() error {
+	var keep []Event
+	var keepErr error
+	var dropped int
+	var lastBad error
+	for _, e := range s.pending {
+		err := s.write([]Event{e})
+		switch {
+		case err == nil:
+		case retryable(err):
+			keep, keepErr = append(keep, e), err
+		default:
+			dropped++
+			lastBad = err
+		}
+	}
+	s.pending = keep
+	if dropped > 0 {
+		s.failed.Add(int64(dropped))
+		log.Printf("store: dropped %d unwritable events: %v", dropped, lastBad)
+	}
+	return keepErr
 }
 
 func (s *Store) write(batch []Event) error {
@@ -253,6 +354,9 @@ func (s *Store) Close() error {
 		return flushErr
 	}
 	s.closed = true
+	if n := len(s.pending); n > 0 {
+		log.Printf("store: %d events lost at shutdown: %v", n, flushErr)
+	}
 	if err := s.db.Close(); err != nil {
 		return err
 	}

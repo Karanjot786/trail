@@ -13,10 +13,9 @@ declare const MODE: string;
   const D = s.dataset;
   const site = D.site;
   const api = D.api || '/_t/e';
-  // skip: no site, prerender, localhost unless data-dev, Do Not Track / GPC unless data-dnt="off"
+  // skip: no site, localhost unless data-dev, Do Not Track / GPC unless data-dnt="off"
   if (
     !site ||
-    (d as any).prerendering ||
     (D.dev == null && /^(localhost|127\.|\[::1\])/.test(l.hostname)) ||
     (D.dnt != 'off' && (n.doNotTrack == '1' || n.globalPrivacyControl))
   )
@@ -30,14 +29,10 @@ declare const MODE: string;
           } catch {}
         }
       : (0 as any);
-  // time-ordered uuid (v7 layout): 48-bit ms time, then 72 random bits
+  // time-ordered id: ms time in hex, then 72 random bits
   const uuid: () => string =
     MODE == 'full'
-      ? () =>
-          (Date.now().toString(16).padStart(12, '0') + [...crypto.getRandomValues(new Uint8Array(9))].map((b) => (b | 256).toString(16).slice(1)).join('')).replace(
-            /(.{8})(.{4})(.{3})(.{3})/,
-            '$1-$2-7$3-8$4-',
-          )
+      ? () => Date.now().toString(16) + [...crypto.getRandomValues(new Uint8Array(9))].map((b) => (b | 256).toString(16).slice(1)).join('')
       : (0 as any);
 
   // consent: _t_c "1" = granted (upgraded), "0" = denied (send nothing, store nothing else)
@@ -92,23 +87,26 @@ declare const MODE: string;
     save();
     if (tries < 5 && !rtm) rtm = setTimeout(() => ((rtm = 0), post(F.splice(0, 50)), tries++), 2 ** tries * 1e3); // 1, 2, 4, 8, 16 s
   };
+  // c is the event's creation time in memory and in _t_q; on the wire it is the age in ms.
+  // Not a JSON.stringify replacer: that would also rewrite a user prop named c inside d.
+  const J = (e: any[]) => JSON.stringify(e.map((v: any) => ({ ...v, c: Date.now() - v.c })));
   // a string body is sent as text/plain, so no preflight
   // stop: after consent(false) nothing goes out, not even a retry armed before it
   const post = (evs: any[]) =>
     stop ||
-    fetch(api, { method: 'POST', keepalive: true, body: JSON.stringify(evs) })
+    fetch(api, { method: 'POST', keepalive: true, body: J(evs) })
       .then((r) => {
         if (/^5|408|429/.test(r.status as any)) throw 0;
         save(); // keeps _t_q in step with F (full mode)
       })
       .catch(() => stop || fail(evs)); // a failure landing after a denial is dropped
   const flush = () => {
-    if (q.length && !n.sendBeacon(api, JSON.stringify(q))) fail(q);
+    if (q.length && !n.sendBeacon(api, J(q))) fail(q);
     q = [];
   };
   const send = (t: string, x: any = {}, src = '') => {
     if (stop) return;
-    const ev = { s: site, t, a, ss: sess(src), uid: U, u: l.href, rt: route, env: D.env, w: +!!n.webdriver, m: full ? 'f' : 'p', ...x };
+    const ev = { c: Date.now(), s: site, t, a, ss: sess(src), uid: U, u: l.href, rt: route, env: D.env, w: +!!n.webdriver, m: full ? 'f' : 'p', ...x };
     if (t == 'pageview') post([ev]);
     else if (q.push(ev) > 49) post(q), (q = []);
   };
@@ -226,11 +224,11 @@ declare const MODE: string;
     true,
   );
   // opt-in extras live in t.x.js, next to this file; it reads data-vitals/-rage/-forms/-errors off this tag
-  if (/ data-(vitals|rage|forms|errors)\b/.test(s.outerHTML)) {
+  if (/ data-(vitals|rage|forms|errors|hash)/.test(s.outerHTML)) {
     const x = d.createElement('script');
     x.src = s.src.replace(/[^/]*$/, 't.x.js');
     d.head.append(x);
   }
 
-  page();
+  (d as any).prerendering ? ((d as any).onprerenderingchange = () => page()) : page(); // arrow: page(event) would store the Event as route
 })(window, document, location, history, navigator);

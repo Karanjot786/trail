@@ -162,3 +162,13 @@ func TestPrivateSessionMapCapped(t *testing.T) {
 		t.Errorf("sweep did not free expired entries: %d left", len(p.sess))
 	}
 }
+
+func TestPrivateSameSlash64SameVisitor(t *testing.T) {
+	c := newClock(time.UTC, 9, 0)
+	p := NewPrivate(time.UTC, c.now)
+	a1, _ := p.Identify("s1", "2001:db8::1", ua)
+	a2, _ := p.Identify("s1", "2001:db8::ffff", ua)
+	if a1 != a2 {
+		t.Errorf("same /64 gave %s and %s", a1, a2)
+	}
+}
