@@ -16,6 +16,7 @@ import { StatusDot } from '../../ui/small'
 import { EmptyState, ErrorState, Skeleton } from '../../ui/states'
 import { Segmented } from '../../ui/tabs'
 import { CountryCode, hm, sourceText, useAq } from '../activity/shared'
+import { reportSite } from '../../state/url'
 import { Globe } from './Globe'
 import './live.css'
 
@@ -52,7 +53,7 @@ export default function LiveScreen() {
   const [side, setSide] = useState<Side>('country')
   const [kind, setKind] = useState<'all' | 'pageview' | 'event'>('all')
   const [query, setQuery] = useState('')
-  const live = useQuery<Live>(`live|${key}`, async (sig) => api.live(q, sig), { pollMs: paused ? undefined : POLL_MS, staleMs: 0 })
+  const live = useQuery<Live>(`live|${key}`, async (sig) => api.live(q, sig), { enabled: reportSite(s), pollMs: paused ? undefined : POLL_MS, staleMs: 0 })
   const seen = useRef<Set<string>>(new Set())
   const seenSite = useRef(s.site)
   const d = live.data

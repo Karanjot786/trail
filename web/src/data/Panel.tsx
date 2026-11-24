@@ -7,7 +7,7 @@ import type { Dim, Filter } from '../api/types'
 import { useQuery } from '../api/useQuery'
 import { useSite } from '../shell/useSite'
 import { useStats } from '../shell/useStats'
-import { apiQuery } from '../state/url'
+import { apiQuery, reportSite } from '../state/url'
 import { navigate, useUrlState } from '../state/useUrlState'
 import { Menu, MenuCheckbox, MenuItem, MenuLabel, MenuSeparator } from '../ui/menu'
 import { EmptyState, ErrorState, Skeleton } from '../ui/states'
@@ -68,7 +68,7 @@ export function Panel({ id, title, tabs, definition }: PanelProps) {
   const [exitSort, setExitSort] = useState<'exits' | 'rate'>('exits')
   const headingId = `panel-${id}-h`
 
-  const rowsQ = useQuery(`breakdown|${tab?.dim}|${qs}|${state.prefix}`, async (signal) => api.breakdown(q, tab.dim, { limit: 100 }, signal))
+  const rowsQ = useQuery(`breakdown|${tab?.dim}|${qs}|${state.prefix}`, async (signal) => api.breakdown(q, tab.dim, { limit: 100 }, signal), { enabled: reportSite(state) })
   const statsQ = useStats()
 
   const allCols = tab?.columns ?? []

@@ -279,6 +279,12 @@ export function viewState(s: UrlState): string {
   return viewParams(s).toString()
 }
 
+/** True when the URL names one real site. Report routes (stats, series, breakdown, lists) answer site=all with zeros,
+ *  so a hook that reads them stays off for the All websites view. Only `stats` is read there, for its window. */
+export function reportSite(s: UrlState): boolean {
+  return !!s.site && s.site !== 'all'
+}
+
 /** site, range, cmp, env, actor (only when all), f… for /api calls. No `tz`: the server reports in its own zone and names it in `window.tz`. */
 export function apiQuery(s: UrlState): URLSearchParams {
   const q = new URLSearchParams({ site: s.site, range: s.range, cmp: s.cmp, env: s.env })

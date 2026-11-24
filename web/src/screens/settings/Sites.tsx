@@ -136,7 +136,7 @@ function OriginsEditor({ site, onDone }: { site: Site; onDone: () => void }) {
       <label htmlFor={id}>
         Allowed origins <span className="hint">besides {site.domain}, one per line</span>
       </label>
-      <textarea id={id} className="input" value={text} onChange={(e) => setText(e.target.value)} placeholder="*.example.vercel.app" spellCheck={false} />
+      <textarea id={id} className="input" value={text} onChange={(e) => setText(e.target.value)} placeholder="*-<team>.vercel.app" spellCheck={false} />
       <div className="set-acts">
         <Button size="sm" variant="primary" disabled={busy} onClick={save}>
           Save origins

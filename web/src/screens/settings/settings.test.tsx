@@ -97,6 +97,14 @@ describe('Websites', () => {
     expect(api.deleteSite).toHaveBeenCalledWith('docs', false)
   })
 
+  it('the origins placeholder shows the Vercel preview pattern', async () => {
+    visit('/settings/sites?site=demo')
+    render(<SettingsScreen />)
+    await flush()
+    fireEvent.click(screen.getByRole('button', { name: 'Edit origins of demo.trail.dev' }))
+    expect(screen.getByRole('textbox', { name: /allowed origins/i }).getAttribute('placeholder')).toBe('*-<team>.vercel.app')
+  })
+
   it('saves allowed origins', async () => {
     visit('/settings/sites?site=demo')
     render(<SettingsScreen />)

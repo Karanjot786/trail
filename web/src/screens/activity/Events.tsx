@@ -3,6 +3,7 @@ import { ExternalLink, Zap } from 'lucide-react'
 import { api } from '../../api/client'
 import type { EventRow, Goal } from '../../api/types'
 import { useQuery } from '../../api/useQuery'
+import { reportSite } from '../../state/url'
 import type { TableColumn } from '../../data/DataTable'
 import { fmtInt, fmtPct } from '../../lib/format'
 import { rel } from '../../lib/journey'
@@ -25,7 +26,7 @@ export function goalNames(goals: Goal[] | undefined): Set<string> {
 export default function Events() {
   const { s, q, key, share } = useAq()
   const stats = useStats()
-  const res = useQuery(`events|${key}`, async (sig) => api.events(q, { limit: 1000 }, sig))
+  const res = useQuery(`events|${key}`, async (sig) => api.events(q, { limit: 1000 }, sig), { enabled: reportSite(s) })
   const goals = useQuery(`goals|${s.site}`, async (sig) => api.goals(s.site, sig), { enabled: !!s.site && !share && s.site !== 'all', staleMs: 60_000 })
   const rows = res.data?.rows ?? []
   const isGoal = goalNames(goals.data)

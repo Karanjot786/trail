@@ -13,6 +13,7 @@ import { navigate } from '../../state/useUrlState'
 import { useStats } from '../../shell/useStats'
 import { Button } from '../../ui/button'
 import { EmptyState } from '../../ui/states'
+import { reportSite } from '../../state/url'
 import { Banner } from './Banner'
 import { CountryCode, sourceText, useAq, Who, csvHref } from './shared'
 
@@ -36,7 +37,7 @@ export function sortParam(sort: { id: string; desc: boolean } | null, keys: Reco
 }
 
 export function useServerList<T>(name: string, fetch: (q: URLSearchParams, o: { limit: number; sort: string }, sig: AbortSignal) => Promise<{ rows: T[]; total: number }>, defaultSort: string) {
-  const { key, q } = useAq()
+  const { s, key, q } = useAq()
   const [limit, setLimit] = useState(PAGE)
   const [sort, setSort] = useState(defaultSort)
   // A new site, range, filter or sort starts from the first page. Adjusted during render (no effect), so the
@@ -48,7 +49,7 @@ export function useServerList<T>(name: string, fetch: (q: URLSearchParams, o: { 
     setLimit(PAGE)
   }
   const lim = seen !== view ? PAGE : limit
-  const res = useQuery(`${name}|${key}|${lim}|${sort}`, async (sig) => fetch(q, { limit: lim, sort }, sig))
+  const res = useQuery(`${name}|${key}|${lim}|${sort}`, async (sig) => fetch(q, { limit: lim, sort }, sig), { enabled: reportSite(s) })
   return { res, limit: lim, setLimit, sort, setSort }
 }
 

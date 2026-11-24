@@ -9,7 +9,7 @@ import {
 import { api } from '../api/client'
 import type { Dim, RangeKey } from '../api/types'
 import { useQuery } from '../api/useQuery'
-import { apiQuery } from '../state/url'
+import { apiQuery, reportSite } from '../state/url'
 import { go, navigate, useUrlState } from '../state/useUrlState'
 import { Avatar } from '../ui/avatar'
 import { Kbd } from '../ui/small'
@@ -88,7 +88,7 @@ function Palette({ scope, instant, close }: { scope: '' | 'filter'; instant: boo
   const share = s.prefix.startsWith('/share/')
   const aq = apiQuery(s)
   const qs = aq.toString()
-  const canBreak = !!s.site
+  const canBreak = reportSite(s)
 
   // Filters: the top 20 values per dim in the current window, fetched when the palette opens.
   const tops = FILTER_DIMS.map(({ dim }) =>
@@ -96,7 +96,7 @@ function Palette({ scope, instant, close }: { scope: '' | 'filter'; instant: boo
     useQuery(`pal|${dim}|${qs}|${s.prefix}`, (sig) => api.breakdown(aq, dim, { limit: 20 }, sig), { enabled: canBreak, staleMs: 60_000 }),
   )
   const people = useQuery(`pal|visitors|${qs}|${dq}|${s.prefix}`, (sig) => api.visitors(aq, { q: dq, limit: 8 }, sig), {
-    enabled: scope !== 'filter' && !!s.site && s.site !== 'all' && dq.length > 0,
+    enabled: scope !== 'filter' && reportSite(s) && dq.length > 0,
     staleMs: 30_000,
   })
 

@@ -43,6 +43,13 @@ afterEach(() => {
 const flush = () => act(() => new Promise((r) => setTimeout(r, 30)))
 
 describe('Live', () => {
+  it('sends no request for site=all', async () => {
+    visit('/live?site=all')
+    render(<LiveScreen />)
+    await flush()
+    expect(liveFn).not.toHaveBeenCalled()
+  })
+
   it('polls every 5 s and stops while the tab is hidden', async () => {
     vi.useFakeTimers()
     visit('/live?site=demo')

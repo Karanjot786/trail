@@ -5,7 +5,7 @@ import type { CSSProperties, ReactNode } from 'react'
 import { ChevronLeft } from 'lucide-react'
 import { useQuery, type QueryResult } from '../../api/useQuery'
 import { bar } from '../../lib/bar'
-import { apiQuery, type UrlState } from '../../state/url'
+import { apiQuery, reportSite, type UrlState } from '../../state/url'
 import { useUrlState, type Patch } from '../../state/useUrlState'
 import { RouteLink } from '../../shell/RouteLink'
 import { EmptyState } from '../../ui/states'
@@ -19,7 +19,7 @@ export function useReport<T>(
 ): QueryResult<T> & { q: URLSearchParams; s: UrlState } {
   const s = useUrlState()
   const q = opts.dropGoal ? dropGoalFilter(apiQuery(s)) : apiQuery(s)
-  const r = useQuery<T>(`f4|${name}|${q.toString()}|${s.prefix}`, (sig) => fn(q, sig), { enabled: (opts.enabled ?? true) && !!s.site })
+  const r = useQuery<T>(`f4|${name}|${q.toString()}|${s.prefix}`, (sig) => fn(q, sig), { enabled: (opts.enabled ?? true) && reportSite(s) })
   return { ...r, q, s }
 }
 

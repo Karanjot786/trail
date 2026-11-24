@@ -30,6 +30,16 @@ beforeEach(() => {
 afterEach(cleanup)
 
 describe('Activity', () => {
+  it('site=all sends no report request', async () => {
+    for (const tab of ['visitors', 'sessions', 'events']) {
+      visit(`/activity/${tab}?site=all`)
+      const { unmount } = render(<ActivityScreen />)
+      await flush()
+      unmount()
+    }
+    for (const name of ['visitors', 'sessions', 'events']) expect(A[name]).not.toHaveBeenCalled()
+  })
+
   it('has exactly the four tabs', async () => {
     visit('/activity?site=demo')
     render(<ActivityScreen />)
