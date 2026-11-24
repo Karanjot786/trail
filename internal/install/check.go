@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"net/url"
 	"strings"
 	"time"
 
@@ -35,8 +34,9 @@ func Check(ctx context.Context, db *sql.DB, reg *sites.Registry, site sites.Site
 			item("script", "The Trail script is on the page", "pending", CodeFetchFailed, "Needs the page to load first.", ""),
 			item("csp", "Your security policy allows Trail", "pending", CodeFetchFailed, "Needs the page to load first.", ""))
 	} else {
+		tag := findTracker(string(page.Body))
 		out.Checks = append(out.Checks, item("page", "Your home page loads", "pass", CodeOK, fmt.Sprintf("https://%s/ answered %d.", site.Domain, page.Status), ""))
-		out.Checks = append(out.Checks, scriptCheck(findTracker(string(page.Body)), site, trailHost, last != nil), cspCheck(page.Header.Get("Content-Security-Policy"), site, trailHost))
+		out.Checks = append(out.Checks, scriptCheck(tag, site, trailHost, last != nil), cspCheck(page.Header.Values("Content-Security-Policy"), tag, site, trailHost))
 	}
 
 	if n := reg.Rejected24h(site.ID); n > 0 {
@@ -105,67 +105,6 @@ func short(s string) string {
 		return s[:160] + "…"
 	}
 	return s
-}
-
-const cspLabel = "Your security policy allows Trail"
-
-// cspCheck reads the Content-Security-Policy header: script-src and
-// connect-src (or default-src) must allow the Trail host.
-func cspCheck(policy string, site sites.Site, trailHost string) CheckItem {
-	if strings.TrimSpace(policy) == "" {
-		return item("csp", cspLabel, "pass", CodeOK, "No Content-Security-Policy header.", "")
-	}
-	dirs := map[string][]string{}
-	for d := range strings.SplitSeq(policy, ";") {
-		f := strings.Fields(d)
-		if len(f) > 0 {
-			dirs[strings.ToLower(f[0])] = f[1:]
-		}
-	}
-	var blocked []string
-	for _, d := range []string{"script-src", "connect-src"} {
-		srcs, ok := dirs[d]
-		if !ok {
-			srcs, ok = dirs["default-src"]
-		}
-		if ok && !cspAllows(srcs, site.Domain, trailHost) {
-			blocked = append(blocked, d)
-		}
-	}
-	if len(blocked) > 0 {
-		return item("csp", cspLabel, "fail", CodeCSPBlocked,
-			"Your Content-Security-Policy "+strings.Join(blocked, " and ")+" does not include "+trailHost+".",
-			"Add https://"+trailHost+" to "+strings.Join(blocked, " and ")+".")
-	}
-	return item("csp", cspLabel, "pass", CodeOK, "The Content-Security-Policy allows "+trailHost+".", "")
-}
-
-func cspAllows(srcs []string, siteHost, trailHost string) bool {
-	th := strings.ToLower(trailHost)
-	for _, s := range srcs {
-		s = strings.ToLower(strings.Trim(s, `"`))
-		switch {
-		case s == "*" || s == "https:":
-			return true
-		case s == "'self'" && sameHost(siteHost, th):
-			return true
-		}
-		host := s
-		if u, err := url.Parse(s); err == nil && u.Host != "" {
-			if u.Scheme != "https" && u.Scheme != "" {
-				continue
-			}
-			host = u.Host
-		}
-		host = strings.TrimSuffix(host, "/")
-		if sameHost(host, th) {
-			return true
-		}
-		if suffix, ok := strings.CutPrefix(host, "*."); ok && strings.HasSuffix(strings.Split(th, ":")[0], "."+suffix) {
-			return true
-		}
-	}
-	return false
 }
 
 // firstEvent reports whether production events have arrived, and why not.

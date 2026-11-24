@@ -294,3 +294,41 @@ func TestFindTrackerVia(t *testing.T) {
 		t.Errorf("astro %+v", got)
 	}
 }
+
+func TestCSPCheck(t *testing.T) {
+	next, err := os.ReadFile("testdata/next-rsc.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	nextExcerpt := strings.ReplaceAll(string(next), "agent-skills", "s")
+	for _, c := range []struct {
+		name     string
+		policies []string
+		html     string
+		want     string
+	}{
+		{"first-party self", []string{"script-src 'self'; connect-src 'self'"}, `<script src="/t/t.js" data-site="s" data-api="/t/e">`, "pass"},
+		{"first-party but only trail host", []string{"script-src https://trail.example.net; connect-src https://trail.example.net"}, `<script src="/t/t.js" data-site="s" data-api="/t/e">`, "fail"},
+		{"direct tag, self only", []string{"default-src 'self'"}, goodTag, "fail"},
+		{"direct tag ok", []string{"script-src https://trail.example.net; connect-src *.example.net"}, goodTag, "pass"},
+		{"second header blocks", []string{"script-src *", "connect-src 'self'"}, goodTag, "fail"},
+		{"script-src-elem wins", []string{"script-src https://trail.example.net; script-src-elem 'self'; connect-src *"}, goodTag, "fail"},
+		{"strict-dynamic, next component", []string{"script-src 'nonce-a' 'strict-dynamic'; connect-src 'self'"}, nextExcerpt, "pass"},
+		{"strict-dynamic, plain tag no nonce", []string{"script-src 'nonce-a' 'strict-dynamic'; connect-src *"}, goodTag, "fail"},
+		{"strict-dynamic, plain tag with nonce", []string{"script-src 'nonce-a' 'strict-dynamic'; connect-src *"}, strings.Replace(goodTag, "<script ", `<script nonce="a" `, 1), "pass"},
+		{"nothing found, self allowed", []string{"script-src 'self'; connect-src 'self'"}, ``, "pass"},
+		{"nothing found, blocked", []string{"script-src https://cdn.other.com; connect-src 'none'"}, ``, "fail"},
+		{"no header", nil, goodTag, "pass"},
+		{"comma joined policies", []string{"script-src *, connect-src 'self'"}, goodTag, "fail"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			got := cspCheck(c.policies, findTracker(c.html), sites.Site{ID: "s", Domain: "example.com"}, "trail.example.net")
+			if got.Status != c.want {
+				t.Fatalf("got %s (%s)", got.Status, got.Detail)
+			}
+			if c.want == "fail" && (got.Code != CodeCSPBlocked || got.Fix == "") {
+				t.Errorf("code %s fix %q", got.Code, got.Fix)
+			}
+		})
+	}
+}
