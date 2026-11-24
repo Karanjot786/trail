@@ -104,3 +104,35 @@ func TestBackupIdempotent(t *testing.T) {
 		t.Errorf("backup rows %d, want 1", n)
 	}
 }
+
+func TestBackupSurvivesInterruptedCopy(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "a.db")
+	s, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	s.Enqueue(Event{SiteID: "s", Type: "pageview", TS: 1})
+	if err := s.Flush(); err != nil {
+		t.Fatal(err)
+	}
+	// A kill mid-copy leaves a partial .tmp, never a .pre-fold.
+	if err := os.WriteFile(path+".pre-fold.tmp", []byte("truncated"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	p, err := backup(s.DB(), path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(p + ".tmp"); !os.IsNotExist(err) {
+		t.Errorf("stale tmp left behind: %v", err)
+	}
+	b, err := Open(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer b.Close()
+	if n := count(t, b, "SELECT count(*) FROM events"); n != 1 {
+		t.Errorf("backup rows %d, want 1", n)
+	}
+}

@@ -35,14 +35,21 @@ func setSetting(q execer, key, value string) error {
 }
 
 // backup copies the database to <dbPath>.pre-fold with VACUUM INTO, a read transaction, so
-// ingest keeps writing. An existing copy is kept and returned untouched.
+// ingest keeps writing. The copy is written to <dst>.tmp and renamed, so the final name only
+// ever holds a complete copy; an existing one is kept and returned untouched.
 func backup(db *sql.DB, dbPath string) (string, error) {
 	dst := dbPath + ".pre-fold"
 	if _, err := os.Stat(dst); err == nil {
 		return dst, nil
 	}
-	if _, err := db.Exec(`VACUUM INTO ?`, dst); err != nil {
-		_ = os.Remove(dst)
+	tmp := dst + ".tmp"
+	_ = os.Remove(tmp) // left by an interrupted run
+	if _, err := db.Exec(`VACUUM INTO ?`, tmp); err != nil {
+		_ = os.Remove(tmp)
+		return "", fmt.Errorf("backup to %s: %w", dst, err)
+	}
+	if err := os.Rename(tmp, dst); err != nil {
+		_ = os.Remove(tmp)
 		return "", fmt.Errorf("backup to %s: %w", dst, err)
 	}
 	return dst, nil
