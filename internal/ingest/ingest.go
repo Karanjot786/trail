@@ -449,6 +449,9 @@ func (h *handler) geoFor(res edgegeo.Result) (country, region, city, src string)
 		return country, region, city, ""
 	}
 	country, region, city, src = res.Country, res.Region, res.City, res.Source
+	if name, ok := enrich.RegionName(country, region); ok {
+		region = name
+	}
 	if region == "" || city == "" {
 		if dc, dr, dci := h.geo.Lookup(res.IP); dc == country {
 			if region == "" {
