@@ -96,14 +96,15 @@ describe('init', () => {
     expect(r.spawn).not.toHaveBeenCalled();
   });
 
-  it('TestInitExistingProxyIsManual', async () => {
+  it('TestInitWrapsExistingProxy', async () => {
     const d = fixture('next16-existing-proxy');
-    const before = read(d, 'proxy.ts');
     const r = await run(d, ['--yes', '--no-install']);
-    expect(r.code).toBe(2);
-    expect(read(d, 'proxy.ts')).toBe(before);
-    expect(r.text()).toContain('withTrail');
-    expect(r.text()).toContain("import { withTrail } from 'trail-analytics/next/proxy'");
+    expect(r.code).toBe(0);
+    const after = read(d, 'proxy.ts');
+    expect(after).toContain('export default withTrail(proxy);');
+    expect(after).toContain("import { withTrail } from 'trail-analytics/next/proxy';");
+    expect(after).toContain('function proxy(req: NextRequest) {');
+    expect(after).not.toContain('config');
   });
 
   it('TestInitPagesRouterManual', async () => {
@@ -378,6 +379,102 @@ describe('init', () => {
       const plain = fixture('next16-app');
       await run(plain, ['--yes', '--no-install']);
       expect(read(plain, '.gitignore')).not.toContain('.dev.vars');
+    });
+  });
+
+  describe('install report shapes', () => {
+    it('TestInitReportAgentSkills wraps the next-intl middleware and widens its matcher', async () => {
+      const d = fixture('report-agent-skills');
+      await run(d, ['--yes', '--no-install']);
+      const mw = read(d, 'src/middleware.ts');
+      expect(mw).toContain('export default withTrail(middleware);');
+      expect(mw).toContain("'/t/t.js', '/t/t.x.js', '/t/t.p.js', '/t/e']");
+      expect(existsSync(join(d, 'src/proxy.ts'))).toBe(false);
+    });
+
+    it('TestInitReportGenzcareer wraps the async named proxy', async () => {
+      const d = fixture('report-genzcareer');
+      const r = await run(d, ['--yes', '--no-install']);
+      expect(r.code).toBe(0);
+      const px = read(d, 'proxy.ts');
+      expect(px).toContain('async function proxyHandler(');
+      expect(px).toContain('export const proxy = withTrail(proxyHandler);');
+      expect(read(d, '__tests__/proxy.test.ts')).toContain('await proxy(new NextRequest');
+    });
+
+    it('TestInitReportReelcn wraps the proxy, then says the matcher is narrow', async () => {
+      const d = fixture('report-reelcn');
+      const app = join(d, 'apps/www');
+      const r = await run(app, ['--yes', '--no-install']);
+      expect(r.code).toBe(2);
+      expect(read(app, 'proxy.ts')).toContain('export const proxy = withTrail(proxyHandler);');
+      expect(read(app, 'proxy.ts')).toContain("matcher: ['/docs/:path*', '/t/t.js'");
+      expect(r.text()).toContain('matcher only runs on /docs/:path*');
+      expect(r.text()).toContain("startsWith('/docs')");
+    });
+
+    it('writes middleware.ts when the Next version is unknown', async () => {
+      const d = fixture('next16-app');
+      writeFileSync(join(d, 'package.json'), JSON.stringify({ name: 'x', dependencies: { next: 'latest', react: '*' } }));
+      const r = await run(d, ['--yes', '--no-install']);
+      expect(r.code).toBe(0);
+      expect(existsSync(join(d, 'middleware.ts'))).toBe(true);
+      expect(existsSync(join(d, 'proxy.ts'))).toBe(false);
+      expect(r.text()).toContain('Could not tell the Next.js version; wrote middleware.ts (works on 15 and 16)');
+    });
+
+    it('reads the Next version from pnpm-lock.yaml', async () => {
+      const d = fixture('next16-app');
+      writeFileSync(join(d, 'package.json'), JSON.stringify({ name: 'x', dependencies: { next: 'latest', react: '*' } }));
+      writeFileSync(join(d, 'pnpm-lock.yaml'), "lockfileVersion: '9.0'\npackages:\n  next@16.2.6:\n    resolution: {}\n");
+      expect(detect(d).nextMajor).toBe(16);
+      const r = await run(d, ['--yes', '--no-install']);
+      expect(r.code).toBe(0);
+      expect(existsSync(join(d, 'proxy.ts'))).toBe(true);
+      expect(r.text()).not.toContain('Could not tell');
+    });
+
+    it('reads the Next version from package-lock.json and yarn.lock', () => {
+      const d = fixture('next16-app');
+      writeFileSync(join(d, 'package.json'), JSON.stringify({ name: 'x', dependencies: { next: 'latest' } }));
+      writeFileSync(join(d, 'package-lock.json'), JSON.stringify({ packages: { 'node_modules/next': { version: '15.5.4' } } }));
+      expect(detect(d).nextMajor).toBe(15);
+      rmSync(join(d, 'package-lock.json'));
+      writeFileSync(join(d, 'yarn.lock'), '"next@^14.0.0":\n  version "14.2.3"\n');
+      expect(detect(d).nextMajor).toBe(14);
+    });
+
+    it('output export uses the direct Trail URL and no proxy', async () => {
+      const d = fixture('next16-app');
+      writeFileSync(join(d, 'next.config.mjs'), "export default { output: 'export' };\n");
+      const r = await run(d, ['--yes', '--no-install']);
+      expect(r.code).toBe(0);
+      expect(existsSync(join(d, 'proxy.ts'))).toBe(false);
+      expect(read(d, 'app/layout.tsx')).toContain('<Analytics site="shop" src="https://trail.example.com/_t/t.js" api="https://trail.example.com/_t/e" />');
+      expect(r.text()).toContain('Static export: no proxy runs');
+    });
+
+    it('basePath prefixes the tag paths', async () => {
+      const d = fixture('next16-app');
+      writeFileSync(join(d, 'next.config.ts'), "import type { NextConfig } from 'next';\nconst nextConfig: NextConfig = { basePath: '/docs' };\nexport default nextConfig;\n");
+      expect((await run(d, ['--yes', '--no-install'])).code).toBe(0);
+      expect(read(d, 'app/layout.tsx')).toContain('<Analytics site="shop" src="/docs/t/t.js" api="/docs/t/e" />');
+      expect(existsSync(join(d, 'proxy.ts'))).toBe(true);
+    });
+
+    it('trailingSlash uses /t/e/', async () => {
+      const d = fixture('next16-app');
+      writeFileSync(join(d, 'next.config.js'), "const withX = (c) => c;\nmodule.exports = withX({ trailingSlash: true });\n");
+      expect((await run(d, ['--yes', '--no-install'])).code).toBe(0);
+      expect(read(d, 'app/layout.tsx')).toContain('src="/t/t.js" api="/t/e/"');
+    });
+
+    it('i18n (Pages Router) keeps the tag at /t/e', async () => {
+      const d = fixture('next15-pages');
+      writeFileSync(join(d, 'next.config.js'), "module.exports = { i18n: { locales: ['en', 'de'], defaultLocale: 'en' } };\n");
+      const r = await run(d, ['--yes', '--no-install']);
+      expect(r.text()).toContain('api="/t/e"');
+      expect(r.text()).not.toContain('/de/t/e');
     });
   });
 });

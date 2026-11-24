@@ -1,0 +1,6 @@
+{
+  "name": "report-genzcareer",
+  "private": true,
+  "packageManager": "pnpm@9.15.9",
+  "dependencies": { "next": "16.2.6", "react": "^19.0.0", "react-dom": "^19.0.0" }
+}

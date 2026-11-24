@@ -24,29 +24,33 @@ export function nextHook(name: 'proxy' | 'middleware', ext: 'ts' | 'js'): string
   return lines.join('\n');
 }
 
-export const analyticsTag = (site: string) => `<Analytics site="${site}" src="/t/t.js" api="/t/e" />`;
+export const analyticsTag = (site: string, src = '/t/t.js', api = '/t/e') => `<Analytics site="${site}" src="${src}" api="${api}" />`;
 
-export const withTrailSnippet = (file: string) => `Your ${file} already exists, so init left it alone. Wrap your handler:
+export const withTrailSnippet = (file: string, exportName = 'proxy') => `Init could not edit ${file} safely, so it left the file alone. Wrap your handler yourself:
 
   import { withTrail } from 'trail-analytics/next/proxy';
 
-  export default withTrail(function proxy(req, event) {
-    // your existing code; return NextResponse.next() (or nothing) to continue
-  });
+  // keep exactly one ${exportName === 'default' ? 'default' : `named "${exportName}"`} export:
+  ${exportName === 'default' ? 'export default withTrail(yourHandler);' : `export const ${exportName} = withTrail(yourHandler);`}
 
-Keep (or add) a matcher that includes /t/t.js and /t/e.`;
+Keep (or add) a matcher that includes /t/t.js, /t/t.x.js, /t/t.p.js and /t/e.`;
 
-export const pagesSnippet = (site: string, at: string) => `The Pages Router has no root layout. Add the script to ${at}pages/_app:
+export const matcherDynamicSnippet = (file: string) => `The matcher in ${file} is not a plain list, so init could not edit it. Add '/t/t.js', '/t/t.x.js', '/t/t.p.js' and '/t/e' to it yourself.`;
+
+export const narrowMatcher = (file: string, list: string) =>
+  `Your ${file} matcher only runs on ${list}. Trail added its script paths, but AI crawlers are only captured on matching pages. To capture them everywhere, add '/((?!_next/static|_next/image|.*\\.(?:css|png|jpg|svg|ico|woff2?)$).*)' to the matcher and keep your own logic behind a path check, e.g. if (!request.nextUrl.pathname.startsWith('/docs')) return NextResponse.next();`;
+
+export const pagesSnippet = (site: string, at: string, src?: string, api?: string) => `The Pages Router has no root layout. Add the script to ${at}pages/_app:
 
   import { Analytics } from 'trail-analytics/react';
   // inside the returned JSX, next to <Component {...pageProps} />:
-  ${analyticsTag(site)}`;
+  ${analyticsTag(site, src, api)}`;
 
-export const layoutSnippet = (site: string, file: string) => `Add the script to ${file} yourself (init needs exactly one </body>):
+export const layoutSnippet = (site: string, file: string, src?: string, api?: string) => `Add the script to ${file} yourself (init needs exactly one </body>):
 
   import { Analytics } from 'trail-analytics/next';
   // just before </body>:
-  ${analyticsTag(site)}`;
+  ${analyticsTag(site, src, api)}`;
 
 export const astroSnippet = (site: string) => `Add the integration to your Astro config:
 
@@ -75,3 +79,9 @@ export const GENERIC = `This framework is not supported by init yet. Report AI c
 
 Then set TRAIL_URL, TRAIL_SITE and TRAIL_CRAWL_TOKEN in the server environment, and load the script with
 <script defer src="/t/t.js" data-site="SITE_ID" data-api="/t/e"></script>`;
+
+export const STATIC_EXPORT_WARNING =
+  'Static export: no proxy runs, so AI crawlers are not captured and the script loads from your Trail server directly.';
+
+export const UNKNOWN_NEXT_WARNING =
+  'Could not tell the Next.js version; wrote middleware.ts (works on 15 and 16). On 16 you may rename it to proxy.ts.';

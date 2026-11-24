@@ -3,6 +3,8 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Project } from './detect';
 import type { Change } from './diff';
+import { wrapHook } from './hook';
+import { readNextConfig } from './nextconfig';
 import * as T from './templates';
 
 export interface PlanFs {
@@ -71,15 +73,17 @@ const usesSemi = (src: string) => {
   return m ? /;\s*$/.test(m[0]) : true;
 };
 
-function planLayout(fs: PlanFs, p: Project, o: PlanOptions, out: Plan) {
+interface TagPaths { src: string; api: string }
+
+function planLayout(fs: PlanFs, p: Project, o: PlanOptions, out: Plan, tp: TagPaths) {
   const at = p.srcDir ? 'src/' : '';
   if (p.router !== 'app') {
-    out.manual.push(T.pagesSnippet(o.site, at));
+    out.manual.push(T.pagesSnippet(o.site, at, tp.src, tp.api));
     return;
   }
   const file = firstExisting(fs, ['tsx', 'jsx', 'ts', 'js'].map((e) => `${at}app/layout.${e}`));
   if (!file) {
-    out.manual.push(T.layoutSnippet(o.site, `${at}app/layout`));
+    out.manual.push(T.layoutSnippet(o.site, `${at}app/layout`, tp.src, tp.api));
     return;
   }
   const before = fs.read(file)!;
@@ -89,21 +93,21 @@ function planLayout(fs: PlanFs, p: Project, o: PlanOptions, out: Plan) {
   if (hasImport && tag) {
     if (/\bsrc=/.test(tag[0]) && /\bapi=/.test(tag[0])) return;
     let t = tag[0].replace(/\s*\/>$/, '');
-    if (!/\bsrc=/.test(t)) t += ' src="/t/t.js"';
-    if (!/\bapi=/.test(t)) t += ' api="/t/e"';
+    if (!/\bsrc=/.test(t)) t += ` src="${tp.src}"`;
+    if (!/\bapi=/.test(t)) t += ` api="${tp.api}"`;
     out.changes.push({ path: file, before, after: before.replace(tag[0], t + ' />') });
     return;
   }
   const bodies = before.split('</body>').length - 1;
   if (bodies !== 1) {
-    out.manual.push(T.layoutSnippet(o.site, file));
+    out.manual.push(T.layoutSnippet(o.site, file, tp.src, tp.api));
     return;
   }
   let after = hasImport ? before : addImport(before, `import { Analytics } from 'trail-analytics/next'${usesSemi(before) ? ';' : ''}`, eol);
   const i = after.indexOf('</body>');
   const lineStart = after.lastIndexOf('\n', i - 1) + 1;
   const indent = after.slice(lineStart, i);
-  const tagText = T.analyticsTag(o.site);
+  const tagText = T.analyticsTag(o.site, tp.src, tp.api);
   after = /^[ \t]*$/.test(indent)
     ? after.slice(0, lineStart) + indent + '  ' + tagText + eol + after.slice(lineStart)
     : after.slice(0, i) + tagText + after.slice(i);
@@ -112,14 +116,32 @@ function planLayout(fs: PlanFs, p: Project, o: PlanOptions, out: Plan) {
 
 function planNext(fs: PlanFs, p: Project, o: PlanOptions, out: Plan) {
   const at = p.srcDir ? 'src/' : '';
-  if (p.hookFile) {
+  const cfg = readNextConfig(fs);
+  const staticExport = cfg.output === 'export';
+  const base = cfg.basePath ?? '';
+  const tp: TagPaths = staticExport
+    ? { src: `${o.url}/_t/t.js`, api: `${o.url}/_t/e` }
+    : { src: `${base}/t/t.js`, api: `${base}/t/e${cfg.trailingSlash ? '/' : ''}` };
+  if (staticExport) {
+    out.warnings.push(T.STATIC_EXPORT_WARNING);
+  } else if (p.hookFile) {
     const src = fs.read(p.hookFile) ?? '';
-    if (!src.includes('trail-analytics')) out.manual.push(T.withTrailSnippet(p.hookFile));
+    const name = /(?:^|\/)middleware\.[a-z]+$/.test(p.hookFile) ? 'middleware' : 'proxy';
+    const e = wrapHook(src, p.hookFile, name);
+    if (e.kind === 'manual') {
+      out.manual.push(`${e.reason}.\n\n${e.snippet}`);
+    } else {
+      if (e.after !== src) out.changes.push({ path: p.hookFile, before: src, after: e.after });
+      if (e.matcher.status === 'dynamic') out.manual.push(T.matcherDynamicSnippet(p.hookFile));
+      else if (e.matcher.status !== 'none' && e.matcher.narrow) out.manual.push(T.narrowMatcher(p.hookFile, (e.matcher.entries ?? []).join(', ')));
+    }
   } else {
-    const name: 'proxy' | 'middleware' = (p.nextMajor ?? 16) >= 16 ? 'proxy' : 'middleware';
+    const known = p.nextMajor !== undefined;
+    const name: 'proxy' | 'middleware' = known && p.nextMajor! >= 16 ? 'proxy' : 'middleware';
+    if (!known) out.warnings.push(T.UNKNOWN_NEXT_WARNING);
     out.changes.push({ path: `${at}${name}.${p.ext}`, before: null, after: T.nextHook(name, p.ext) });
   }
-  planLayout(fs, p, o, out);
+  planLayout(fs, p, o, out, tp);
   for (const d of ['app/t', 'src/app/t', 'pages/t', 'src/pages/t']) if (fs.isDir(d)) out.warnings.push(`${d} exists: requests to /t/t.js and /t/e are served by Trail; other /t/... paths still reach your routes.`);
 }
 
