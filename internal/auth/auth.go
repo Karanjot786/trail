@@ -67,21 +67,25 @@ func (a *Auth) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	key := clientKey(a.clientIP(r))
+	// One password check at a time, so parallel requests cannot multiply the
+	// rate. The lock is tested after taking the mutex, with a fresh clock, so a
+	// burst that queued while the client had no failures is still stopped.
+	a.lim.check.Lock()
 	now := a.now()
 	if retry, ok := a.lim.locked(key, now); !ok {
+		a.lim.check.Unlock()
 		w.Header().Set("Retry-After", strconv.Itoa(int(math.Ceil(retry.Seconds()))))
 		http.Error(w, "too many failed logins", http.StatusTooManyRequests)
 		return
 	}
-	// One password check at a time, so parallel requests cannot multiply the rate.
-	a.lim.check.Lock()
 	got := sha256.Sum256([]byte(body.Password))
 	if body.Password == "" || subtle.ConstantTimeCompare(got[:], a.pwHash[:]) != 1 {
 		a.lim.fail(key, now)
 		a.sleep(a.lim.delay(now))
+		_, ok := a.lim.locked(key, now)
 		a.lim.check.Unlock()
 		log.Printf("auth: failed login from %s", key)
-		if _, ok := a.lim.locked(key, now); !ok {
+		if !ok {
 			log.Printf("auth: login locked for %s for %s", key, failWindow)
 		}
 		http.Error(w, "unauthorized", http.StatusUnauthorized)

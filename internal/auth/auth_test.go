@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -183,5 +184,32 @@ func TestLoginGlobalSlowdownNeverLocks(t *testing.T) {
 	}
 	if w := loginFrom(a, goodPW, "198.51.100.200"); w.Code != http.StatusNoContent {
 		t.Fatalf("owner locked out: %d", w.Code)
+	}
+}
+
+func TestLoginLockHoldsUnderParallelBurst(t *testing.T) {
+	a := newAuth()
+	now := time.Unix(1_800_000_000, 0)
+	a.now = func() time.Time { return now }
+	a.sleep = func(time.Duration) { time.Sleep(time.Millisecond) } // lets the burst pile up on the check mutex
+	var mu sync.Mutex
+	counts := map[int]int{}
+	var wg sync.WaitGroup
+	for range 50 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			c := loginFrom(a, badPW, "203.0.113.9").Code
+			mu.Lock()
+			counts[c]++
+			mu.Unlock()
+		}()
+	}
+	wg.Wait()
+	if counts[http.StatusUnauthorized] > clientFails {
+		t.Fatalf("%d password checks got 401, want at most %d (counts %v)", counts[http.StatusUnauthorized], clientFails, counts)
+	}
+	if counts[http.StatusTooManyRequests] != 50-counts[http.StatusUnauthorized] {
+		t.Fatalf("unexpected codes %v", counts)
 	}
 }
