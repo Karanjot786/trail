@@ -1,17 +1,18 @@
 ---
-title: Web vitals, rage clicks, forms and errors
+title: Web vitals, rage clicks, forms, errors and hash routes
 description: Opt-in extras that load a small second file only when you ask for them.
 ---
 
-# Web vitals, rage clicks, forms and errors
+# Web vitals, rage clicks, forms, errors and hash routes
 
-Four features live in `t.x.js`, a separate file the tracker loads from the same folder only when the tag asks for one of them. Sites that do not use them never download it. It is 740 bytes gzipped.
+Five features live in `t.x.js`, a separate file the tracker loads from the same folder only when the tag asks for one of them. Sites that do not use them never download it. It is 888 bytes gzipped.
 
 | Attribute | Records |
 |---|---|
 | `data-vitals` | Largest Contentful Paint, Cumulative Layout Shift and Interaction to Next Paint, sent once when the page is hidden |
 | `data-rage` | A `rage_click` event when someone clicks three times within a second in nearly the same spot |
 | `data-forms` | A `form` event on each submit, named by the form's `id` or `name`. Field values are never read |
+| `data-hash` | A pageview on each change of a hash route (`#/x`, `#!/x`) when the path stays the same. See [Hash routers](/add/script-tag#hash-routers) |
 | `data-errors` | Uncaught errors and unhandled promise rejections, up to 5 distinct messages per page load, cut to 200 characters |
 
 ```html

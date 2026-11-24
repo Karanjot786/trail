@@ -59,7 +59,7 @@ Testing on `localhost`? Add `data-dev` to the tag. Those visits are tagged `deve
 Open any page of your site. The dashboard checks every 2 seconds and moves on by itself as soon as the first event arrives.
 
 - **Send a test visit** opens your site in a new tab.
-- If nothing arrives after 30 seconds, the [install checks](/operations/troubleshooting) open: six checks run from your server against your live site, each with a reason code and the fix.
+- If nothing arrives after 30 seconds, the [install checks](/operations/troubleshooting) open: the checks run from your server against your live site, each with a reason code and the fix. Warnings and **Blocked** are explained in [the install check](/operations/troubleshooting#the-install-check).
 - An ad blocker in your own browser can hide your visit. Try another browser before you change anything.
 
 ## Done

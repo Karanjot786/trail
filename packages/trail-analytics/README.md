@@ -71,7 +71,7 @@ track('signup_clicked', { plan: 'pro' });
 <Analytics site="mysite" mode="private" /> // loads /_t/t.p.js
 ```
 
-`t.p.js` is 1.5 KB gzipped (1,490 B), much smaller than the full `t.js`. An explicit `src` always wins over the mode default.
+`t.p.js` is 1.5 KB gzipped (1,532 B), much smaller than the full `t.js`. An explicit `src` always wins over the mode default.
 
 ## Extras
 
