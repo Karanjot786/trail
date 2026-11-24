@@ -73,7 +73,7 @@ var (
 		"pageview": true, "engage": true, "event": true, "identify": true,
 		"error": true, "outbound": true, "form": true, "vital": true,
 	}
-	// Anon ids go into Set-Cookie, so keep them to a cookie-safe charset.
+	// Anon ids are stored and shown in reports, so keep them to a plain charset.
 	reID = regexp.MustCompile(`^[A-Za-z0-9_-]{1,64}$`)
 )
 
@@ -271,15 +271,13 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Private events get a server-side identity. One request has one IP and
 	// UA, so Identify runs once; the IP is used only for this hash.
-	var anon, sess, cookie string
+	var anon, sess string
 	for i := range evs {
 		if ps[i].M == "p" {
 			if anon == "" {
 				anon, sess = h.priv.Identify(ps[i].S, res.IP, r.UserAgent())
 			}
 			evs[i].AnonID, evs[i].SessionID, evs[i].UserID = anon, sess, ""
-		} else if cookie == "" {
-			cookie = ps[i].A
 		}
 	}
 
@@ -292,11 +290,6 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Retry-After", "5")
 		http.Error(w, "busy", http.StatusServiceUnavailable)
 		return
-	}
-	if cookie != "" {
-		http.SetCookie(w, &http.Cookie{
-			Name: "_t_id", Value: cookie, Path: "/", MaxAge: 31536000, SameSite: http.SameSiteLaxMode,
-		})
 	}
 	w.Header().Set("X-Trail-Accepted", strconv.Itoa(len(evs)))
 	w.Header().Set("X-Trail-Rejected", strconv.Itoa(rejected))

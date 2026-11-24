@@ -103,8 +103,8 @@ func TestValidPageview(t *testing.T) {
 	if got := w.Header().Get("X-Trail-Accepted"); got != "1" {
 		t.Errorf("X-Trail-Accepted = %q, want 1", got)
 	}
-	if c := w.Header().Get("Set-Cookie"); !strings.Contains(c, "_t_id=anon-1") || !strings.Contains(c, "Max-Age=31536000") || !strings.Contains(c, "SameSite=Lax") {
-		t.Errorf("Set-Cookie = %q", c)
+	if c := w.Header().Get("Set-Cookie"); c != "" {
+		t.Errorf("Set-Cookie = %q, want none", c)
 	}
 	if got := w.Header().Get("Access-Control-Allow-Origin"); got != "https://example.com" {
 		t.Errorf("ACAO = %q, want the request origin", got)
@@ -513,7 +513,7 @@ func TestFullModeUnchanged(t *testing.T) {
 	st, h := setup(t)
 	full := strings.Replace(pageview, `{`, `{"m":"f",`, 1)
 	w := post(h, full)
-	if w.Code != http.StatusNoContent || !strings.Contains(w.Header().Get("Set-Cookie"), "_t_id=anon-1") {
+	if w.Code != http.StatusNoContent || w.Header().Get("Set-Cookie") != "" {
 		t.Errorf("full: %d, Set-Cookie %q", w.Code, w.Header().Get("Set-Cookie"))
 	}
 	if w := post(h, strings.Replace(full, `"anon-1"`, `""`, 1)); w.Code != http.StatusBadRequest {
@@ -544,10 +544,10 @@ func TestModeRejects(t *testing.T) {
 	}
 }
 
-func TestMixedModeBatchCookieFromFullEvent(t *testing.T) {
+func TestMixedModeBatchSetsNoCookie(t *testing.T) {
 	_, h := setup(t)
 	w := post(h, "["+privatePV+","+pageview+"]")
-	if w.Code != http.StatusNoContent || !strings.Contains(w.Header().Get("Set-Cookie"), "_t_id=anon-1") {
+	if w.Code != http.StatusNoContent || w.Header().Get("Set-Cookie") != "" {
 		t.Errorf("%d, Set-Cookie %q", w.Code, w.Header().Get("Set-Cookie"))
 	}
 }
@@ -661,5 +661,17 @@ func TestBatchAllWrongType400(t *testing.T) {
 	bad := `{"s":"s1","t":"pageview","a":"a","e":"x","u":"https://example.com/"}`
 	if w := post(h, "["+bad+","+bad+"]"); w.Code != http.StatusBadRequest {
 		t.Fatalf("status %d, want 400", w.Code)
+	}
+}
+
+// An in-flight response must not restore an id after reset() or consent(false).
+func TestNoCookieAfterReset(t *testing.T) {
+	_, h := setup(t)
+	w := post(h, strings.Replace(pageview, `"anon-1"`, `"anon-old"`, 1))
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("status %d", w.Code)
+	}
+	if c := w.Header().Get("Set-Cookie"); c != "" {
+		t.Errorf("Set-Cookie = %q, want none", c)
 	}
 }
