@@ -13,10 +13,9 @@ declare const MODE: string;
   const D = s.dataset;
   const site = D.site;
   const api = D.api || '/_t/e';
-  // skip: no site, prerender, localhost unless data-dev, Do Not Track / GPC unless data-dnt="off"
+  // skip: no site, localhost unless data-dev, Do Not Track / GPC unless data-dnt="off"
   if (
     !site ||
-    (d as any).prerendering ||
     (D.dev == null && /^(localhost|127\.|\[::1\])/.test(l.hostname)) ||
     (D.dnt != 'off' && (n.doNotTrack == '1' || n.globalPrivacyControl))
   )
@@ -231,5 +230,5 @@ declare const MODE: string;
     d.head.append(x);
   }
 
-  page();
+  (d as any).prerendering ? ((d as any).onprerenderingchange = () => page()) : page(); // arrow: page(event) would store the Event as route
 })(window, document, location, history, navigator);

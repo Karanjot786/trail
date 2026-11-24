@@ -726,3 +726,19 @@ test.describe('modes and consent', () => {
     expect(await writes(page)).toEqual([]);
   });
 });
+
+test('prerender: no pageview until activation, then exactly one', async ({ page }) => {
+  const c = await capture(page);
+  await page.goto('/prerender.html');
+  await page.waitForTimeout(300);
+  expect(c.of('pageview')).toHaveLength(0);
+  await page.evaluate(() => {
+    (window as any).__pr = false;
+    document.dispatchEvent(new Event('prerenderingchange'));
+  });
+  await expect.poll(() => c.of('pageview').length).toBe(1);
+  await page.waitForTimeout(200);
+  expect(c.of('pageview')).toHaveLength(1);
+  expect(c.of('pageview')[0].rt).toBeUndefined();
+  expect(c.of('pageview')[0].r).toBe(await page.evaluate(() => document.referrer));
+});
