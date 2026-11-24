@@ -50,15 +50,17 @@ export function Banners() {
 
   // `stale` is computed from the clock at render time; tick so it flips without other activity.
   const [, tick] = useState(0)
-  const hasData = stats.updatedAt != null
+  // Settings and welcome show no numbers and fetch no stats, so no stats notice belongs there.
+  const noStats = s.screen === 'settings' || s.screen === 'welcome'
+  const hasData = stats.updatedAt != null && !noStats
   useEffect(() => {
     if (!hasData) return
     const id = window.setInterval(() => tick((n) => n + 1), 30_000)
     return () => window.clearInterval(id)
   }, [hasData])
 
-  const failed = stats.error != null && stats.data != null && online
-  const stale = stats.stale && !failed && online
+  const failed = !noStats && stats.error != null && stats.data != null && online
+  const stale = !noStats && stats.stale && !failed && online
   useEffect(() => {
     document.documentElement.classList.toggle('is-stale', failed)
   }, [failed])
@@ -80,7 +82,7 @@ export function Banners() {
       <div key="off" className="notice" data-tone="warn" role="status">
         <WifiOff size={14} aria-hidden="true" />
         <span>
-          <b>You are offline.</b> Live is paused{stats.updatedAt ? ` and the numbers below are from ${hhmm(stats.updatedAt, tz)}` : ''}. Trail reconnects by itself.
+          <b>You are offline.</b> Live is paused{stats.updatedAt && !noStats ? ` and the numbers below are from ${hhmm(stats.updatedAt, tz)}` : ''}. Trail reconnects by itself.
         </span>
         <span className="spacer" />
         <Button size="sm" onClick={() => stats.refetch()}>

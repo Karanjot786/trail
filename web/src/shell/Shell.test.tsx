@@ -9,7 +9,7 @@ vi.mock('../api/client', async (orig) => {
 })
 
 import { App } from '../App'
-import { startRouter, current } from './router'
+import { startRouter, current, go } from './router'
 import { invalidate, STALE_AFTER_MS } from '../api/useQuery'
 import { resetGone } from './Banners'
 import { resetUi } from './uiStore'
@@ -186,6 +186,31 @@ describe('Shell', () => {
         vi.advanceTimersByTime(STALE_AFTER_MS + 31_000)
       })
       expect(screen.getByText(/more than 10 minutes old/)).toBeTruthy()
+    } finally {
+      hidden.mockRestore()
+      vi.useRealTimers()
+    }
+  })
+
+  it('Settings shows no stale banner and fires no stats request after 10 minutes', async () => {
+    vi.mocked(api.stats).mockReset()
+    vi.mocked(api.stats).mockImplementationOnce(async () => baseStats())
+    vi.mocked(api.stats).mockImplementation(() => new Promise(() => {}))
+    const hidden = vi.spyOn(document, 'hidden', 'get').mockReturnValue(true)
+    vi.useFakeTimers({ toFake: ['Date', 'setInterval', 'clearInterval'] })
+    try {
+      visit('/?site=demo')
+      render(<App />)
+      await flush()
+      expect(api.stats).toHaveBeenCalledTimes(1)
+      act(() => go('/settings/sites?site=demo'))
+      await flush()
+      act(() => {
+        vi.advanceTimersByTime(STALE_AFTER_MS + 61_000)
+      })
+      expect(screen.queryByText(/more than 10 minutes old/)).toBeNull()
+      expect(screen.queryByText(/Refresh failed/)).toBeNull()
+      expect(api.stats).toHaveBeenCalledTimes(1)
     } finally {
       hidden.mockRestore()
       vi.useRealTimers()
