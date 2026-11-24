@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"fmt"
 	"net/url"
-	"regexp"
 	"strings"
 	"time"
 
@@ -15,17 +14,16 @@ import (
 // retriesHigh is the share of retried events (last 24 h) above which delivery warns.
 const retriesHigh = 0.05
 
-var (
-	scriptTag = regexp.MustCompile(`(?is)<script\b[^>]*>`)
-	attrRe    = regexp.MustCompile(`(?is)([a-z][a-z0-9_:-]*)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+))`)
-	trackerJS = regexp.MustCompile(`/_t/t(\.[a-z]+)?\.js(\?|$)`)
-)
-
 // Check runs the install checklist for site (plan §0.5 order: page, script,
 // csp, origin, first_event, delivery). trailHost is this server's host (as the
 // tracker's src must name it); fetch loads the site's home page.
 func Check(ctx context.Context, db *sql.DB, reg *sites.Registry, site sites.Site, trailHost string, fetch Fetcher) (InstallCheck, error) {
 	out := InstallCheck{CheckedAt: time.Now().UnixMilli(), Checks: make([]CheckItem, 0, 6)}
+	first, last, err := firstEvent(db, site.ID)
+	if err != nil {
+		return out, err
+	}
+	out.LastEventAt = last
 	page, err := fetch.Fetch(ctx, site.Domain)
 	if err == nil && page.Status >= 400 {
 		err = fmt.Errorf("https://%s/ answered %d", site.Domain, page.Status)
@@ -38,7 +36,7 @@ func Check(ctx context.Context, db *sql.DB, reg *sites.Registry, site sites.Site
 			item("csp", "Your security policy allows Trail", "pending", CodeFetchFailed, "Needs the page to load first.", ""))
 	} else {
 		out.Checks = append(out.Checks, item("page", "Your home page loads", "pass", CodeOK, fmt.Sprintf("https://%s/ answered %d.", site.Domain, page.Status), ""))
-		out.Checks = append(out.Checks, scriptCheck(string(page.Body), site, trailHost), cspCheck(page.Header.Get("Content-Security-Policy"), site, trailHost))
+		out.Checks = append(out.Checks, scriptCheck(findTracker(string(page.Body)), site, trailHost, last != nil), cspCheck(page.Header.Get("Content-Security-Policy"), site, trailHost))
 	}
 
 	if n := reg.Rejected24h(site.ID); n > 0 {
@@ -55,11 +53,6 @@ func Check(ctx context.Context, db *sql.DB, reg *sites.Registry, site sites.Site
 		out.Checks = append(out.Checks, item("origin", "Events come from an allowed address", "pass", CodeOK, "No events were refused for their origin.", ""))
 	}
 
-	first, last, err := firstEvent(db, site.ID)
-	if err != nil {
-		return out, err
-	}
-	out.LastEventAt = last
 	out.Checks = append(out.Checks, first)
 
 	del, err := delivery(db, site.ID, time.Now().Add(-24*time.Hour).UnixMilli())
@@ -112,52 +105,6 @@ func short(s string) string {
 		return s[:160] + "…"
 	}
 	return s
-}
-
-func attrs(tag string) map[string]string {
-	m := map[string]string{}
-	for _, a := range attrRe.FindAllStringSubmatch(tag, -1) {
-		m[strings.ToLower(a[1])] = a[2] + a[3] + a[4]
-	}
-	return m
-}
-
-const scriptLabel = "The Trail script is on the page"
-
-func scriptCheck(html string, site sites.Site, trailHost string) CheckItem {
-	snippet := fmt.Sprintf(`<script defer src="https://%s/_t/t.js" data-site="%s"></script>`, trailHost, site.ID)
-	var found []map[string]string
-	for _, tag := range scriptTag.FindAllString(html, -1) {
-		a := attrs(tag)
-		if trackerJS.MatchString(a["src"]) {
-			found = append(found, a)
-		}
-	}
-	if len(found) == 0 {
-		return item("script", scriptLabel, "fail", CodeScriptMissing, "No Trail script tag on the home page.",
-			"Add this to the page's <head>: "+snippet)
-	}
-	a := found[0]
-	if a["data-site"] != site.ID {
-		return item("script", scriptLabel, "fail", CodeWrongSiteID,
-			fmt.Sprintf("The script says data-site=%q, but this site's id is %q.", a["data-site"], site.ID),
-			`Set data-site="`+site.ID+`".`)
-	}
-	if u, err := url.Parse(a["src"]); err == nil && u.Host != "" && !sameHost(u.Host, trailHost) {
-		return item("script", scriptLabel, "fail", CodeWrongHost,
-			fmt.Sprintf("The script loads from %s, not from this Trail (%s).", u.Host, trailHost), "Use: "+snippet)
-	}
-	return item("script", scriptLabel, "pass", CodeOK, "Found the Trail script with the right site id.", "")
-}
-
-func sameHost(a, b string) bool {
-	strip := func(h string) string {
-		if i := strings.LastIndexByte(h, ':'); i > 0 && !strings.HasSuffix(h, "]") {
-			h = h[:i]
-		}
-		return strings.ToLower(h)
-	}
-	return strip(a) == strip(b)
 }
 
 const cspLabel = "Your security policy allows Trail"

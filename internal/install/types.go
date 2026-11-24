@@ -19,6 +19,7 @@ const (
 	CodeEventsPreviewOnly ReasonCode = "events_preview_only"
 	CodeBotFiltered       ReasonCode = "bot_filtered"
 	CodeRetriesHigh       ReasonCode = "retries_high"
+	CodeAPIMissing        ReasonCode = "api_missing"
 )
 
 // CheckItem is one line of the install checklist.

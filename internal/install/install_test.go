@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/netip"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -28,7 +29,7 @@ func html(tag string) Page {
 	return Page{Status: 200, Header: http.Header{}, Body: []byte("<html><head>" + tag + "</head></html>")}
 }
 
-const goodTag = `<script defer src="https://trail.example.net/_t/t.js" data-site="s"></script>`
+const goodTag = `<script defer src="https://trail.example.net/_t/t.js" data-site="s" data-api="https://trail.example.net/_t/e"></script>`
 
 func TestCheckReasonCodes(t *testing.T) {
 	now := time.Now().UnixMilli()
@@ -51,9 +52,9 @@ func TestCheckReasonCodes(t *testing.T) {
 	}{
 		{"fetch failed", fakeFetch{err: errors.New("dial: no such host")}, nil, false, "page", CodeFetchFailed, "blocked"},
 		{"404 home", fakeFetch{page: Page{Status: 404, Header: http.Header{}}}, nil, false, "page", CodeFetchFailed, "blocked"},
-		{"script missing", fakeFetch{page: html("")}, nil, false, "script", CodeScriptMissing, "blocked"},
+		{"script missing", fakeFetch{page: html("")}, nil, false, "script", CodeScriptMissing, "waiting"},
 		{"wrong site id", fakeFetch{page: html(`<script src="https://trail.example.net/_t/t.js" data-site="docs">`)}, nil, false, "script", CodeWrongSiteID, "blocked"},
-		{"wrong host", fakeFetch{page: html(`<SCRIPT data-site='s' src='https://old.example.org/_t/t.js'>`)}, nil, false, "script", CodeWrongHost, "blocked"},
+		{"wrong host", fakeFetch{page: html(`<SCRIPT data-site='s' data-api='https://old.example.org/_t/e' src='https://old.example.org/_t/t.js'>`)}, nil, false, "script", CodeWrongHost, "blocked"},
 		{"csp blocked", fakeFetch{page: csp("default-src 'self'; script-src 'self' https://cdn.example.com")}, nil, false, "csp", CodeCSPBlocked, "blocked"},
 		{"csp ok", fakeFetch{page: csp("script-src 'self' https://trail.example.net; connect-src *.example.net")}, nil, false, "csp", CodeOK, "waiting"},
 		{"origin", fakeFetch{page: html(goodTag)}, nil, true, "origin", CodeOriginNotAllowed, "blocked"},
@@ -231,5 +232,65 @@ func TestCheckOriginFixNamesVercelScope(t *testing.T) {
 		if it.ID == "origin" && !strings.Contains(it.Fix, "*-acme.vercel.app") {
 			t.Errorf("fix %q", it.Fix)
 		}
+	}
+}
+
+func TestFindTrackerAndScriptCheck(t *testing.T) {
+	next, err := os.ReadFile("testdata/next-rsc.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	astro, err := os.ReadFile("testdata/astro-inline.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	site := func(id string) sites.Site { return sites.Site{ID: id, Domain: "agentskills.in"} }
+	for _, c := range []struct {
+		name, html, id string
+		received       bool
+		status         string
+		code           ReasonCode
+	}{
+		{"next rsc", string(next), "agent-skills", false, "pass", CodeOK},
+		{"astro inline", string(astro), "blog", false, "pass", CodeOK},
+		{"proxy path tag", `<script defer src="/t/t.js" data-site="agent-skills" data-api="/t/e">`, "agent-skills", false, "pass", CodeOK},
+		{"own www absolute", `<script src="https://www.agentskills.in/t/t.js" data-site="agent-skills" data-api="/t/e">`, "agent-skills", false, "pass", CodeOK},
+		{"fathom ignored", `<script src="https://cdn.usefathom.com/script.js" data-site="ABCDEF">`, "agent-skills", false, "warn", CodeScriptMissing},
+		{"none, events arrive", ``, "agent-skills", true, "pass", CodeOK},
+		{"none, no events", ``, "agent-skills", false, "warn", CodeScriptMissing},
+		{"trail host, no api", `<script src="https://trail.example.net/_t/t.js" data-site="agent-skills">`, "agent-skills", false, "fail", CodeAPIMissing},
+		{"other trail", `<script src="https://old.example.org/_t/t.js" data-site="agent-skills" data-api="https://old.example.org/_t/e">`, "agent-skills", false, "fail", CodeWrongHost},
+		{"next rsc wrong site", string(next), "other", false, "fail", CodeWrongSiteID},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			got := scriptCheck(findTracker(c.html), site(c.id), "trail.example.net", c.received)
+			if got.Status != c.status || got.Code != c.code {
+				t.Fatalf("got %s/%s (%s)", got.Status, got.Code, got.Detail)
+			}
+		})
+	}
+	if fix := scriptCheck(findTracker(""), site("x"), "trail.example.net", false).Fix; !strings.Contains(fix, `data-api="https://trail.example.net/_t/e"`) {
+		t.Errorf("snippet lacks data-api: %s", fix)
+	}
+}
+
+func TestFindTrackerVia(t *testing.T) {
+	next, _ := os.ReadFile("testdata/next-rsc.html")
+	astro, _ := os.ReadFile("testdata/astro-inline.html")
+	for html, want := range map[string]string{
+		`<script src="/_t/t.js" data-site="s" nonce="abc">`: "tag",
+		string(next):     "next",
+		string(astro):    "astro",
+		`<p>nothing</p>`: "",
+	} {
+		if got := findTracker(html).Via; got != want {
+			t.Errorf("Via %q, want %q", got, want)
+		}
+	}
+	if got := findTracker(`<script src="/_t/t.js" data-site="s" nonce="abc">`).Nonce; got != "abc" {
+		t.Errorf("nonce %q", got)
+	}
+	if got := findTracker(string(astro)); got.Site != "blog" || got.Src != "/t/t.js" || got.API != "/t/e" {
+		t.Errorf("astro %+v", got)
 	}
 }
