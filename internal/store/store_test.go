@@ -237,3 +237,27 @@ func TestEventAgentRoundTrip(t *testing.T) {
 		t.Errorf("got agent=%q via=%q geo_src=%q is_bot=%d", agent, via, geoSrc, bot)
 	}
 }
+
+func TestEnqueueBatchAllOrNothing(t *testing.T) {
+	s := openTest(t)
+	for range queueCap - 1 {
+		if !s.Enqueue(ev("pageview")) {
+			t.Fatal("enqueue refused before the queue was full")
+		}
+	}
+	if s.EnqueueBatch([]Event{ev("pageview"), ev("pageview")}) {
+		t.Fatal("a batch that does not fit must be refused whole")
+	}
+	if got := s.Dropped(); got != 2 {
+		t.Fatalf("Dropped()=%d, want 2", got)
+	}
+	if !s.EnqueueBatch([]Event{ev("pageview")}) {
+		t.Fatal("a batch of 1 fits the last slot")
+	}
+	if err := s.Flush(); err != nil {
+		t.Fatal(err)
+	}
+	if n := count(t, s, "SELECT count(*) FROM events"); n != queueCap {
+		t.Fatalf("got %d rows, want %d", n, queueCap)
+	}
+}

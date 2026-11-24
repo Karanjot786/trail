@@ -45,6 +45,7 @@ type Store struct {
 	queue   chan Event
 	kick    chan struct{}
 	mu      sync.Mutex // serialises Flush and guards closed
+	qmu     sync.Mutex // serialises producers so a batch is admitted whole
 	closed  bool
 	dropped atomic.Int64
 	every   time.Duration // the timer flush interval (flushEvery; tests raise it)
@@ -152,20 +153,33 @@ func (s *Store) DB() *sql.DB { return s.db }
 // Dropped reports how many events were discarded because the queue was full.
 func (s *Store) Dropped() int64 { return s.dropped.Load() }
 
-// Enqueue queues e for the next flush. It never blocks: a full queue drops the event.
-func (s *Store) Enqueue(e Event) {
-	select {
-	case s.queue <- e:
-	default:
-		s.dropped.Add(1)
-		return
+// Enqueue queues e for the next flush. It never blocks: a full queue refuses
+// the event and reports false.
+func (s *Store) Enqueue(e Event) bool { return s.EnqueueBatch([]Event{e}) }
+
+// EnqueueBatch queues all of evs or none. It never blocks. On refusal it counts
+// len(evs) as dropped and returns false, so the caller can tell the client to retry
+// without a half-stored batch being duplicated.
+func (s *Store) EnqueueBatch(evs []Event) bool {
+	s.qmu.Lock()
+	// Only Flush receives from the queue, so free space can only grow while qmu is held.
+	if cap(s.queue)-len(s.queue) < len(evs) {
+		s.qmu.Unlock()
+		s.dropped.Add(int64(len(evs)))
+		return false
 	}
-	if len(s.queue) >= batchSize {
+	for _, e := range evs {
+		s.queue <- e
+	}
+	full := len(s.queue) >= batchSize
+	s.qmu.Unlock()
+	if full {
 		select {
 		case s.kick <- struct{}{}:
 		default:
 		}
 	}
+	return true
 }
 
 // Start runs the background writer: it flushes every second, or as soon as

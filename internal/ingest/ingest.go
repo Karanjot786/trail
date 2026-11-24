@@ -288,8 +288,10 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			evs[i].Agent, evs[i].AgentVia, evs[i].IsBot = ag.ID, string(ag.Via), true
 		}
 	}
-	for _, e := range evs {
-		h.st.Enqueue(e)
+	if !h.st.EnqueueBatch(evs) {
+		w.Header().Set("Retry-After", "5")
+		http.Error(w, "busy", http.StatusServiceUnavailable)
+		return
 	}
 	if cookie != "" {
 		http.SetCookie(w, &http.Cookie{

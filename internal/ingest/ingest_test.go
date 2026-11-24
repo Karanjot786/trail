@@ -617,3 +617,23 @@ func TestGeoIgnoresSpoofedXFF(t *testing.T) {
 		t.Errorf("countries = %q, want [\"\" \"IN\"] (spoofed, then via proxy)", got)
 	}
 }
+
+func TestQueueFull503(t *testing.T) {
+	st, h := setup(t)
+	for range 10000 {
+		st.Enqueue(store.Event{SiteID: "s1", Type: "pageview", AnonID: "a", SessionID: "s", Path: "/"})
+	}
+	w := post(h, pageview)
+	if w.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status %d, want 503", w.Code)
+	}
+	if w.Header().Get("Retry-After") == "" {
+		t.Error("missing Retry-After")
+	}
+	if got := w.Header().Get("Access-Control-Allow-Origin"); got != "https://example.com" {
+		t.Errorf("ACAO %q, want the request origin", got)
+	}
+	if n := rows(t, st); n != 10000 {
+		t.Fatalf("rows=%d, want 10000", n)
+	}
+}
