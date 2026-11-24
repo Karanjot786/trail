@@ -44,8 +44,8 @@ export function DropoffSheet() {
   const q = apiQuery(s, tz)
   const key = sheet ? `${sheet.funnel}:${sheet.step}` : ''
   const share = s.prefix.startsWith('/share/')
-  const rep = useQuery(`f4|funnel:${sheet?.funnel}|${q}|${s.prefix}`, (sig) => api.funnelReport(q, sheet!.funnel, sig), { enabled: !!sheet })
-  const list = useQuery(`f4|dropoff:${key}|${q}|${s.prefix}`, (sig) => api.funnelDropoff(q, sheet!.funnel, sheet!.step, { limit: 1000 }, sig), { enabled: !!sheet })
+  const rep = useQuery(`f4|funnel:${sheet?.funnel}|${q}|${s.prefix}`, (sig) => api.funnelReport(q, sheet!.funnel, sig), { enabled: !!sheet, keepPrevious: false })
+  const list = useQuery(`f4|dropoff:${key}|${q}|${s.prefix}`, (sig) => api.funnelDropoff(q, sheet!.funnel, sheet!.step, { limit: 1000 }, sig), { enabled: !!sheet, keepPrevious: false })
 
   const stale = rep.error && 'status' in rep.error && (rep.error as { status: number }).status === 404
   const r = rep.data

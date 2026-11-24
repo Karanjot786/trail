@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, render } from '@testing-library/react'
-import { invalidate, onGone, onUnauthorized, useQuery, type QueryResult } from './useQuery'
+import { CACHE_MAX, invalidate, onGone, onUnauthorized, useQuery, type QueryOpts, type QueryResult } from './useQuery'
+import { navigate } from '../state/useUrlState'
 import { Gone, Unauthorized } from './client'
 
 afterEach(() => {
@@ -11,8 +12,8 @@ beforeEach(() => invalidate())
 
 const flush = () => act(() => new Promise((r) => setTimeout(r, 0)))
 
-function Probe<T>({ k, fn, poll, out }: { k: string; fn: (s: AbortSignal) => Promise<T>; poll?: number; out: { r?: QueryResult<T> } }) {
-  out.r = useQuery(k, fn, { pollMs: poll })
+function Probe<T>({ k, fn, poll, out, opts }: { k: string; fn: (s: AbortSignal) => Promise<T>; poll?: number; out: { r?: QueryResult<T> }; opts?: QueryOpts }) {
+  out.r = useQuery(k, fn, { pollMs: poll, ...opts })
   return null
 }
 
@@ -109,5 +110,56 @@ describe('useQuery', () => {
     expect(g).toHaveBeenCalled()
     off1()
     off2()
+  })
+
+  it("does not show the previous site's data after a site switch", async () => {
+    history.replaceState(null, '', '/?site=a')
+    const out: { r?: QueryResult<string> } = {}
+    const r = render(<Probe k="k|a" fn={async () => 'A'} out={out} />)
+    await flush()
+    expect(out.r!.data).toBe('A')
+    act(() => {
+      navigate({ site: 'b' })
+      r.rerender(<Probe k="k|b" fn={() => new Promise<string>(() => {})} out={out} />)
+    })
+    expect(out.r!.data).toBeUndefined()
+    expect(out.r!.loading).toBe(true)
+  })
+
+  it("an error on a new key does not fall back to the previous key's data", async () => {
+    history.replaceState(null, '', '/?site=a')
+    const out: { r?: QueryResult<string> } = {}
+    const r = render(<Probe k="x" fn={async () => 'X'} out={out} />)
+    await flush()
+    r.rerender(<Probe k="y" fn={async () => Promise.reject(new Error('boom'))} out={out} />)
+    await flush()
+    expect(out.r!.data).toBeUndefined()
+    expect(out.r!.error?.message).toBe('boom')
+  })
+
+  it("keepPrevious:false drops the previous key's data while loading", async () => {
+    history.replaceState(null, '', '/?site=a')
+    const out: { r?: QueryResult<string> } = {}
+    const r = render(<Probe k="a" fn={async () => 'A'} out={out} opts={{ keepPrevious: false }} />)
+    await flush()
+    r.rerender(<Probe k="b" fn={() => new Promise<string>(() => {})} out={out} opts={{ keepPrevious: false }} />)
+    expect(out.r!.data).toBeUndefined()
+    expect(out.r!.loading).toBe(true)
+  })
+
+  it('evicts the oldest entries beyond CACHE_MAX', async () => {
+    const fn = vi.fn(async () => 1)
+    for (let i = 0; i <= CACHE_MAX; i++) {
+      const u = render(<Probe k={`ev${i}`} fn={fn} out={{}} />)
+      await flush()
+      u.unmount()
+    }
+    expect(fn).toHaveBeenCalledTimes(CACHE_MAX + 1)
+    render(<Probe k="ev0" fn={fn} out={{}} />)
+    await flush()
+    expect(fn).toHaveBeenCalledTimes(CACHE_MAX + 2)
+    render(<Probe k={`ev${CACHE_MAX}`} fn={fn} out={{}} />)
+    await flush()
+    expect(fn).toHaveBeenCalledTimes(CACHE_MAX + 2)
   })
 })

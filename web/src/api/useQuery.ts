@@ -3,12 +3,15 @@
 // `stale` (data older than 10 minutes), and the two app-wide signals: Unauthorized → login gate, Gone → share banner.
 import { useCallback, useEffect, useReducer, useRef } from 'react'
 import { Gone, Unauthorized } from './client'
+import { useUrlState } from '../state/useUrlState'
 
 export interface QueryOpts {
   staleMs?: number
   pollMs?: number
   /** false skips fetching (the hook returns the cached value, if any). */
   enabled?: boolean
+  /** Keep the previous key's data on screen while a new key loads (default true; never across a site switch). */
+  keepPrevious?: boolean
 }
 export interface QueryResult<T> {
   data: T | undefined
@@ -26,6 +29,13 @@ interface Entry {
   error: Error | null
 }
 const cache = new Map<string, Entry>()
+/** The cache holds at most this many keys; the least recently set go first. */
+export const CACHE_MAX = 300
+function setCache(key: string, e: Entry): void {
+  cache.delete(key)
+  cache.set(key, e)
+  while (cache.size > CACHE_MAX) cache.delete(cache.keys().next().value as string)
+}
 // One request per key at a time: a second hook with the same key joins the request in flight.
 const inflight = new Map<string, { p: Promise<unknown>; users: number; ctl: AbortController }>()
 export const STALE_AFTER_MS = 10 * 60_000
@@ -57,14 +67,17 @@ const mounted = new Set<(prefix: string) => void>()
 const online = () => (typeof navigator === 'undefined' ? true : navigator.onLine !== false)
 
 export function useQuery<T>(key: string, fn: (signal: AbortSignal) => Promise<T>, opts: QueryOpts = {}): QueryResult<T> {
-  const { staleMs = 30_000, pollMs, enabled = true } = opts
+  const { staleMs = 30_000, pollMs, enabled = true, keepPrevious = true } = opts
+  const { site, prefix } = useUrlState()
   const [, rerender] = useReducer((n: number) => n + 1, 0)
   const fnRef = useRef(fn)
   fnRef.current = fn
   const ctl = useRef<AbortController | null>(null)
   const loading = useRef(false)
   // The last data this hook showed, so a new key keeps the previous numbers on screen while it loads.
-  const shown = useRef<{ data?: unknown; at: number | null }>({ at: null })
+  const shown = useRef<{ data?: unknown; at: number | null; scope: string }>({ at: null, scope: '' })
+  // Previous data is only ever shown within the same site (and share link).
+  const scope = `${prefix}|${site}`
 
   const run = useCallback(() => {
     ctl.current?.abort()
@@ -80,13 +93,13 @@ export function useQuery<T>(key: string, fn: (signal: AbortSignal) => Promise<T>
       p.then(
         (data) => {
           if (c.signal.aborted) return
-          cache.set(key, { data, at: Date.now(), error: null })
+          setCache(key, { data, at: Date.now(), error: null })
         },
         (e: unknown) => {
           if (c.signal.aborted) return
           const err = e instanceof Error ? e : new Error(String(e))
           const prev = cache.get(key)
-          cache.set(key, { data: prev?.data, at: prev?.at ?? 0, error: err })
+          setCache(key, { data: prev?.data, at: prev?.at ?? 0, error: err })
           reportError(err)
         },
       ).finally(() => {
@@ -169,9 +182,10 @@ export function useQuery<T>(key: string, fn: (signal: AbortSignal) => Promise<T>
   }, [enabled, pollMs, run])
 
   const entry = cache.get(key)
-  if (entry && entry.data !== undefined) shown.current = { data: entry.data, at: entry.at }
-  const data = (entry?.data ?? shown.current.data) as T | undefined
-  const at = entry?.data !== undefined ? entry.at : shown.current.at
+  if (entry && entry.data !== undefined) shown.current = { data: entry.data, at: entry.at, scope }
+  const prevOk = keepPrevious && shown.current.scope === scope && !entry?.error
+  const data = (entry?.data ?? (prevOk ? shown.current.data : undefined)) as T | undefined
+  const at = entry?.data !== undefined ? entry.at : prevOk ? shown.current.at : null
   return {
     data,
     error: entry?.error ?? null,

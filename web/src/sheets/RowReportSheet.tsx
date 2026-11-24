@@ -66,9 +66,9 @@ function RowReport({ dim, rowKey }: { dim: Dim; rowKey: string }) {
   const filters = toggleFilter(s.filters.filter((f) => !(f.dim === dim && f.value === rowKey)), dim, rowKey)
   const rq = apiQuery({ ...s, filters }, viewerTz())
   const key = `${rq}|${s.prefix}`
-  const stats = useQuery<Stats>(`stats|${key}`, async (sig) => api.stats(rq, sig))
-  const series = useQuery<Series>(`series|visitors|${key}`, async (sig) => api.series(rq, 'visitors', true, sig))
-  const people = useQuery(`visitors4|${key}`, async (sig) => api.visitors(rq, { limit: 4 }, sig))
+  const stats = useQuery<Stats>(`stats|${key}`, async (sig) => api.stats(rq, sig), { keepPrevious: false })
+  const series = useQuery<Series>(`series|visitors|${key}`, async (sig) => api.series(rq, 'visitors', true, sig), { keepPrevious: false })
+  const people = useQuery(`visitors4|${key}`, async (sig) => api.visitors(rq, { limit: 4 }, sig), { keepPrevious: false })
   const active = s.filters.some((f) => f.dim === dim && f.value === rowKey)
   const st = stats.data
   const basis = st?.window.basis
@@ -155,7 +155,7 @@ function RowReport({ dim, rowKey }: { dim: Dim; rowKey: string }) {
 }
 
 function Related({ dim, label, q, qkey }: { dim: Dim; label: string; q: URLSearchParams; qkey: string }) {
-  const r = useQuery(`breakdown|${dim}|${qkey}`, async (sig) => api.breakdown(q, dim, { limit: 5 }, sig))
+  const r = useQuery(`breakdown|${dim}|${qkey}`, async (sig) => api.breakdown(q, dim, { limit: 5 }, sig), { keepPrevious: false })
   const cat = columnCatalog()
   const rows = toRows((r.data?.rows ?? []).slice(0, 5), dim, cat.visitors, null)
   return (
