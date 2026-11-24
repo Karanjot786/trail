@@ -13,6 +13,10 @@ const goalHitCond = `((g.kind='event' AND x.type='event' AND x.name=g.match) OR
   (g.kind='page' AND x.type='pageview' AND (CASE WHEN substr(g.match,-1)='*'
     THEN substr(x.path,1,length(g.match)-1)=substr(g.match,1,length(g.match)-1) ELSE x.path=g.match END)))`
 
+// pvPeople limits a converter count to people with a pageview in the window, the same people the
+// rate denominators count, so a rate never exceeds 1.
+const pvPeople = `person IN (SELECT person FROM ev WHERE type='pageview')`
+
 // goalWhere is the condition (over ev rows) for hits of g, with its arguments.
 func goalWhere(g Goal) (string, []any) {
 	switch {

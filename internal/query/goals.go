@@ -200,7 +200,7 @@ func goalNumbers(db *sql.DB, p Params, g Goal, total int) (GoalPrev, error) {
 	default:
 		where, args = "type='pageview' AND path=?", append(args, g.Match)
 	}
-	if err := db.QueryRow(cte+`SELECT count(*), count(DISTINCT person) FROM ev WHERE `+where, args...).
+	if err := db.QueryRow(cte+`SELECT count(*), count(DISTINCT CASE WHEN `+pvPeople+` THEN person END) FROM ev WHERE `+where, args...).
 		Scan(&n.Conversions, &n.Visitors); err != nil {
 		return n, fmt.Errorf("goal %q: %w", g.Name, err)
 	}

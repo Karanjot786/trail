@@ -35,3 +35,38 @@ func TestGoalRatesIgnoreEngageOnlyPeople(t *testing.T) {
 		}
 	}
 }
+
+// A converter with no pageview in the window (x2) is not a visitor, so it must not count in any
+// converter numerator: rates stay at or below 1.
+func TestGoalRatesIgnoreConvertersWithoutPageview(t *testing.T) {
+	db := fixture(t,
+		pv("x", "sx", "/", t0-2*minute),
+		ev("x", "sx", "Signup", ``, t0+minute),
+		ev("x2", "sx2", "Signup", ``, t0+minute),
+		pv("y", "sy", "/", t0+2*minute),
+	)
+	g := goalOf(t, db, "Signup", "event", "Signup")
+	p := b3Win(t0, t0+hour-1, 0, 0)
+	p.Win.Bucket = "hour"
+	rep, err := GoalReport(db, p)
+	if err != nil || len(rep) != 1 || rep[0].Rate > 1 {
+		t.Fatalf("goal report %+v %v, want rate <= 1", rep, err)
+	}
+	d, err := GoalDetail(db, p, g.ID)
+	if err != nil || d.Cur.Rate > 1 || d.Cur.Visitors > 1 {
+		t.Fatalf("goal detail %+v %v, want rate <= 1", d.Cur, err)
+	}
+	st := mustStats(t, db, p)
+	if st.ConvRate > 1 || st.ConvVisitors > st.BaseVisitors {
+		t.Fatalf("stats %+v, want convRate <= 1", st)
+	}
+	s, err := Series(db, p, "conversion", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, pt := range s.Points {
+		if pt.V != nil && *pt.V > 1 {
+			t.Fatalf("series conversion %v, want <= 1", *pt.V)
+		}
+	}
+}

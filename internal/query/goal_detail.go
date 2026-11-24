@@ -36,7 +36,7 @@ func goalStats(db *sql.DB, q Params, g Goal) (GoalStats, error) {
 	where, wargs := goalWhere(g)
 	var total int
 	if err := db.QueryRow(cte+`SELECT count(DISTINCT CASE WHEN type='pageview' THEN person END), coalesce(sum(`+where+`),0),
-  count(DISTINCT CASE WHEN `+where+` THEN person END) FROM ev`, append(append(args, wargs...), wargs...)...).
+  count(DISTINCT CASE WHEN (`+where+`) AND `+pvPeople+` THEN person END) FROM ev`, append(append(args, wargs...), wargs...)...).
 		Scan(&total, &s.Conversions, &s.Visitors); err != nil {
 		return s, fmt.Errorf("goal stats: %w", err)
 	}
@@ -62,7 +62,7 @@ func firstHits(db *sql.DB, p Params, g Goal) ([]convHit, int, error) {
 	out := []convHit{}
 	seen := map[string]bool{}
 	n := 0
-	err = forRows(db, cte+`SELECT person, session_id, ts FROM ev WHERE `+where+` ORDER BY ts, id`, append(args, wargs...), func(r *sql.Rows) error {
+	err = forRows(db, cte+`SELECT person, session_id, ts FROM ev WHERE (`+where+`) AND `+pvPeople+` ORDER BY ts, id`, append(args, wargs...), func(r *sql.Rows) error {
 		var h convHit
 		if err := r.Scan(&h.person, &h.session, &h.ts); err != nil {
 			return err

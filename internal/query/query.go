@@ -324,7 +324,7 @@ WHERE cur=(SELECT cur FROM pc GROUP BY cur ORDER BY count(*) DESC, cur LIMIT 1)`
 	}
 	if goal != nil {
 		where, gargs := goalWhere(*goal)
-		if err := db.QueryRow(cte+`SELECT count(*), count(DISTINCT person) FROM ev WHERE `+where, append(args, gargs...)...).
+		if err := db.QueryRow(cte+`SELECT count(*), count(DISTINCT CASE WHEN `+pvPeople+` THEN person END) FROM ev WHERE (`+where+`)`, append(args, gargs...)...).
 			Scan(&t.Conversions, &t.ConvVisitors); err != nil {
 			return t, fmt.Errorf("conversions: %w", err)
 		}
@@ -500,7 +500,13 @@ func seriesPoints(db *sql.DB, p Params, metric string, b buckets, goal *Goal) ([
 		convSets, err = distinct(cte+`SELECT ts, person FROM ev WHERE `+where, append(args, gargs...))
 		for i := range vals {
 			if len(baseSets[i]) > 0 {
-				vals[i] = float64(len(convSets[i])) / float64(len(baseSets[i]))
+				n := 0
+				for person := range convSets[i] {
+					if baseSets[i][person] {
+						n++
+					}
+				}
+				vals[i] = float64(n) / float64(len(baseSets[i]))
 			}
 		}
 	case "revenue":
