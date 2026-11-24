@@ -272,6 +272,7 @@ func (s *Store) Start(ctx context.Context) {
 					log.Printf("store: write recovered")
 					backoff = 0
 				}
+				s.foldTick()
 				continue
 			}
 			if backoff == 0 {

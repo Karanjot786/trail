@@ -284,3 +284,57 @@ func TestLiveCountsFoldedEngagement(t *testing.T) {
 		t.Errorf("stream %d events5m %d, want empty", len(lv.Stream), lv.Events5m)
 	}
 }
+
+// TestUnfoldRoundTrip: fold, then Unfold, gives back what the older binary reads: per session the
+// same first and last timestamp and the same best engagement, read with the old shape of the query
+// (max(ts)-min(ts), no dwell_ms), and the same reports from the current code.
+func TestUnfoldRoundTrip(t *testing.T) {
+	a, b, now := seedPair(t)
+	oldShape := func(db *sql.DB) string {
+		rows, err := db.Query(`SELECT session_id, min(ts), max(ts), max(engaged_ms), max(scroll_pct), sum(type='pageview'), sum(dwell_ms)
+			FROM events GROUP BY site_id, session_id ORDER BY site_id, session_id`)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer rows.Close()
+		var s string
+		for rows.Next() {
+			var id string
+			var v [6]int64
+			if err := rows.Scan(&id, &v[0], &v[1], &v[2], &v[3], &v[4], &v[5]); err != nil {
+				t.Fatal(err)
+			}
+			s += fmt.Sprint(id, v, "\n")
+		}
+		return s
+	}
+	want := oldShape(a)
+	n, err := store.Unfold(b)
+	if err != nil || n == 0 {
+		t.Fatalf("unfold: %d %v", n, err)
+	}
+	if got := oldShape(b); got != want {
+		i := 0
+		for i < len(got) && i < len(want) && got[i] == want[i] {
+			i++
+		}
+		t.Fatalf("old-shape sessions differ at byte %d:\n%.300s\n---\n%.300s", i, got[max(0, i-100):], want[max(0, i-100):])
+	}
+	if n2, err := store.Unfold(b); err != nil || n2 != 0 {
+		t.Errorf("second unfold inserted %d (%v), want 0", n2, err)
+	}
+	w, err := ResolveWindow("30d", "none", now, ist, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := Params{Site: "demo", Env: "production", From: w.From, To: w.To, Win: w, TZ: ist, Now: now, Limit: 100}
+	if raceOn {
+		return
+	}
+	ra, rb := allReports(t, a, p), allReports(t, b, p)
+	for k, va := range ra {
+		if rb[k] != va {
+			t.Errorf("%s differs after fold+unfold", k)
+		}
+	}
+}

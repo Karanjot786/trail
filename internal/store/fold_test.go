@@ -2,6 +2,8 @@ package store
 
 import (
 	"bytes"
+	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -241,5 +243,220 @@ func TestFoldUsesSessionIndex(t *testing.T) {
 	}
 	if !strings.Contains(all, "events_site_session_ts (site_id=? AND session_id=?") {
 		t.Errorf("plan does not use the session index:\n%s", all)
+	}
+}
+
+// unfoldedDB writes n pageview+engage pairs (plus two orphans) as raw rows.
+func unfoldedDB(t *testing.T, n int) *Store {
+	t.Helper()
+	s := openTest(t)
+	s.SetFold(false)
+	var evs []Event
+	for i := 0; i < n; i++ {
+		sid := fmt.Sprintf("x%d", i)
+		base := int64(1000 + i*100000)
+		p, e1, e2 := pv("/", base), eng("/", base+4000, 3000, 20), eng("/", base+9000, 8000, 50)
+		for _, e := range []*Event{&p, &e1, &e2} {
+			e.SessionID, e.AnonID = sid, "a"+sid
+		}
+		evs = append(evs, p, e1, e2)
+	}
+	orphan := eng("/", 5, 1, 1)
+	orphan.SessionID = "ghost"
+	evs = append(evs, orphan)
+	if !s.EnqueueBatch(evs) {
+		t.Fatal("queue full")
+	}
+	if err := s.Flush(); err != nil {
+		t.Fatal(err)
+	}
+	return s
+}
+
+func foldAll(t *testing.T, s *Store, chunk int64) {
+	t.Helper()
+	if !s.foldBegin() {
+		t.Fatal("foldBegin refused")
+	}
+	for i := 0; i < 1000; i++ {
+		done, err := s.foldStep(chunk)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if done {
+			return
+		}
+	}
+	t.Fatal("fold never finished")
+}
+
+func dump(t *testing.T, s *Store) string {
+	t.Helper()
+	rows, err := s.DB().Query(`SELECT site_id, session_id, type, path, ts, engaged_ms, scroll_pct, dwell_ms FROM events ORDER BY site_id, session_id, ts, type`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	var b strings.Builder
+	for rows.Next() {
+		var a, c, d, e string
+		var ts, em, sc, dw int64
+		if err := rows.Scan(&a, &c, &d, &e, &ts, &em, &sc, &dw); err != nil {
+			t.Fatal(err)
+		}
+		fmt.Fprintln(&b, a, c, d, e, ts, em, sc, dw)
+	}
+	return b.String()
+}
+
+func TestFoldBackfillMatchesWritePath(t *testing.T) {
+	a := unfoldedDB(t, 30)
+	foldAll(t, a, 17)
+	b := openTest(t) // the same events through the write path
+	for i := 0; i < 30; i++ {
+		sid := fmt.Sprintf("x%d", i)
+		base := int64(1000 + i*100000)
+		p, e1, e2 := pv("/", base), eng("/", base+4000, 3000, 20), eng("/", base+9000, 8000, 50)
+		for _, e := range []*Event{&p, &e1, &e2} {
+			e.SessionID, e.AnonID = sid, "a"+sid
+		}
+		b.EnqueueBatch([]Event{p, e1, e2})
+	}
+	orphan := eng("/", 5, 1, 1)
+	orphan.SessionID = "ghost"
+	b.Enqueue(orphan)
+	if err := b.Flush(); err != nil {
+		t.Fatal(err)
+	}
+	if da, db := dump(t, a), dump(t, b); da != db {
+		t.Errorf("backfill differs from write path:\n%s\n---\n%s", da, db)
+	}
+}
+
+func TestFoldBackfillResumesAfterCrash(t *testing.T) {
+	want := dump(t, func() *Store { s := unfoldedDB(t, 30); foldAll(t, s, 1000); return s }())
+	s := unfoldedDB(t, 30)
+	if !s.foldBegin() {
+		t.Fatal("foldBegin refused")
+	}
+	for i := 0; i < 2; i++ {
+		if _, err := s.foldStep(20); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// A crash mid-chunk: the same work in a transaction that never commits.
+	tx, _ := s.DB().Begin()
+	_, _ = tx.Exec(`UPDATE events SET dwell_ms=dwell_ms+777 WHERE type='pageview'`)
+	_ = tx.Rollback()
+	s.foldReady = false // a fresh process
+	foldAll(t, s, 20)
+	if got := dump(t, s); got != want {
+		t.Errorf("resumed fold differs from an uninterrupted one:\n%s\n---\n%s", got, want)
+	}
+	before := dump(t, s)
+	if done, err := s.foldStep(20); err != nil || !done {
+		t.Fatalf("step after done: %v %v", done, err)
+	}
+	if dump(t, s) != before {
+		t.Error("step after done changed rows")
+	}
+}
+
+func TestFoldSkipsWithoutBackupSpace(t *testing.T) {
+	s := unfoldedDB(t, 5)
+	old := freeBytesFn
+	freeBytesFn = func(string) (uint64, bool) { return 1, true }
+	defer func() { freeBytesFn = old }()
+	before := count(t, s, "SELECT count(*) FROM events")
+	s.foldTick()
+	s.foldTick()
+	if n := count(t, s, "SELECT count(*) FROM events"); n != before {
+		t.Errorf("rows %d, want %d: fold ran without a backup", n, before)
+	}
+	if _, ok, _ := setting(s.DB(), "fold_done"); ok {
+		t.Error("fold_done set")
+	}
+	s.Enqueue(pv("/new", 1))
+	if err := s.Flush(); err != nil {
+		t.Fatal(err)
+	}
+	if n := count(t, s, "SELECT count(*) FROM events"); n != before+1 {
+		t.Error("ingest stopped")
+	}
+}
+
+func TestFoldBackupBeforeFirstDelete(t *testing.T) {
+	s := unfoldedDB(t, 5)
+	before := count(t, s, "SELECT count(*) FROM events")
+	s.foldTick()
+	b, err := Open(s.path + ".pre-fold")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer b.Close()
+	if n := count(t, b, "SELECT count(*) FROM events"); n != before {
+		t.Errorf("backup rows %d, want %d", n, before)
+	}
+	if n := count(t, s, "SELECT count(*) FROM events"); n >= before {
+		t.Errorf("fold did not run: %d rows", n)
+	}
+}
+
+func TestFoldKeepsOrphans(t *testing.T) {
+	s := unfoldedDB(t, 5)
+	foldAll(t, s, 100)
+	if n := count(t, s, "SELECT count(*) FROM events WHERE type='engage'"); n != 1 {
+		t.Errorf("engage rows %d, want the 1 orphan", n)
+	}
+}
+
+func TestFoldRefoldsRowsWrittenAfterDone(t *testing.T) {
+	s := unfoldedDB(t, 3)
+	foldAll(t, s, 100)
+	s.SetFold(false)
+	s.EnqueueBatch([]Event{pv("/z", 9e9), eng("/z", 9e9+5000, 10, 10)})
+	_ = s.Flush()
+	s.foldReady, s.foldFinished = false, false
+	foldAll(t, s, 100)
+	if n := count(t, s, "SELECT count(*) FROM events WHERE type='pageview' AND path='/z' AND dwell_ms=5000"); n != 1 {
+		t.Error("late engage not folded")
+	}
+}
+
+func TestFoldRunsBetweenFlushes(t *testing.T) {
+	s := unfoldedDB(t, 3000)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	s.every = 5 * time.Millisecond
+	s.Start(ctx)
+	for i := 0; i < 20; i++ {
+		s.Enqueue(pv(fmt.Sprintf("/n%d", i), int64(1e10+i)))
+		if err := s.Flush(); err != nil {
+			t.Fatal(err)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	for i := 0; i < 400; i++ {
+		if _, ok, _ := setting(s.DB(), "fold_done"); ok {
+			break
+		}
+		time.Sleep(25 * time.Millisecond)
+	}
+	if _, ok, _ := setting(s.DB(), "fold_done"); !ok {
+		t.Fatal("fold did not finish")
+	}
+	if n := count(t, s, "SELECT count(*) FROM events WHERE path LIKE '/n%'"); n != 20 {
+		t.Errorf("new pageviews %d, want 20", n)
+	}
+}
+
+func TestCompactAfterFold(t *testing.T) {
+	s := unfoldedDB(t, 5)
+	s.foldTick()
+	for i := 0; i < 5 && !s.foldFinished; i++ {
+		s.foldTick()
+	}
+	if v, ok, _ := setting(s.DB(), "fold_compacted"); !ok || v != "1" {
+		t.Error("not compacted")
 	}
 }
