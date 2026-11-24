@@ -93,6 +93,15 @@ describe('astro middleware', () => {
     expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toMatchObject({ path: '/gone', status: 404 });
   });
 
+  it('middleware serves the stub without TRAIL_URL', async () => {
+    vi.stubEnv('TRAIL_URL', '');
+    const next = vi.fn();
+    const res = await onRequest(ctx('/t/t.js', 'Mozilla/5.0 Chrome/131') as any, next);
+    expect(res.status).toBe(200);
+    expect(res.headers.get('x-trail-error')).toBe('no-url');
+    expect(next).not.toHaveBeenCalled();
+  });
+
   it('uses the Cloudflare waitUntil and env when present', async () => {
     const waitUntil = vi.fn();
     vi.stubEnv('TRAIL_URL', '');

@@ -1,4 +1,3 @@
-import { env } from '../crawl/env';
 import { isTrailPath, shouldReport } from '../crawl/filter';
 import { forward } from '../crawl/forward';
 import { report } from '../crawl/send';
@@ -22,7 +21,7 @@ const reportCrawler = (req: Request, event?: NextFetchEventLike) => {
  * and reports AI crawler requests. Status is 0: the proxy runs before the route.
  */
 export default async function proxy(req: NextRequestLike, event: NextFetchEventLike): Promise<Response> {
-  if (isTrailPath(req) && env('TRAIL_URL')) return forward(req);
+  if (isTrailPath(req)) return forward(req);
   reportCrawler(req, event);
   return next();
 }
@@ -32,7 +31,7 @@ export function withTrail<H extends Handler>(handler: H): (req: NextRequestLike,
   return async (req, event) => {
     reportCrawler(req, event);
     const res = await handler(req, event);
-    if (isTrailPath(req) && env('TRAIL_URL') && (!res || res.headers.get('x-middleware-next') === '1')) return forward(req);
+    if (isTrailPath(req) && (!res || res.headers.get('x-middleware-next') === '1')) return forward(req);
     return res;
   };
 }

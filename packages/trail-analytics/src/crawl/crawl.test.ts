@@ -161,6 +161,31 @@ describe('adapters', () => {
     expect(fetchMock.mock.calls[0][0]).toBe('https://t.example/_t/e');
   });
 
+  it('hono serves the stub without TRAIL_URL', async () => {
+    vi.stubEnv('TRAIL_URL', '');
+    const mw = hono({});
+    const next = vi.fn();
+    const c: any = { req: { raw: rq('/t/t.js', CHROME), path: '/t/t.js' }, res: undefined };
+    const out = (await mw(c, next)) as Response;
+    expect(next).not.toHaveBeenCalled();
+    expect(out.status).toBe(200);
+    expect(out.headers.get('x-trail-error')).toBe('no-url');
+  });
+
+  it('express serves /t/t.x.js', async () => {
+    fetchMock.mockResolvedValue(new Response('/*x*/', { status: 200, headers: { 'content-type': 'text/javascript' } }));
+    const mw = express(opts);
+    const req: any = { method: 'GET', originalUrl: '/t/t.x.js', url: '/t/t.x.js', protocol: 'https', headers: { host: 'example.com', 'user-agent': CHROME } };
+    let body = '';
+    const done = new Promise<void>((ok) => {
+      const res: any = { statusCode: 0, setHeader: vi.fn(), on: vi.fn(), end: (b: Uint8Array) => ((body = new TextDecoder().decode(b)), ok()) };
+      mw(req, res, vi.fn());
+    });
+    await done;
+    expect(fetchMock.mock.calls[0][0]).toBe('https://t.example/_t/t.x.js');
+    expect(body).toBe('/*x*/');
+  });
+
   it('express reports on finish with res.statusCode', async () => {
     const mw = express(opts);
     const listeners: Record<string, () => void> = {};

@@ -64,10 +64,19 @@ describe('next/proxy', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('passes /t/e through when TRAIL_URL is not set', async () => {
+  it('serves the stub when TRAIL_URL is not set', async () => {
     vi.stubEnv('TRAIL_URL', '');
-    const res = await proxy(rq('/t/e', CHROME, { method: 'POST', body: '[]' }) as any, event as any);
-    expect(res.headers.get('x-middleware-next')).toBe('1');
+    const res = await proxy(rq('/t/t.js', CHROME) as any, event as any);
+    expect(res.status).toBe(200);
+    expect(res.headers.get('x-trail-error')).toBe('no-url');
+    expect(res.headers.get('x-middleware-next')).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('uses nextUrl.pathname so basePath works', async () => {
+    const req = Object.assign(new Request('https://shop.example/docs/t/t.js', { headers: { 'user-agent': CHROME } }), { nextUrl: { pathname: '/t/t.js' } });
+    await proxy(req as any, event as any);
+    expect(fetchMock.mock.calls[0][0]).toBe('https://trail.example/_t/t.js');
   });
 
   it('withTrail keeps the user handler response and still reports', async () => {

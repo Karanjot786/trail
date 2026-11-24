@@ -1,5 +1,5 @@
-import { resolve } from './env';
-import { clientIp } from './filter';
+import { resolve, warnOnce } from './env';
+import { clientIp, trailPath } from './filter';
 import type { TrailCrawlOptions } from './types';
 
 export interface EdgeGeo { country?: string; region?: string; city?: string; source: 'vercel' | 'cloudflare' | 'netlify' }
@@ -56,28 +56,45 @@ const edgeIp = (req: Request, g: EdgeGeo | undefined) => {
 const clean = (v: string | undefined) => (v ?? '').replace(/\|/g, '');
 const PASS_JS = ['content-type', 'cache-control', 'etag', 'last-modified', 'expires'];
 
-/** Serves `/t/t.js` and `/t/e` from the site's own origin, forwarding beacons to Trail with signed edge geo. */
+const NO_URL_STUB = '/* trail-analytics: TRAIL_URL is not set on this server; analytics are off. */';
+const PASS_E = ['x-trail-accepted', 'x-trail-rejected', 'x-trail-proxy-status'];
+const fail = (e: unknown) => new Response(null, { status: e instanceof Error && e.name === 'TimeoutError' ? 504 : 502 });
+
+/** Serves `/t/t.js`, `/t/t.x.js`, `/t/t.p.js` and `/t/e` from the site's own origin, forwarding beacons to Trail with signed edge geo. Never turns a failure into a 204. */
 export async function forward(req: Request, opts: ForwardOptions = {}): Promise<Response> {
   const { url, site, token } = resolve(opts, opts.env);
-  const p = new URL(req.url).pathname;
-  if (!url) return new Response(null, { status: 404 });
-  if (p === '/t/t.js') {
+  const file = trailPath(req);
+  if (!file) return new Response(null, { status: 404 });
+  if (!url) {
+    warnOnce('no-url', 'trail-analytics: TRAIL_URL is not set; /t/* is answering with a no-op tracker and analytics are off.');
+    if (file !== 'e') {
+      return new Response(req.method === 'HEAD' ? null : NO_URL_STUB, {
+        status: 200,
+        headers: { 'content-type': 'application/javascript', 'cache-control': 'no-store', 'x-trail-error': 'no-url' },
+      });
+    }
+    return new Response(null, { status: 503, headers: { 'x-trail-error': 'no-url' } });
+  }
+  if (file !== 'e') {
     if (req.method !== 'GET' && req.method !== 'HEAD') return new Response(null, { status: 405 });
     try {
       const inm = req.headers.get('if-none-match');
-      const up = await fetch(`${url}/_t/t.js`, { headers: inm ? { 'if-none-match': inm } : {} });
+      const up = await fetch(`${url}/_t/${file}`, { headers: inm ? { 'if-none-match': inm } : {} });
       const headers = new Headers();
       for (const k of PASS_JS) {
         const v = up.headers.get(k);
         if (v) headers.set(k, v);
       }
       return new Response(req.method === 'HEAD' ? null : up.body, { status: up.status, headers });
-    } catch {
-      return new Response(null, { status: 502 });
+    } catch (e) {
+      return fail(e);
     }
   }
-  if (p !== '/t/e') return new Response(null, { status: 404 });
   if (req.method !== 'POST') return new Response(null, { status: 405 });
+  if (!site || !token) {
+    warnOnce('unsigned', 'trail-analytics: TRAIL_SITE or TRAIL_CRAWL_TOKEN is not set; beacons are refused (503) instead of forwarded unsigned.');
+    return new Response(null, { status: 503, headers: { 'x-trail-error': 'unsigned' } });
+  }
   try {
     const body = new Uint8Array(await req.arrayBuffer());
     const h = req.headers;
@@ -90,27 +107,30 @@ export async function forward(req: Request, opts: ForwardOptions = {}): Promise<
       const v = h.get(k);
       if (v) headers.set(k, v.slice(0, 4096));
     }
-    if (site && token) {
-      const g = opts.geo ?? edgeGeo(req);
-      const f: SignedFields = {
-        site,
-        t: String(Math.floor(Date.now() / 1000)),
-        ip: (opts.ip ?? edgeIp(req, g)).slice(0, 64),
-        geo: g ? [g.country, g.region, g.city].map(clean).join('|').slice(0, 256) : '',
-        geoSrc: g?.source ?? '',
-        host: (h.get('host') ?? new URL(req.url).host).slice(0, 255),
-      };
-      headers.set('x-trail-ip', f.ip);
-      headers.set('x-trail-geo', f.geo);
-      headers.set('x-trail-geo-src', f.geoSrc);
-      headers.set('x-trail-host', f.host);
-      headers.set('x-trail-proxy', await proxySignature(token, f, body));
-    }
+    const g = opts.geo ?? edgeGeo(req);
+    const f: SignedFields = {
+      site,
+      t: String(Math.floor(Date.now() / 1000)),
+      ip: (opts.ip ?? edgeIp(req, g)).slice(0, 64),
+      geo: g ? [g.country, g.region, g.city].map(clean).join('|').slice(0, 256) : '',
+      geoSrc: g?.source ?? '',
+      host: (h.get('host') ?? new URL(req.url).host).slice(0, 255),
+    };
+    headers.set('x-trail-ip', f.ip);
+    headers.set('x-trail-geo', f.geo);
+    headers.set('x-trail-geo-src', f.geoSrc);
+    headers.set('x-trail-host', f.host);
+    headers.set('x-trail-proxy', await proxySignature(token, f, body));
     const init: RequestInit = { method: 'POST', headers, body };
     if (typeof AbortSignal !== 'undefined' && AbortSignal.timeout) init.signal = AbortSignal.timeout(5000);
     const up = await fetch(`${url}/_t/e`, init);
-    return new Response(null, { status: up.status });
-  } catch {
-    return new Response(null, { status: 204 });
+    const out = new Headers();
+    for (const k of PASS_E) {
+      const v = up.headers.get(k);
+      if (v) out.set(k, v);
+    }
+    return new Response(null, { status: up.status, headers: out });
+  } catch (e) {
+    return fail(e);
   }
 }
