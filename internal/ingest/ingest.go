@@ -66,6 +66,7 @@ const (
 	maxProps = 20
 	maxRetry = 1000
 	maxEngMs = 24 * 60 * 60 * 1000
+	maxAge   = 7 * 24 * 60 * 60 * 1000 // oldest event the tracker may report (ms)
 )
 
 var (
@@ -94,6 +95,7 @@ type payload struct {
 	Env string                     `json:"env"`
 	W   int                        `json:"w"`
 	RC  float64                    `json:"rc"`
+	C   float64                    `json:"c"` // age of the event in ms at send time
 	M   string                     `json:"m"` // "f" full (default), "p" private
 }
 
@@ -353,6 +355,8 @@ func validate(p *payload, knownSite bool) string {
 		return "unknown site"
 	case !validTypes[p.T]:
 		return "unknown type"
+	case p.C > maxAge:
+		return "event too old"
 	case p.M == "p":
 		// Private mode: the server derives a and ss, so the client's are ignored.
 		if p.T == "identify" {
@@ -483,7 +487,7 @@ func (h *handler) event(r *http.Request, p *payload, domain, props string, res e
 		Country: country, Region: region, City: city, GeoSrc: geoSrc,
 		Device: device, Browser: browser, OS: os,
 		Env:       enrich.DeriveEnv(host, domain, p.Env),
-		TS:        h.now().UnixMilli(),
+		TS:        h.now().UnixMilli() - int64(clamp(p.C, maxAge)),
 		EngagedMs: clamp(p.E, maxEngMs),
 		ScrollPct: clamp(p.SC, 100),
 		IsBot:     bot || p.W == 1,

@@ -675,3 +675,45 @@ func TestNoCookieAfterReset(t *testing.T) {
 		t.Errorf("Set-Cookie = %q, want none", c)
 	}
 }
+
+func withNow(f func() time.Time) Option { return func(h *handler) { h.now = f } }
+
+func TestEventAgeBackdates(t *testing.T) {
+	now := time.UnixMilli(1_700_000_000_000)
+	const week = 604800000
+	cases := []struct {
+		name, c  string
+		wantCode int
+		wantTS   int64
+	}{
+		{"absent", ``, 204, now.UnixMilli()},
+		{"age", `,"c":5000`, 204, now.UnixMilli() - 5000},
+		{"negative", `,"c":-50`, 204, now.UnixMilli()},
+		{"null", `,"c":null`, 204, now.UnixMilli()},
+		{"string", `,"c":"x"`, 400, 0},
+		{"seven days", `,"c":604800000`, 204, now.UnixMilli() - week},
+		{"too old", `,"c":604800001`, 400, 0},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			st, h := newHandler(t, map[string]string{"s1": "example.com"}, withNow(func() time.Time { return now }))
+			body := `{"s":"s1","t":"pageview","a":"anon-1","ss":"sess-1","u":"https://example.com/"` + tc.c + `}`
+			if w := post(h, body); w.Code != tc.wantCode {
+				t.Fatalf("code %d, want %d", w.Code, tc.wantCode)
+			}
+			if tc.wantCode != 204 {
+				return
+			}
+			if err := st.Flush(); err != nil {
+				t.Fatal(err)
+			}
+			var ts int64
+			if err := st.DB().QueryRow("SELECT ts FROM events").Scan(&ts); err != nil {
+				t.Fatal(err)
+			}
+			if ts != tc.wantTS {
+				t.Errorf("ts %d, want %d", ts, tc.wantTS)
+			}
+		})
+	}
+}
