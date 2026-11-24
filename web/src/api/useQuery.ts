@@ -12,6 +12,8 @@ export interface QueryOpts {
   enabled?: boolean
   /** Keep the previous key's data on screen while a new key loads (default true; never across a site switch). */
   keepPrevious?: boolean
+  /** Also keep the previous key's data (same site only) when the new key fails; for views whose subject is unchanged and only the window moves. */
+  keepOnError?: boolean
 }
 export interface QueryResult<T> {
   data: T | undefined
@@ -67,7 +69,7 @@ const mounted = new Set<(prefix: string) => void>()
 const online = () => (typeof navigator === 'undefined' ? true : navigator.onLine !== false)
 
 export function useQuery<T>(key: string, fn: (signal: AbortSignal) => Promise<T>, opts: QueryOpts = {}): QueryResult<T> {
-  const { staleMs = 30_000, pollMs, enabled = true, keepPrevious = true } = opts
+  const { staleMs = 30_000, pollMs, enabled = true, keepPrevious = true, keepOnError = false } = opts
   const { site, prefix } = useUrlState()
   const [, rerender] = useReducer((n: number) => n + 1, 0)
   const fnRef = useRef(fn)
@@ -200,7 +202,7 @@ export function useQuery<T>(key: string, fn: (signal: AbortSignal) => Promise<T>
 
   const entry = cache.get(key)
   if (entry && entry.data !== undefined) shown.current = { data: entry.data, at: entry.at, scope }
-  const prevOk = keepPrevious && shown.current.scope === scope
+  const prevOk = keepPrevious && shown.current.scope === scope && (keepOnError || !entry?.error)
   const data = (entry?.data ?? (prevOk ? shown.current.data : undefined)) as T | undefined
   const at = entry?.data !== undefined ? entry.at : prevOk ? shown.current.at : null
   return {

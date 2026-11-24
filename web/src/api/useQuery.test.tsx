@@ -140,12 +140,24 @@ describe('useQuery', () => {
     expect(out.r!.error?.message).toBe('boom')
   })
 
-  it('an error on a new key in the same site keeps the previous numbers and sets error', async () => {
+  it("an error on a new key does not fall back to the previous key's data", async () => {
     history.replaceState(null, '', '/?site=a')
     const out: { r?: QueryResult<string> } = {}
     const r = render(<Probe k="x" fn={async () => 'X'} out={out} />)
     await flush()
     r.rerender(<Probe k="y" fn={async () => Promise.reject(new Error('boom'))} out={out} />)
+    await flush()
+    expect(out.r!.data).toBeUndefined()
+    expect(out.r!.error?.message).toBe('boom')
+  })
+
+  it('keepOnError keeps the previous numbers in the same site and still sets error', async () => {
+    history.replaceState(null, '', '/?site=a')
+    const out: { r?: QueryResult<string> } = {}
+    const o = { keepOnError: true }
+    const r = render(<Probe k="x" fn={async () => 'X'} out={out} opts={o} />)
+    await flush()
+    r.rerender(<Probe k="y" fn={async () => Promise.reject(new Error('boom'))} out={out} opts={o} />)
     await flush()
     expect(out.r!.data).toBe('X')
     expect(out.r!.error?.message).toBe('boom')

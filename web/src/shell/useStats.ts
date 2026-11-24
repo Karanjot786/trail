@@ -8,5 +8,5 @@ import { useUrlState } from '../state/useUrlState'
 export function useStats(enabled = true) {
   const s = useUrlState()
   const q = apiQuery(s)
-  return useQuery<Stats>(`stats|${q.toString()}|${s.prefix}`, (sig) => api.stats(q, sig), { enabled: enabled && !!s.site && s.screen !== 'settings' && s.screen !== 'welcome', pollMs: 60_000 })
+  return useQuery<Stats>(`stats|${q.toString()}|${s.prefix}`, (sig) => api.stats(q, sig), { enabled: enabled && !!s.site && s.screen !== 'settings' && s.screen !== 'welcome', pollMs: 60_000, keepOnError: true })
 }
