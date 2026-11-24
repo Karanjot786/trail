@@ -91,13 +91,16 @@ export function apiCall(origin: string, query: string): string {
 
 export type SiteForm =
   | { ok: true; site: { id: string; domain: string; origins: string[] } }
-  | { ok: false; field: 'name' | 'id' | 'domain'; error: string }
+  | { ok: false; field: 'id' | 'domain'; error: string }
 
-export function siteFromForm(name: string, id: string, domainInput: string): SiteForm {
-  if (!name.trim()) return { ok: false, field: 'name', error: 'Give the site a name.' }
-  const sid = id.trim() || suggestId(name)
-  if (!/^[a-z0-9][a-z0-9-]{0,39}$/.test(sid)) return { ok: false, field: 'id', error: 'Use lowercase letters, digits and dashes for the ID.' }
+// Mirrors the server's host check (internal/sites reHost): dotted labels, or localhost; IPv4 hosts match too.
+const RE_HOST = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*$/
+
+export function siteFromForm(id: string, domainInput: string): SiteForm {
   const domain = normalizeDomain(domainInput)
-  if (!/^[a-z0-9*][a-z0-9.*-]*\.[a-z]{2,}$/.test(domain)) return { ok: false, field: 'domain', error: 'Enter a domain like example.com, without a path.' }
+  if (domain.length > 253 || !RE_HOST.test(domain) || (domain !== 'localhost' && !domain.includes('.')))
+    return { ok: false, field: 'domain', error: 'Enter a domain like example.com, without a path.' }
+  const sid = id.trim() || suggestId(domain)
+  if (!/^[a-z0-9][a-z0-9-]{0,39}$/.test(sid)) return { ok: false, field: 'id', error: 'Use lowercase letters, digits and dashes for the ID.' }
   return { ok: true, site: { id: sid, domain, origins: [] } }
 }

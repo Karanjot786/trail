@@ -1,4 +1,4 @@
-// Add website (plan F5-1): name, ID and domain, checked here and then by the server. Opened from the switcher,
+// Add website (plan F5-1): domain and ID (the server stores no site name), checked here and then by the server. Opened from the switcher,
 // the palette and Settings → Websites; the shell then takes the person to Install for the new site.
 import { useEffect, useRef, useState } from 'react'
 import { api, HttpError } from '../../api/client'
@@ -19,10 +19,9 @@ export interface AddSiteDialogProps {
   onAdded: (site: Site) => void
 }
 
-type Field = 'name' | 'id' | 'domain'
+type Field = 'id' | 'domain'
 
 export function AddSiteDialog({ open, onOpenChange, onAdded }: AddSiteDialogProps) {
-  const [name, setName] = useState('')
   const [id, setId] = useState('')
   const [domain, setDomain] = useState('')
   const [err, setErr] = useState<{ field: Field | 'form'; text: string } | null>(null)
@@ -37,11 +36,10 @@ export function AddSiteDialog({ open, onOpenChange, onAdded }: AddSiteDialogProp
       setUi({})
     }
   }, [sitesQ.data])
-  const refs = { name: useRef<HTMLInputElement>(null), id: useRef<HTMLInputElement>(null), domain: useRef<HTMLInputElement>(null) }
+  const refs = { id: useRef<HTMLInputElement>(null), domain: useRef<HTMLInputElement>(null) }
 
   useEffect(() => {
     if (!open) return
-    setName('')
     setId('')
     setDomain('')
     setErr(null)
@@ -53,7 +51,7 @@ export function AddSiteDialog({ open, onOpenChange, onAdded }: AddSiteDialogProp
   }
 
   const submit = async () => {
-    const f = siteFromForm(name, id, domain)
+    const f = siteFromForm(id, domain)
     if (!f.ok) return fail(f.field, f.error)
     setErr(null)
     setBusy(true)
@@ -96,31 +94,6 @@ export function AddSiteDialog({ open, onOpenChange, onAdded }: AddSiteDialogProp
         }}
       >
         <div className="set-field">
-          <label htmlFor="as-name">Name</label>
-          <span id="as-name-hint" className="hint">
-            Shown in the site switcher
-          </span>
-          <input {...props('name')} className="input" value={name} onChange={(e) => setName(e.target.value)} maxLength={40} placeholder="Marketing site" autoComplete="off" />
-          {errText('name')}
-        </div>
-        <div className="set-field">
-          <label htmlFor="as-id">Site ID</label>
-          <span id="as-id-hint" className="hint">
-            Goes in the snippet as data-site. Lowercase letters, digits and dashes.
-          </span>
-          <input
-            {...props('id')}
-            className="input mono"
-            value={id}
-            onChange={(e) => setId(e.target.value)}
-            maxLength={40}
-            placeholder={suggestId(name) || 'marketing-site'}
-            autoComplete="off"
-            spellCheck={false}
-          />
-          {errText('id')}
-        </div>
-        <div className="set-field">
           <label htmlFor="as-domain">Domain</label>
           <span id="as-domain-hint" className="hint">
             Events from other origins are rejected with a reason code
@@ -136,6 +109,23 @@ export function AddSiteDialog({ open, onOpenChange, onAdded }: AddSiteDialogProp
             spellCheck={false}
           />
           {errText('domain')}
+        </div>
+        <div className="set-field">
+          <label htmlFor="as-id">Site ID</label>
+          <span id="as-id-hint" className="hint">
+            Goes in the snippet as data-site. Lowercase letters, digits and dashes.
+          </span>
+          <input
+            {...props('id')}
+            className="input mono"
+            value={id}
+            onChange={(e) => setId(e.target.value)}
+            maxLength={40}
+            placeholder={suggestId(domain) || 'example'}
+            autoComplete="off"
+            spellCheck={false}
+          />
+          {errText('id')}
         </div>
         {err?.field === 'form' && (
           <p className="form-err" role="alert">

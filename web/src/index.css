@@ -238,7 +238,7 @@ b, strong { font-weight: 600; }
 .switcher { display: flex; align-items: center; gap: 10px; width: 100%; padding: 6px; border-radius: 10px; min-height: 48px; transition: background-color var(--motion-hover); }
 .switcher .mark { width: 36px; height: 36px; border-radius: 9px; background: var(--brand); color: var(--on-brand); display: grid; place-items: center; flex: none; }
 .switcher .mark svg { width: 20px; height: 20px; }
-.switcher .who { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
+.switcher .who { display: flex; flex-direction: column; align-items: flex-start; min-width: 0; line-height: 1.25; }
 .switcher .who b { font-size: 14px; overflow: hidden; text-overflow: ellipsis; }
 .switcher .who span { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; }
 .switcher .chev { margin-left: auto; color: var(--subtle); }
@@ -331,7 +331,7 @@ b, strong { font-weight: 600; }
 .fresh .basis { color: var(--subtle); }
 .site-mi .mark-s { width: 28px; height: 28px; border-radius: 7px; display: grid; place-items: center; background: var(--hover); color: var(--muted); flex: none; }
 .site-mi .mark-s[data-on] { background: var(--accent-soft); color: var(--fg); box-shadow: inset 0 0 0 1px var(--accent-line); }
-.site-mi .who { display: flex; flex-direction: column; line-height: 1.3; min-width: 0; }
+.site-mi .who { display: flex; flex-direction: column; align-items: flex-start; line-height: 1.3; min-width: 0; }
 .site-mi .who span { color: var(--muted); font-size: 12px; }
 .pop-form { display: flex; flex-direction: column; gap: 10px; padding: 4px 10px 8px; }
 .pop-form .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
