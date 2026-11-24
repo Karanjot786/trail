@@ -94,7 +94,7 @@ func latencyParams(tb testing.TB, now time.Time, rk string) Params {
 // the window (five minutes), not the day behind it. Budgets sit between the cost before the lookback
 // (commit 493e463: activeNow 15 ms, Live 125 ms, Visitors 510 ms) and the full-day read (activeNow
 // 92 ms, Live 725 ms, Visitors 890 ms), on an M-series laptop. Skipped with -short. Set TRAIL_LATENCY_DAYS and TRAIL_LATENCY_PERDAY
-// for other sizes.
+// for other sizes; the budgets scale with TRAIL_LATENCY_PERDAY (budget * perDay / 100000).
 func TestLatencyLive(t *testing.T) {
 	if testing.Short() {
 		t.Skip("seeds 300K events")
@@ -122,6 +122,7 @@ func TestLatencyLive(t *testing.T) {
 	}
 	var table strings.Builder
 	for _, c := range cases {
+		c.budget = c.budget * time.Duration(perDay) / 100000 // budgets are for 100K events a day
 		d := perfFastest(t, c.fn)
 		fmt.Fprintf(&table, "%-16s %7.1f ms (budget %5.0f ms)\n", c.name, float64(d.Microseconds())/1000, float64(c.budget.Milliseconds()))
 		if d > c.budget {
