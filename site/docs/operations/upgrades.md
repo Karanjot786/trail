@@ -30,6 +30,12 @@ Read the [changelog](/changelog) before upgrading.
 - **IPv6 visitors get a new private id once.** Rate limits and private-mode ids now use the /64 network of an IPv6 address. IPv4 visitors and full-mode visitors keep theirs.
 - **`TRAIL_TZ` defaults to `UTC`.** Set it if you rely on another zone for day boundaries; the install script writes the host's zone on a new install. A name Trail does not know stops the server at start.
 - **The server no longer sets `_t_id`.** See [the cookie](/tracking/privacy#the-t-id-cookie).
+- **The first start folds your history.** A release that stores a visit's engaged time and scroll depth on the pageview row folds your existing engage rows into their pageviews in the background, in small steps, while Trail keeps collecting. Reports read the same numbers during and after.
+  - **Backup.** Before the first step Trail copies the database to `<db>.pre-fold` (`VACUUM INTO`), off the collection path. It needs about 1.2 times the database size free in that folder; without it the fold waits and the log says how much. `TRAIL_FOLD_NO_BACKUP=1` skips the copy.
+  - **Disk.** Deleted rows leave free space inside the file. Files up to 256 MB are compacted automatically once the fold is done. For a larger file run `trail compact` in a quiet hour; it needs as much free space as the file holds.
+  - **Roll back.** Stop Trail, run `trail unfold` (it rewrites the engage rows older binaries read), then start the older binary. Restoring `<db>.pre-fold` also works but loses events collected since.
+- **The first start builds new indexes.** This happens at startup, before Trail accepts events, so on a large database the start takes longer once.
+- **`trail-analytics` 0.3 proxies answer `503` when `TRAIL_SITE` or `TRAIL_CRAWL_TOKEN` is missing.** Run `npx trail-analytics init` again, or set both variables, then redeploy.
 
 ## Next
 

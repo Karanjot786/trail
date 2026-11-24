@@ -21,6 +21,9 @@ Bug-fix pass. Worth knowing before you upgrade:
 - `TRAIL_TZ` defaults to `UTC`; a bad name stops the server and a bad `tz` on the API is a `400`.
 - The install check separates warnings from Blocked, understands bot protection and reads robots.txt. Login locks a client after 5 failed attempts in 15 minutes.
 - `trail-analytics` 0.3.0: `init` works for Next.js 15 and 16 and Astro, writes `TRAIL_URL`, `TRAIL_SITE` and `TRAIL_CRAWL_TOKEN`, and `npx trail-analytics verify` checks a live site.
+- The first start folds your history into the pageview rows in the background and copies the database to `<db>.pre-fold` first (about 1.2 times the database size free; `TRAIL_FOLD_NO_BACKUP=1` skips it). Files over 256 MB: run `trail compact` afterwards. To roll back, stop Trail and run `trail unfold` before starting the older binary. See [Upgrades](/operations/upgrades).
+- The first start also builds new indexes before accepting events, so it takes longer once on a large database.
+- `trail-analytics` 0.3 proxies answer `503` when `TRAIL_SITE` or `TRAIL_CRAWL_TOKEN` is missing.
 
 ## AI visibility {#ai-visibility}
 
