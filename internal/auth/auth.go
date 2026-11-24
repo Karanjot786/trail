@@ -80,7 +80,8 @@ func (a *Auth) Require(h http.Handler) http.Handler {
 	})
 }
 
-// sign returns "<expiry>.<hex hmac-sha256("ok|<expiry>")>".
+// sign returns "<expiry>.<hex hmac-sha256("ok|<expiry>|<hex pwHash>")>", so a
+// new password invalidates every older cookie.
 func (a *Auth) sign(exp int64) string {
 	e := strconv.FormatInt(exp, 10)
 	return e + "." + hex.EncodeToString(a.mac(e))
@@ -88,7 +89,7 @@ func (a *Auth) sign(exp int64) string {
 
 func (a *Auth) mac(exp string) []byte {
 	m := hmac.New(sha256.New, a.secret)
-	m.Write([]byte("ok|" + exp))
+	m.Write([]byte("ok|" + exp + "|" + hex.EncodeToString(a.pwHash[:])))
 	return m.Sum(nil)
 }
 

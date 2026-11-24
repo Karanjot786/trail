@@ -93,3 +93,15 @@ func TestRequireCookie(t *testing.T) {
 		t.Errorf("expired cookie: status %d", code)
 	}
 }
+
+func TestCookieDiesWithPasswordChange(t *testing.T) {
+	secret := []byte("0123456789abcdef0123456789abcdef")
+	old := New("hunter2", secret)
+	c := login(old, `{"password":"hunter2"}`, false).Result().Cookies()[0]
+	if code := protected(New("hunter2", secret), c); code != http.StatusTeapot {
+		t.Fatalf("same password, same secret: %d", code) // a restart keeps the login
+	}
+	if code := protected(New("new-pass", secret), c); code != http.StatusUnauthorized {
+		t.Fatalf("cookie survived a password change: %d", code)
+	}
+}
