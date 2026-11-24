@@ -17,7 +17,7 @@ const retriesHigh = 0.05
 // csp, origin, first_event, delivery). trailHost is this server's host (as the
 // tracker's src must name it); fetch loads the site's home page.
 func Check(ctx context.Context, db *sql.DB, reg *sites.Registry, site sites.Site, trailHost string, fetch Fetcher) (InstallCheck, error) {
-	out := InstallCheck{CheckedAt: time.Now().UnixMilli(), Checks: make([]CheckItem, 0, 7)}
+	out := InstallCheck{CheckedAt: time.Now().UnixMilli(), Checks: make([]CheckItem, 0, 8)}
 	first, last, err := firstEvent(db, site.ID)
 	if err != nil {
 		return out, err
@@ -75,7 +75,7 @@ func Check(ctx context.Context, db *sql.DB, reg *sites.Registry, site sites.Site
 	if err != nil {
 		return out, err
 	}
-	out.Checks = append(out.Checks, del, <-robots)
+	out.Checks = append(out.Checks, del, <-robots, proxyCheck(reg.BadProxy24h(site.ID)))
 
 	out.State, out.Checks = finalize(out.Checks, last)
 	return out, nil
@@ -190,4 +190,16 @@ func botWall(p Page) (vendor string, ok bool) {
 		return "Cloudflare", true
 	}
 	return "", false
+}
+
+// proxyCheck warns when a first-party proxy sent signatures this server could
+// not verify; those requests are counted as the proxy's own address.
+func proxyCheck(badSig int) CheckItem {
+	const label = "Proxied events are signed"
+	if badSig == 0 {
+		return item("proxy", label, "pass", CodeOK, "No forwarded request had a signature this server rejected.", "")
+	}
+	return item("proxy", label, "warn", CodeProxyBadSignature,
+		fmt.Sprintf("%d forwarded requests in the last 24 hours had a signature this server could not verify. Every visitor behind them looks like your proxy.", badSig),
+		"Set TRAIL_SITE and TRAIL_CRAWL_TOKEN on your host to a token that exists under Settings → Tokens, then redeploy.")
 }
