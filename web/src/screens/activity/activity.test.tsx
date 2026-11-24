@@ -9,7 +9,7 @@ vi.mock('../../api/client', async (orig) => {
 
 import { api } from '../../api/client'
 import { invalidate } from '../../api/useQuery'
-import { current, startRouter } from '../../shell/router'
+import { current, navigate, startRouter } from '../../shell/router'
 import ActivityScreen from './index'
 import { goals, state } from './testdata'
 import { pathSteps } from './Sessions'
@@ -60,6 +60,23 @@ describe('Activity', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Load 50 more' }))
     await flush()
     expect(A.visitors.mock.calls.at(-1)![1]).toMatchObject({ limit: 100 })
+  })
+
+  it('Load more resets after a filter change', async () => {
+    visit('/activity/visitors?site=demo')
+    render(<ActivityScreen />)
+    await screen.findByRole('table', {}, { timeout: 2000 })
+    await flush()
+    fireEvent.click(screen.getByRole('button', { name: 'Load 50 more' }))
+    await flush()
+    expect(A.visitors.mock.calls.at(-1)![1]).toMatchObject({ limit: 100 })
+    const before = A.visitors.mock.calls.length
+    act(() => navigate({ filters: [{ dim: 'country', value: 'IN' }] }))
+    await flush()
+    const after = A.visitors.mock.calls.slice(before).map((c) => c[1].limit)
+    expect(after.length).toBeGreaterThan(0)
+    expect(after).not.toContain(100)
+    expect(after.at(-1)).toBe(50)
   })
 
   it('Sessions: sorting sends sort=-duration, and a row opens v=person~session', async () => {

@@ -39,8 +39,17 @@ export function useServerList<T>(name: string, fetch: (q: URLSearchParams, o: { 
   const { key, q } = useAq()
   const [limit, setLimit] = useState(PAGE)
   const [sort, setSort] = useState(defaultSort)
-  const res = useQuery(`${name}|${key}|${limit}|${sort}`, async (sig) => fetch(q, { limit, sort }, sig))
-  return { res, limit, setLimit, sort, setSort }
+  // A new site, range, filter or sort starts from the first page. Adjusted during render (no effect), so the
+  // old limit is never sent for the new view.
+  const view = `${key}|${sort}`
+  const [seen, setSeen] = useState(view)
+  if (seen !== view) {
+    setSeen(view)
+    setLimit(PAGE)
+  }
+  const lim = seen !== view ? PAGE : limit
+  const res = useQuery(`${name}|${key}|${lim}|${sort}`, async (sig) => fetch(q, { limit: lim, sort }, sig))
+  return { res, limit: lim, setLimit, sort, setSort }
 }
 
 export default function Visitors() {
