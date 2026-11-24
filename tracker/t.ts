@@ -29,10 +29,10 @@ declare const MODE: string;
           } catch {}
         }
       : (0 as any);
-  // time-ordered id: ms time in hex, then 72 random bits
+  // time-ordered id: ms time in hex, then 96 random bits as decimal digits
   const uuid: () => string =
     MODE == 'full'
-      ? () => Date.now().toString(16) + [...crypto.getRandomValues(new Uint8Array(9))].map((b) => (b | 256).toString(16).slice(1)).join('')
+      ? () => Date.now().toString(16) + crypto.getRandomValues(new Uint32Array(3)).join('')
       : (0 as any);
 
   // consent: _t_c "1" = granted (upgraded), "0" = denied (send nothing, store nothing else)
@@ -79,7 +79,7 @@ declare const MODE: string;
   // Failed events (F, rc counts resends) retry with backoff; in full mode they are also
   // mirrored in localStorage._t_q and resent on the next page load.
   let route: string | undefined;
-  let q: any[] = [], F: any[] = [], tries = 0, rtm: any;
+  let q: any[] = [], F: any[] = [], tries = 0, rtm: any, K: any;
   const save = () => MODE == 'full' && full && ls('_t_q', F.length ? JSON.stringify(F.slice(-50)) : '');
   const fail = (evs: any[]) => {
     for (const e of evs) e.rc = -~e.rc;
@@ -97,6 +97,7 @@ declare const MODE: string;
     fetch(api, { method: 'POST', keepalive: true, body: J(evs) })
       .then((r) => {
         if (/^5|408|429/.test(r.status as any)) throw 0;
+        K = r.headers.get('x-trail-k') || K;
         save(); // keeps _t_q in step with F (full mode)
       })
       .catch(() => stop || fail(evs)); // a failure landing after a denial is dropped
@@ -106,7 +107,7 @@ declare const MODE: string;
   };
   const send = (t: string, x: any = {}, src = '') => {
     if (stop) return;
-    const ev = { c: Date.now(), s: site, t, a, ss: sess(src), uid: U, u: l.href, rt: route, env: D.env, w: +!!n.webdriver, m: full ? 'f' : 'p', ...x };
+    const ev = { c: Date.now(), s: site, t, a, ss: sess(src), uid: U, u: l.href, rt: route, env: D.env, w: +!!n.webdriver, m: full ? 'f' : 'p', k: K, ...x };
     if (t == 'pageview') post([ev]);
     else if (q.push(ev) > 49) post(q), (q = []);
   };

@@ -68,6 +68,7 @@ const (
 	defaultLimit = 100
 	maxLimit     = 1000
 	onlineWindow = 5 * time.Minute
+	foldLookback = int64(24 * time.Hour / time.Millisecond) // how far back a folded pageview's dwell can reach
 )
 
 // Params scopes a dashboard query. Env "" or "all" means every environment.
@@ -82,6 +83,7 @@ type Params struct {
 	Limit, Offset int
 	Sort          string
 	Actor         string // "" or "human": people only; "all": people and AI agents
+	lookback      int64  // ms: also read folded pageviews that started up to this long before From and are still in dwell at From
 }
 
 // Prev returns the comparison window as Params; false when Win.PrevFrom is nil.
@@ -114,12 +116,24 @@ func base(p Params) (string, []any, error) {
 	if err != nil {
 		return "", nil, err
 	}
-	args := append([]any{p.Site, p.Site}, evA...)
+	src, srcA, args := "events e", []any(nil), []any{p.Site, p.Site}
+	if p.lookback > 0 {
+		// The window, plus the folded pageviews that started up to lookback before it and are still in
+		// dwell at its start. Two reads, not an OR: the second walks events_site_end (ts is its third
+		// column, so the rows already in the window are dropped before the table is touched), and
+		// costs the pageviews in dwell, not the lookback day. INDEXED BY pins it; left to itself the
+		// planner scans events_site_ts over the whole lookback.
+		src = `(SELECT * FROM events WHERE site_id=? AND ts BETWEEN ? AND ?
+    UNION ALL SELECT * FROM events INDEXED BY events_site_end WHERE site_id=? AND type='pageview' AND dwell_ms>0 AND ` +
+			activeEnd + `>=? AND ts>=? AND ts<?) e`
+		srcA = []any{p.Site, p.From, p.To, p.Site, p.From, p.From - p.lookback, p.From}
+	}
+	args = append(append(args, srcA...), evA...)
 	var sb strings.Builder
 	sb.WriteString(`WITH idm AS (SELECT anon_id, user_id FROM identity_map WHERE site_id=? AND rowid IN
   (SELECT min(rowid) FROM identity_map WHERE site_id=? GROUP BY anon_id)),
 ev AS (SELECT e.*, COALESCE(idm.user_id, e.anon_id) AS person, idm.user_id IS NOT NULL AS ident
-  FROM events e LEFT JOIN idm USING(anon_id)
+  FROM ` + src + ` LEFT JOIN idm USING(anon_id)
   WHERE ` + evW + `),
 `)
 	hasPage := false
@@ -137,18 +151,26 @@ ev AS (SELECT e.*, COALESCE(idm.user_id, e.anon_id) AS person, idm.user_id IS NO
 		return "", nil, err
 	}
 	sb.WriteString(`sev AS (SELECT e.*, COALESCE(idm.user_id, e.anon_id) AS person, idm.user_id IS NOT NULL AS ident
-  FROM events e LEFT JOIN idm USING(anon_id)
+  FROM ` + src + ` LEFT JOIN idm USING(anon_id)
   WHERE ` + sevW + `)
 `)
-	return sb.String(), append(args, sevA...), nil
+	return sb.String(), append(append(args, srcA...), sevA...), nil
 }
 
 // evWhere is the WHERE clause (on alias e) for p's window, actor, env and filters. With
 // skipPage, path, route and host become "sessions that viewed a matching page".
 func evWhere(p Params, skipPage bool) (string, []any, error) {
 	var sb strings.Builder
-	sb.WriteString("e.site_id=? AND e.ts BETWEEN ? AND ? AND " + actorCond(p, "e"))
-	args := []any{p.Site, p.From, p.To}
+	lo := p.From // earliest ts a session subquery reads
+	args := []any{p.Site}
+	if p.lookback > 0 {
+		// base reads the window and the folded pageviews still in dwell from its own source.
+		lo = p.From - p.lookback
+		sb.WriteString("e.site_id=? AND " + actorCond(p, "e"))
+	} else {
+		sb.WriteString("e.site_id=? AND e.ts BETWEEN ? AND ? AND " + actorCond(p, "e"))
+		args = append(args, p.From, p.To)
+	}
 	if p.Env != "" && p.Env != "all" {
 		sb.WriteString(" AND e.env=?")
 		args = append(args, p.Env)
@@ -168,7 +190,7 @@ func evWhere(p Params, skipPage bool) (string, []any, error) {
 		case dimRow:
 			if skipPage && pageDims[k] {
 				sb.WriteString(" AND e.session_id IN (SELECT session_id FROM events WHERE site_id=? AND type='pageview' AND ts BETWEEN ? AND ? AND " + d.expr + "=?)")
-				args = append(args, p.Site, p.From, p.To, v)
+				args = append(args, p.Site, lo, p.To, v)
 				continue
 			}
 			sb.WriteString(" AND e." + d.expr + "=?") // expr comes from the dims allowlist
@@ -185,25 +207,25 @@ func evWhere(p Params, skipPage bool) (string, []any, error) {
 			// landing pageview matches; a row filter would make every session a bounce.
 			sb.WriteString(" AND e.session_id IN (SELECT session_id FROM (SELECT session_id, min(ts), " + d.expr +
 				" AS v FROM events WHERE site_id=? AND type='pageview' AND ts BETWEEN ? AND ? GROUP BY session_id) WHERE v=?)")
-			args = append(args, p.Site, p.From, p.To, v)
+			args = append(args, p.Site, lo, p.To, v)
 		case dimExit:
 			sb.WriteString(" AND e.session_id IN (SELECT session_id FROM (SELECT session_id, max(ts), path" +
 				" AS v FROM events WHERE site_id=? AND type='pageview' AND ts BETWEEN ? AND ? GROUP BY session_id) WHERE v=?)")
-			args = append(args, p.Site, p.From, p.To, v)
+			args = append(args, p.Site, lo, p.To, v)
 		case dimEvent:
 			// An event filter keeps whole sessions that fired the event.
 			if v == outboundKey {
-				sb.WriteString(" AND e.session_id IN (SELECT session_id FROM events WHERE site_id=? AND type='outbound' AND ts BETWEEN ? AND ?)")
-				args = append(args, p.Site, p.From, p.To)
+				sb.WriteString(" AND e.session_id IN (SELECT session_id FROM events WHERE site_id=? AND type<>'pageview' AND type='outbound' AND ts BETWEEN ? AND ?)")
+				args = append(args, p.Site, lo, p.To)
 				continue
 			}
-			sb.WriteString(" AND e.session_id IN (SELECT session_id FROM events WHERE site_id=? AND type='event' AND name=?)")
+			sb.WriteString(" AND e.session_id IN (SELECT session_id FROM events WHERE site_id=? AND type<>'pageview' AND type='event' AND name<>'' AND name=?)")
 			args = append(args, p.Site, v)
 		case dimGoal:
 			// A goal filter keeps whole sessions that hit the goal (any kind of goal).
 			sb.WriteString(" AND e.session_id IN (SELECT x.session_id FROM events x JOIN goals g ON g.id=? AND g.site_id=x.site_id" +
 				" WHERE x.site_id=? AND x.ts BETWEEN ? AND ? AND " + goalHitCond + ")")
-			args = append(args, v, p.Site, p.From, p.To)
+			args = append(args, v, p.Site, lo, p.To)
 		}
 	}
 	return sb.String(), args, nil
@@ -272,13 +294,15 @@ func activeNow(db *sql.DB, p Params) (int, error) {
 	nowMs := p.now().UnixMilli()
 	lp := p
 	lp.Actor = ""
-	lp.From, lp.To = nowMs-onlineWindow.Milliseconds(), nowMs
+	from := nowMs - onlineWindow.Milliseconds()
+	// A pageview with engage folded into it is active until ts+dwell_ms, so look back a day for those.
+	lp.From, lp.To, lp.lookback = from, nowMs, foldLookback
 	cte, args, err := base(lp)
 	if err != nil {
 		return 0, err
 	}
 	var n int
-	if err := db.QueryRow(cte+`SELECT count(DISTINCT person) FROM ev`, args...).Scan(&n); err != nil {
+	if err := db.QueryRow(cte+`SELECT count(DISTINCT person) FROM ev WHERE `+activeEnd+`>=?`, append(args, from)...).Scan(&n); err != nil {
 		return 0, fmt.Errorf("online: %w", err)
 	}
 	return n, nil
@@ -290,7 +314,7 @@ func totals(db *sql.DB, p Params, goal *Goal) (Totals, error) {
 	if err != nil {
 		return t, err
 	}
-	if err := db.QueryRow(cte+`SELECT count(DISTINCT person), coalesce(sum(type='pageview'),0),
+	if err := db.QueryRow(cte+`SELECT count(DISTINCT CASE WHEN type='pageview' THEN person END), coalesce(sum(type='pageview'),0),
   count(DISTINCT CASE WHEN type IN ('event','outbound') THEN person END) FROM ev`, args...).
 		Scan(&t.Visitors, &t.Pageviews, &t.EventPeople); err != nil {
 		return t, fmt.Errorf("totals: %w", err)
@@ -315,13 +339,13 @@ WHERE cur=(SELECT cur FROM pc GROUP BY cur ORDER BY count(*) DESC, cur LIMIT 1)`
 		if err != nil {
 			return t, err
 		}
-		if err := db.QueryRow(bcte+`SELECT count(DISTINCT person) FROM ev`, bargs...).Scan(&t.BaseVisitors); err != nil {
+		if err := db.QueryRow(bcte+`SELECT count(DISTINCT CASE WHEN type='pageview' THEN person END) FROM ev`, bargs...).Scan(&t.BaseVisitors); err != nil {
 			return t, fmt.Errorf("base visitors: %w", err)
 		}
 	}
 	if goal != nil {
 		where, gargs := goalWhere(*goal)
-		if err := db.QueryRow(cte+`SELECT count(*), count(DISTINCT person) FROM ev WHERE `+where, append(args, gargs...)...).
+		if err := db.QueryRow(cte+`SELECT count(*), count(DISTINCT CASE WHEN `+pvPeople+` THEN person END) FROM ev WHERE (`+where+`)`, append(args, gargs...)...).
 			Scan(&t.Conversions, &t.ConvVisitors); err != nil {
 			return t, fmt.Errorf("conversions: %w", err)
 		}
@@ -454,7 +478,7 @@ func seriesPoints(db *sql.DB, p Params, metric string, b buckets, goal *Goal) ([
 		err = perBucket(cte+`SELECT ts FROM ev WHERE type='pageview'`, args, func() []any { return nil }, func(i int) { vals[i]++ })
 	case "visitors":
 		var sets []map[string]bool
-		sets, err = distinct(cte+`SELECT ts, person FROM ev`, args)
+		sets, err = distinct(cte+`SELECT ts, person FROM ev WHERE type='pageview'`, args)
 		for i, s := range sets {
 			vals[i] = float64(len(s))
 		}
@@ -487,7 +511,7 @@ func seriesPoints(db *sql.DB, p Params, metric string, b buckets, goal *Goal) ([
 		if berr != nil {
 			return nil, berr
 		}
-		baseSets, err1 := distinct(bcte+`SELECT ts, person FROM ev`, bargs)
+		baseSets, err1 := distinct(bcte+`SELECT ts, person FROM ev WHERE type='pageview'`, bargs)
 		if err1 != nil {
 			err = err1
 			break
@@ -497,7 +521,13 @@ func seriesPoints(db *sql.DB, p Params, metric string, b buckets, goal *Goal) ([
 		convSets, err = distinct(cte+`SELECT ts, person FROM ev WHERE `+where, append(args, gargs...))
 		for i := range vals {
 			if len(baseSets[i]) > 0 {
-				vals[i] = float64(len(convSets[i])) / float64(len(baseSets[i]))
+				n := 0
+				for person := range convSets[i] {
+					if baseSets[i][person] {
+						n++
+					}
+				}
+				vals[i] = float64(n) / float64(len(baseSets[i]))
 			}
 		}
 	case "revenue":

@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log"
 	"net/url"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -43,17 +44,20 @@ type Event struct {
 
 // Store owns the database and the in-memory write queue.
 type Store struct {
-	db      *sql.DB
-	queue   chan Event
-	kick    chan struct{}
-	mu      sync.Mutex // serialises Flush and guards closed
-	qmu     sync.Mutex // serialises producers so a batch is admitted whole
-	closed  bool
-	dropped atomic.Int64
-	failed  atomic.Int64
-	pending []Event       // drained from the queue, not yet committed; guarded by mu
-	pendCap int           // most events pending may hold (queueCap; tests lower it)
-	every   time.Duration // the timer flush interval (flushEvery; tests raise it)
+	db                                  *sql.DB
+	path                                string
+	queue                               chan Event
+	kick                                chan struct{}
+	mu                                  sync.Mutex // serialises Flush and guards closed
+	qmu                                 sync.Mutex // serialises producers so a batch is admitted whole
+	closed                              bool
+	dropped                             atomic.Int64
+	failed                              atomic.Int64
+	pending                             []Event       // drained from the queue, not yet committed; guarded by mu
+	pendCap                             int           // most events pending may hold (queueCap; tests lower it)
+	every                               time.Duration // the timer flush interval (flushEvery; tests raise it)
+	foldReady, foldFinished, foldWarned bool          // history fold state; only the writer goroutine touches them
+	noFold                              atomic.Bool   // true: engage events are stored as rows (tests write unfolded history)
 }
 
 // Open opens (or creates) the database at path, enabling WAL and a 5 s busy timeout.
@@ -73,6 +77,7 @@ func Open(path string) (*Store, error) {
 	}
 	return &Store{
 		db:      db,
+		path:    path,
 		queue:   make(chan Event, queueCap),
 		kick:    make(chan struct{}, 1),
 		every:   flushEvery,
@@ -102,15 +107,138 @@ func migrate(db *sql.DB) error {
 		if ok {
 			continue
 		}
-		if _, err := db.Exec(`ALTER TABLE events ADD COLUMN ` + c.def); err != nil {
-			return fmt.Errorf("add %s column: %w", c.name, err)
+		if err := addColumn(db, "events", c.name, c.def); err != nil {
+			return err
 		}
 	}
 	// After the ALTERs: on old databases schema.sql runs before the agent column exists.
 	if _, err := db.Exec(`CREATE INDEX IF NOT EXISTS events_site_agent_ts ON events(site_id, ts) WHERE agent<>''`); err != nil {
 		return fmt.Errorf("create events_site_agent_ts: %w", err)
 	}
-	return migrateCrawlHits(db)
+	if err := migrateCrawlHits(db); err != nil {
+		return err
+	}
+	return migrateVersioned(db)
+}
+
+// Versioned migration steps: each step's number is the user_version it leaves behind.
+const (
+	verDwell   = 1 // events.dwell_ms
+	verIndexes = 2 // trimmed index set
+	verEndIdx  = 3 // events_site_end, for the live reports' fold lookback
+	verTypeIdx = 4 // events_site_type_ts, for the (site, type) scans the partial name index cannot serve
+	// schemaVersion is the PRAGMA user_version this binary migrates to: the newest step.
+	schemaVersion = verTypeIdx
+)
+
+// trimmedIndexes are the v1 index names the v2 step drops. A downgraded binary recreates them.
+var trimmedIndexes = []string{"events_site_type_name_ts", "events_site_user_ts"}
+
+// addColumn adds a column. "duplicate column name" means another opener added it first: success.
+func addColumn(db *sql.DB, table, name, def string) error {
+	if _, err := db.Exec(`ALTER TABLE ` + table + ` ADD COLUMN ` + def); err != nil {
+		if strings.Contains(err.Error(), "duplicate column name") {
+			return nil
+		}
+		return fmt.Errorf("add %s column: %w", name, err)
+	}
+	return nil
+}
+
+// migrateVersioned runs the numbered steps above PRAGMA user_version. Each step is idempotent.
+func migrateVersioned(db *sql.DB) error {
+	var v int
+	if err := db.QueryRow(`PRAGMA user_version`).Scan(&v); err != nil {
+		return fmt.Errorf("read user_version: %w", err)
+	}
+	// done records a finished step; user_version only ever moves up.
+	done := func(step int) error {
+		if v >= step {
+			return nil
+		}
+		if _, err := db.Exec(fmt.Sprintf(`PRAGMA user_version=%d`, step)); err != nil {
+			return fmt.Errorf("set user_version: %w", err)
+		}
+		v = step
+		return nil
+	}
+	if v < verDwell {
+		// Constant default: SQLite rewrites no rows, so this is instant on any size of database.
+		ok, err := hasColumn(db, "events", "dwell_ms")
+		if err != nil {
+			return err
+		}
+		if !ok {
+			if err := addColumn(db, "events", "dwell_ms", "dwell_ms INTEGER NOT NULL DEFAULT 0"); err != nil {
+				return err
+			}
+		}
+		if err := done(verDwell); err != nil {
+			return err
+		}
+	}
+	// Also when user_version is already 2: a downgraded binary recreates the old indexes without
+	// touching it.
+	old, err := hasIndex(db, trimmedIndexes...)
+	if err != nil {
+		return err
+	}
+	if v < verIndexes || old {
+		// New names, not reused ones, so a downgraded binary recreates its own full indexes. Create
+		// before drop. Runs at Open, before ingest listens, so the index build blocks no writer.
+		qs := []string{`CREATE INDEX IF NOT EXISTS events_site_name_ts ON events(site_id, type, name, ts) WHERE name<>''`}
+		for _, n := range trimmedIndexes {
+			qs = append(qs, `DROP INDEX IF EXISTS `+n)
+		}
+		for _, q := range qs {
+			if _, err := db.Exec(q); err != nil {
+				return fmt.Errorf("migrate to v2: %w", err)
+			}
+		}
+		if err := done(verIndexes); err != nil {
+			return err
+		}
+	}
+	if v < verEndIdx {
+		// Where a folded pageview's dwell ends. The live reports ask for the pageviews still in dwell
+		// at the start of their window; this index answers that with a range seek, not a day scan.
+		// ts is the third column so a query can drop rows by ts without reading the table. The expression
+		// must match query.activeEnd.
+		if _, err := db.Exec(`CREATE INDEX IF NOT EXISTS events_site_end ON events(site_id, (ts+dwell_ms), ts) WHERE dwell_ms>0`); err != nil {
+			return fmt.Errorf("migrate to v3: %w", err)
+		}
+		if err := done(verEndIdx); err != nil {
+			return err
+		}
+	}
+	if v < verTypeIdx {
+		// events_site_name_ts is partial (name<>''), so a lookup by type alone (event catalogue, the
+		// outbound filter, the event breakdown) cannot use it and would scan events_site_ts over the
+		// window. This index restores the seek. It is partial (non-pageview rows are a small share after the
+		// fold), and the three reports' WHERE carry a literal type<>'pageview' so the planner can use it.
+		// It is additive, so a downgrade is unaffected.
+		if _, err := db.Exec(`CREATE INDEX IF NOT EXISTS events_site_type_ts ON events(site_id, type, ts) WHERE type<>'pageview'`); err != nil {
+			return fmt.Errorf("migrate to v4: %w", err)
+		}
+		if err := done(verTypeIdx); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// hasIndex reports whether any of the named indexes exists.
+func hasIndex(db *sql.DB, names ...string) (bool, error) {
+	for _, n := range names {
+		var c int
+		if err := db.QueryRow(`SELECT count(*) FROM sqlite_master WHERE type='index' AND name=?`, n).Scan(&c); err != nil {
+			return false, fmt.Errorf("inspect index %s: %w", n, err)
+		}
+		if c > 0 {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // hasColumn reports whether table has the named column.
@@ -241,6 +369,7 @@ func (s *Store) Start(ctx context.Context) {
 					log.Printf("store: write recovered")
 					backoff = 0
 				}
+				s.foldTick()
 				continue
 			}
 			if backoff == 0 {
@@ -328,8 +457,22 @@ func (s *Store) write(batch []Event) error {
 		return fmt.Errorf("prepare identity: %w", err)
 	}
 	defer idm.Close()
+	var fold *sql.Stmt
+	if !s.noFold.Load() {
+		if fold, err = tx.Prepare(foldUpdateSQL); err != nil {
+			return fmt.Errorf("prepare fold: %w", err)
+		}
+		defer fold.Close()
+	}
 
 	for _, e := range batch {
+		if fold != nil && e.Type == "engage" {
+			if ok, err := foldEngage(fold, e); err != nil {
+				return fmt.Errorf("fold engage: %w", err)
+			} else if ok {
+				continue
+			}
+		}
 		if _, err := ins.Exec(e.SiteID, e.TS, e.Type, e.AnonID, e.SessionID, e.UserID,
 			e.Host, e.Path, e.Route, e.UTMSource, e.UTMMedium, e.UTMCampaign, e.UTMTerm, e.UTMContent,
 			e.RefHost, e.RefURL, e.Name, e.Props, e.EngagedMs, e.ScrollPct,

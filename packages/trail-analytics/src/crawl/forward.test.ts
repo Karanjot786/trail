@@ -173,6 +173,11 @@ describe('forward', () => {
     expect(res.headers.get('x-trail-proxy-status')).toBe('ok');
   });
 
+  it('passes the visit token X-Trail-K back to the browser', async () => {
+    fetchMock.mockResolvedValue(new Response(null, { status: 204, headers: { 'x-trail-k': 'TOK' } }));
+    expect((await forward(beacon(), opts)).headers.get('x-trail-k')).toBe('TOK');
+  });
+
   it('accepts /t/e/ (trailingSlash)', async () => {
     const res = await forward(Object.assign(new Request('https://shop.example/t/e/', { method: 'POST', body: '[]', headers: { host: 'shop.example' } })), opts);
     expect(res.status).toBe(202);

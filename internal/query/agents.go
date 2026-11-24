@@ -39,7 +39,7 @@ type agentSess struct {
 // agentScan reads every AI agent event of p's window (env applies, filters do not, as
 // Stats.AgentSessions) and returns its sessions in start order, plus each path's pageviews by agent.
 func agentScan(db *sql.DB, p Params, goals []Goal) ([]*agentSess, map[string]map[string]int, map[string]map[string]bool, error) {
-	q := `SELECT session_id, anon_id, agent, agent_via, ts, type, path, name FROM events
+	q := `SELECT session_id, anon_id, agent, agent_via, ts, type, path, name, dwell_ms FROM events
 WHERE site_id=? AND agent<>'' AND ts BETWEEN ? AND ?`
 	args := []any{p.Site, p.From, p.To}
 	if p.Env != "" && p.Env != "all" {
@@ -54,7 +54,8 @@ WHERE site_id=? AND agent<>'' AND ts BETWEEN ? AND ?`
 	err := forRows(db, q, args, func(r *sql.Rows) error {
 		var sid, anon, agent, via string
 		var st Step
-		if err := r.Scan(&sid, &anon, &agent, &via, &st.TS, &st.Type, &st.Path, &st.Name); err != nil {
+		var dwell int64
+		if err := r.Scan(&sid, &anon, &agent, &via, &st.TS, &st.Type, &st.Path, &st.Name, &dwell); err != nil {
 			return err
 		}
 		s := byID[sid]
@@ -65,7 +66,7 @@ WHERE site_id=? AND agent<>'' AND ts BETWEEN ? AND ?`
 		}
 		s.agent = max(s.agent, agent)
 		s.via = max(s.via, viaRank[via])
-		s.end = st.TS
+		s.end = max(s.end, st.TS+dwell)
 		for _, g := range goals {
 			if goalHit(g, st) {
 				s.goals[g.ID] = true

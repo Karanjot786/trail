@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -483,5 +484,31 @@ func TestServerTZDefault(t *testing.T) {
 	t.Setenv("TRAIL_TZ", "Nope/Zone")
 	if _, err := serverTZ(); err == nil || !strings.Contains(err.Error(), "TRAIL_TZ") {
 		t.Fatalf("bad zone: %v", err)
+	}
+}
+
+func TestCompactAndUnfoldSubcommands(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "t.db")
+	st, err := store.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	st.EnqueueBatch([]store.Event{
+		{SiteID: "s", Type: "pageview", AnonID: "a", SessionID: "x", Path: "/", TS: 1000},
+		{SiteID: "s", Type: "engage", AnonID: "a", SessionID: "x", Path: "/", TS: 6000, EngagedMs: 4000},
+	})
+	if err := st.Close(); err != nil {
+		t.Fatal(err)
+	}
+	var out bytes.Buffer
+	if err := runUnfold(path, &out); err != nil || !strings.Contains(out.String(), "Unfolded 1 engage rows") {
+		t.Fatalf("unfold: %v %q", err, out.String())
+	}
+	out.Reset()
+	if err := runCompact(path, &out); err != nil || !strings.Contains(out.String(), "Compacted") {
+		t.Fatalf("compact: %v %q", err, out.String())
+	}
+	if err := runUnfold(filepath.Join(t.TempDir(), "none.db"), &out); err == nil {
+		t.Error("unfold of a missing database succeeded")
 	}
 }

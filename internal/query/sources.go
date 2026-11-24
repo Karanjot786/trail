@@ -199,7 +199,7 @@ func breakdown(db *sql.DB, p Params, dim, q string, limit int, conv map[string]i
   count(DISTINCT CASE WHEN eng THEN session_id END), max(country), max(region)
 FROM (SELECT ` + expr + ` AS k, e.person, e.type, e.session_id, e.country, e.region, ` + engagedExpr + ` AS eng
   FROM ev e JOIN (` + sessionAgg + `) a USING(session_id))
-WHERE k!=''` + search + order
+WHERE k!='' AND type<>'engage'` + search + order
 	case dimSession:
 		sqlText = cte + sessRows() + `SELECT k, count(DISTINCT person), sum(pv), 0, count(*), sum(eng), '', ''
 FROM (SELECT ` + sessCols[dim] + ` AS k, person, pv, eng FROM ss) WHERE k!=''` + search + order
@@ -208,7 +208,7 @@ FROM (SELECT ` + sessCols[dim] + ` AS k, person, pv, eng FROM ss) WHERE k!=''` +
 	case dimEvent:
 		sqlText = cte + `SELECT k, count(DISTINCT person), 0, count(*), count(DISTINCT session_id), 0, '', ''
 FROM (SELECT CASE WHEN type='outbound' THEN '` + outboundKey + `' ELSE name END AS k, person, session_id
-  FROM ev WHERE type='outbound' OR (type='event' AND name!=''))
+  FROM ev WHERE type<>'pageview' AND type IN ('outbound','event') AND (type='outbound' OR name!=''))
 WHERE k!=''` + search + order
 	case dimGoal:
 		args = append(args, p.Site)

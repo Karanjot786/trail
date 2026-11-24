@@ -158,7 +158,7 @@ func firstEvent(db *sql.DB, site string) (CheckItem, *int64, error) {
 func delivery(db *sql.DB, site string, since int64) (CheckItem, error) {
 	const label = "Events are delivered reliably"
 	var n, retried int
-	if err := db.QueryRow(`SELECT count(*), coalesce(sum(retry>=1),0) FROM events WHERE site_id=? AND ts>=?`, site, since).
+	if err := db.QueryRow(`SELECT count(*), coalesce(sum(retry>=1),0) FROM events WHERE site_id=? AND ts>=? AND type<>'engage'`, site, since).
 		Scan(&n, &retried); err != nil {
 		return CheckItem{}, fmt.Errorf("install check: %w", err)
 	}

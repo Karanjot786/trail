@@ -74,10 +74,14 @@ func main() {
 		err = runHealth(env("TRAIL_ADDR", ":8080"), 3*time.Second)
 	case "reset-password":
 		err = runResetPassword(env("TRAIL_DB", "trail.db"), os.Getenv("TRAIL_PASSWORD") != "", os.Stdout)
+	case "compact":
+		err = runCompact(env("TRAIL_DB", "trail.db"), os.Stdout)
+	case "unfold":
+		err = runUnfold(env("TRAIL_DB", "trail.db"), os.Stdout)
 	case "version", "--version", "-v":
 		fmt.Println("trail", version)
 	default:
-		fmt.Fprintln(os.Stderr, "usage: trail [serve|seed|crawlers import|health|reset-password|version]")
+		fmt.Fprintln(os.Stderr, "usage: trail [serve|seed|crawlers import|health|reset-password|compact|unfold|version]")
 		os.Exit(2)
 	}
 	if err != nil {
@@ -539,6 +543,41 @@ func runResetPassword(path string, envSet bool, out io.Writer) error {
 	if envSet {
 		fmt.Fprintln(out, "Note: TRAIL_PASSWORD is set, and it wins over the generated password.")
 	}
+	return nil
+}
+
+// runCompact vacuums the database so the pages freed by the history fold go back to the disk.
+func runCompact(path string, out io.Writer) error {
+	before, err := os.Stat(path)
+	if err != nil {
+		return fmt.Errorf("database %s: %w (set TRAIL_DB)", path, err)
+	}
+	if err := store.Compact(path); err != nil {
+		return err
+	}
+	after, err := os.Stat(path)
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(out, "Compacted %s: %d MB -> %d MB\n", path, before.Size()>>20, after.Size()>>20)
+	return nil
+}
+
+// runUnfold turns folded engagement back into engage rows, the shape older binaries read.
+// Stop the server first, or it folds them again.
+func runUnfold(path string, out io.Writer) error {
+	if _, err := os.Stat(path); err != nil {
+		return fmt.Errorf("database %s: %w (set TRAIL_DB)", path, err)
+	}
+	st, err := store.Open(path)
+	if err != nil {
+		return err
+	}
+	n, err := store.Unfold(st.DB())
+	if err = errors.Join(err, st.Close()); err != nil {
+		return err
+	}
+	fmt.Fprintf(out, "Unfolded %d engage rows. Stop the server before starting an older binary.\n", n)
 	return nil
 }
 

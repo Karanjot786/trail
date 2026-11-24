@@ -144,6 +144,15 @@ What an update changes for people:
 
 Pin a version (`ghcr.io/karanjot786/trail:0.3`, `TRAIL_VERSION=v0.3.0`) if you want to choose when to move. Read the [changelog](site/docs/changelog.md) before a big jump. The tracker is embedded, so your sites get the new `t.js` once the server restarts.
 
+### Upgrading: history fold
+
+The first start of a release that stores engagement on the pageview row (a visit's engaged time and scroll depth are folded into the pageview, instead of one extra row per engage) folds your existing history in the background, in small steps, while Trail keeps collecting. Reports read the same numbers during and after.
+
+- **Backup.** Before the first step, Trail copies the database to `<db>.pre-fold` (`VACUUM INTO`). It needs about 1.2 times the database size free in that folder; without it the fold waits and the log says how much. `TRAIL_FOLD_NO_BACKUP=1` skips the copy.
+- **Disk.** Deleted rows leave free space inside the file. Files up to 256 MB are compacted automatically once the fold is done. For a larger file run `trail compact` in a quiet hour (it needs as much free space as the file holds).
+- **Roll back.** Stop Trail, run `trail unfold` (it rewrites the engage rows older binaries read), then start the older binary. Restoring `<db>.pre-fold` also works but loses events collected since.
+- **Export.** The NDJSON export now carries a `dwell_ms` field, and has no engage rows for folded pageviews.
+
 ## Backups
 
 Everything (events, sites, goals, tokens, the generated password and session key) is in one SQLite file. Back it up and you have backed up Trail.
