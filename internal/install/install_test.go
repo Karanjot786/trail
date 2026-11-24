@@ -92,10 +92,10 @@ func TestCheckReasonCodes(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if len(got.Checks) != 7 {
+			if len(got.Checks) != 8 {
 				t.Fatalf("checks %+v", got.Checks)
 			}
-			ids := []string{"page", "script", "csp", "origin", "first_event", "delivery", "robots"}
+			ids := []string{"page", "script", "csp", "origin", "first_event", "delivery", "robots", "proxy"}
 			for i, it := range got.Checks {
 				if it.ID != ids[i] {
 					t.Fatalf("order %d: %s", i, it.ID)
@@ -475,7 +475,7 @@ func TestCheckRobots(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if len(got.Checks) != 7 {
+			if len(got.Checks) != 8 {
 				t.Fatalf("checks %d", len(got.Checks))
 			}
 			r := got.Checks[6]
@@ -486,5 +486,15 @@ func TestCheckRobots(t *testing.T) {
 				t.Errorf("detail %q state %s", r.Detail, got.State)
 			}
 		})
+	}
+}
+
+func TestCheckProxy(t *testing.T) {
+	if it := proxyCheck(0); it.ID != "proxy" || it.Status != "pass" {
+		t.Errorf("0: %+v", it)
+	}
+	it := proxyCheck(3)
+	if it.Status != "warn" || it.Code != CodeProxyBadSignature || !strings.Contains(it.Detail, "3 forwarded") {
+		t.Errorf("3: %+v", it)
 	}
 }

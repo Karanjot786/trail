@@ -277,6 +277,9 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.refuse(w, http.StatusForbidden, "", site.ID)
 		return
 	}
+	if r.Header.Get("X-Trail-Proxy") != "" && !res.Proxied {
+		h.sites.NoteBadProxy(site.ID) // the install check reads this
+	}
 	domain := site.Domain
 	// Invalid events inside a batch are skipped; the rest are stored.
 	evs := make([]store.Event, 0, len(ps))

@@ -93,3 +93,27 @@ func TestPreflightEchoesOrigin(t *testing.T) {
 		}
 	}
 }
+
+// A garbage X-Trail-Proxy on an accepted origin is counted for the install
+// check; a plain browser request and an origin-refused one are not.
+func TestBadProxyCounted(t *testing.T) {
+	st, reg := newRegistry(t, nil)
+	if _, err := reg.Add(sites.Site{ID: "s1", Domain: "example.com"}); err != nil {
+		t.Fatal(err)
+	}
+	geo, _ := enrich.OpenGeo("")
+	h := New(st, geo, reg)
+	ok := map[string]string{"Origin": "https://example.com"}
+	postFrom(h, pageview, ok)
+	if n := reg.BadProxy24h("s1"); n != 0 {
+		t.Fatalf("plain request counted: %d", n)
+	}
+	postFrom(h, pageview, map[string]string{"Origin": "https://evil.com", "X-Trail-Proxy": "garbage"})
+	if n := reg.BadProxy24h("s1"); n != 0 {
+		t.Fatalf("refused origin counted: %d", n)
+	}
+	w := postFrom(h, pageview, map[string]string{"Origin": "https://example.com", "X-Trail-Proxy": "garbage"})
+	if n := reg.BadProxy24h("s1"); n != 1 || w.Header().Get("X-Trail-Proxy-Status") != "invalid" {
+		t.Fatalf("count %d status %q", n, w.Header().Get("X-Trail-Proxy-Status"))
+	}
+}

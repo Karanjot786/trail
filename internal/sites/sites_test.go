@@ -295,3 +295,28 @@ func TestHyphenWildcardOrigins(t *testing.T) {
 		}
 	}
 }
+
+func TestBadProxyCounter(t *testing.T) {
+	r, _ := open(t)
+	now := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	r.now = func() time.Time { return now }
+	if _, err := r.Add(Site{ID: "s", Domain: "a.com"}); err != nil {
+		t.Fatal(err)
+	}
+	r.NoteBadProxy("s")
+	r.NoteBadProxy("unknown")
+	if r.BadProxy24h("s") != 1 || r.BadProxy24h("unknown") != 0 || r.Rejected24h("s") != 0 {
+		t.Fatalf("counts %d %d %d", r.BadProxy24h("s"), r.BadProxy24h("unknown"), r.Rejected24h("s"))
+	}
+	now = now.Add(25 * time.Hour)
+	if r.BadProxy24h("s") != 0 {
+		t.Fatal("did not expire")
+	}
+	r.NoteBadProxy("s")
+	if err := r.Remove("s", false); err != nil {
+		t.Fatal(err)
+	}
+	if r.BadProxy24h("s") != 0 {
+		t.Fatal("Remove did not clear")
+	}
+}
