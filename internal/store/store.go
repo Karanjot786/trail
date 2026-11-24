@@ -44,6 +44,7 @@ type Event struct {
 // Store owns the database and the in-memory write queue.
 type Store struct {
 	db      *sql.DB
+	path    string
 	queue   chan Event
 	kick    chan struct{}
 	mu      sync.Mutex // serialises Flush and guards closed
@@ -73,6 +74,7 @@ func Open(path string) (*Store, error) {
 	}
 	return &Store{
 		db:      db,
+		path:    path,
 		queue:   make(chan Event, queueCap),
 		kick:    make(chan struct{}, 1),
 		every:   flushEvery,
@@ -110,7 +112,34 @@ func migrate(db *sql.DB) error {
 	if _, err := db.Exec(`CREATE INDEX IF NOT EXISTS events_site_agent_ts ON events(site_id, ts) WHERE agent<>''`); err != nil {
 		return fmt.Errorf("create events_site_agent_ts: %w", err)
 	}
-	return migrateCrawlHits(db)
+	if err := migrateCrawlHits(db); err != nil {
+		return err
+	}
+	return migrateVersioned(db)
+}
+
+// migrateVersioned runs the numbered steps above PRAGMA user_version. Each step is idempotent.
+func migrateVersioned(db *sql.DB) error {
+	var v int
+	if err := db.QueryRow(`PRAGMA user_version`).Scan(&v); err != nil {
+		return fmt.Errorf("read user_version: %w", err)
+	}
+	if v < 1 {
+		// Constant default: SQLite rewrites no rows, so this is instant on any size of database.
+		ok, err := hasColumn(db, "events", "dwell_ms")
+		if err != nil {
+			return err
+		}
+		if !ok {
+			if _, err := db.Exec(`ALTER TABLE events ADD COLUMN dwell_ms INTEGER NOT NULL DEFAULT 0`); err != nil {
+				return fmt.Errorf("add dwell_ms column: %w", err)
+			}
+		}
+		if _, err := db.Exec(fmt.Sprintf(`PRAGMA user_version=%d`, 1)); err != nil {
+			return fmt.Errorf("set user_version: %w", err)
+		}
+	}
+	return nil
 }
 
 // hasColumn reports whether table has the named column.
