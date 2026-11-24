@@ -80,6 +80,21 @@ func TestParamsLegacyFromTo(t *testing.T) {
 	if !strings.HasPrefix(p.Win.Key, "c:") {
 		t.Errorf("window key %q, want c:…", p.Win.Key)
 	}
+	if p.Win.Bucket != "day" || p.Win.PrevTo == nil || *p.Win.PrevTo != from-1 {
+		t.Errorf("bucket %q prevTo %v, want day and %d", p.Win.Bucket, p.Win.PrevTo, from-1)
+	}
+}
+
+func TestParamsLegacy24hHourly(t *testing.T) {
+	s := testServer(t)
+	now := time.Now().UnixMilli()
+	p, err := s.params(req(fmt.Sprintf("/api/stats?site=s&from=%d", now-24*3600_000)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.Win.Bucket != "hour" || p.Win.Basis.Short != "prev. 24 hours" {
+		t.Errorf("bucket %q basis %q", p.Win.Bucket, p.Win.Basis.Short)
+	}
 }
 
 func TestParamsUnknownDim400(t *testing.T) {

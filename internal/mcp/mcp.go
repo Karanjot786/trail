@@ -379,19 +379,17 @@ func (s *server) params(ctx context.Context, in Scope) (query.Params, error) {
 	default:
 		return p, errors.New("bad range: want a range key or {from,to}")
 	}
+	var win query.Window
 	if legacyTo != 0 {
-		day := func(ms int64) string { return time.UnixMilli(ms).In(p.TZ).Format(time.DateOnly) }
-		key = "c:" + day(legacyFrom) + "~" + day(legacyTo)
-	}
-	win, err := query.ResolveWindow(key, cmp, p.Now, p.TZ, 0)
-	if err != nil {
-		return p, fmt.Errorf("bad range or cmp: %w", err)
-	}
-	if win.Invalid != "" {
-		return p, fmt.Errorf("bad range %q: want %s", key, rangeDoc)
-	}
-	if legacyTo != 0 {
-		win.From, win.To = legacyFrom, legacyTo
+		win = query.ExactWindow(legacyFrom, legacyTo, cmp, p.Now, p.TZ, 0)
+	} else {
+		var err error
+		if win, err = query.ResolveWindow(key, cmp, p.Now, p.TZ, 0); err != nil {
+			return p, fmt.Errorf("bad range or cmp: %w", err)
+		}
+		if win.Invalid != "" {
+			return p, fmt.Errorf("bad range %q: want %s", key, rangeDoc)
+		}
 	}
 	p.Win, p.From, p.To = win, win.From, win.To
 	return p, nil

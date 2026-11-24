@@ -2,6 +2,7 @@ package query
 
 import (
 	"fmt"
+	"math"
 	"strings"
 	"time"
 )
@@ -233,6 +234,67 @@ func ResolveWindow(rangeKey, cmp string, now time.Time, loc *time.Location, data
 	return w, nil
 }
 
+// exactHourSpan is the longest exact window bucketed by hour (the legacyBuckets threshold).
+const exactHourSpan = 48 * time.Hour
+
+// ExactWindow builds the window of an exact {from,to} range (and the MCP/API "24h"): the
+// times are kept as given, never rounded to days or clamped to dataStart. The comparison is
+// the span just before from (same formula as prevParams), or cmp=c:YYYY-MM-DD, which starts
+// that day at from's wall clock and must end before from. Windows up to 48 h bucket by hour.
+func ExactWindow(from, to int64, cmp string, now time.Time, loc *time.Location, dataStart int64) Window {
+	if loc == nil {
+		loc = time.UTC
+	}
+	now = now.In(loc)
+	f, t := time.UnixMilli(from).In(loc), time.UnixMilli(to).In(loc)
+	fd, td := dayAt(f, 0), dayAt(t, 0)
+	w := Window{
+		Key: "c:" + fd.Format(time.DateOnly) + "~" + td.Format(time.DateOnly), Label: RangeLabel(fd, td),
+		TZ: loc.String(), From: from, To: to, Bucket: "day", Elapsed: to >= now.UnixMilli(),
+	}
+	span := to - from
+	hours := span <= exactHourSpan.Milliseconds()
+	if hours {
+		w.Bucket = "hour"
+	}
+	w.LastBucket = lastBucket(w, now, loc)
+	if cmp == "none" {
+		w.Basis = Basis{Text: "no comparison", Short: "no comparison", None: true}
+		return w
+	}
+	pf, pt, custom := from-span, from-1, false
+	if c, ok := strings.CutPrefix(cmp, "c:"); ok {
+		if d, ok := parseDay(c, loc); ok {
+			cf := clockOn(d, f).UnixMilli()
+			if cf+span-1 < from {
+				pf, pt, custom = cf, cf+span-1, true
+			}
+		}
+	}
+	if dataStart > 0 && pt < dataStart {
+		ds := DayLabel(time.UnixMilli(dataStart).In(loc))
+		w.Basis = Basis{Text: "no data before " + ds + " to compare with", Short: "no earlier data", Dates: "before " + ds, None: true, Custom: custom}
+		return w
+	}
+	w.PrevFrom, w.PrevTo = &pf, &pt
+	pfd, ptd := dayAt(time.UnixMilli(pf).In(loc), 0), dayAt(time.UnixMilli(pt).In(loc), 0)
+	w.Basis.Dates, w.Basis.Custom = RangeLabel(pfd, ptd), custom
+	var n int
+	var unit string
+	if hours {
+		n, unit = int(math.Round(float64(span)/float64(time.Hour/time.Millisecond))), "hours"
+	} else {
+		n, unit = int(math.Round(float64(span)/float64(24*time.Hour/time.Millisecond))), "days"
+	}
+	w.Basis.Why = fmt.Sprintf("the previous %d %s", n, unit)
+	w.Basis.Short = fmt.Sprintf("prev. %d %s", n, unit)
+	if custom {
+		w.Basis.Why, w.Basis.Short = "the period you chose", w.Basis.Dates
+	}
+	w.Basis.Text = "vs " + w.Basis.Dates + " (" + w.Basis.Why + ")"
+	return w
+}
+
 // lastBucket is the index of the bucket holding now (or the last bucket of a past window).
 func lastBucket(w Window, now time.Time, loc *time.Location) int {
 	starts := BucketStarts(w, loc)
@@ -259,6 +321,9 @@ func bucketStarts(fromMs, toMs int64, bucket string, loc *time.Location) []int64
 	last := dayAt(time.UnixMilli(toMs).In(loc), 0)
 	out := []int64{}
 	if bucket == "hour" {
+		// Start on the local hour holding from (an exact window need not begin at midnight).
+		f := time.UnixMilli(fromMs).In(loc)
+		from = time.Date(f.Year(), f.Month(), f.Day(), f.Hour(), 0, 0, 0, loc)
 		end := dayAt(last, 1).UnixMilli()
 		for t := from.UnixMilli(); t < end; t += int64(time.Hour / time.Millisecond) {
 			out = append(out, t)

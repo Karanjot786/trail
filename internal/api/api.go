@@ -379,12 +379,14 @@ func (s *server) window(p *query.Params, q url.Values) error {
 	if rangeKey == "" {
 		rangeKey = "30d"
 	}
-	win, err := query.ResolveWindow(rangeKey, cmp, p.Now, p.TZ, s.dataStart(p.Site))
-	if err != nil {
-		return fmt.Errorf("%w: %w", errBadRequest, err)
-	}
+	var win query.Window
 	if legacy {
-		win.From, win.To = legacyFrom, legacyTo
+		win = query.ExactWindow(legacyFrom, legacyTo, cmp, p.Now, p.TZ, s.dataStart(p.Site))
+	} else {
+		var err error
+		if win, err = query.ResolveWindow(rangeKey, cmp, p.Now, p.TZ, s.dataStart(p.Site)); err != nil {
+			return fmt.Errorf("%w: %w", errBadRequest, err)
+		}
 	}
 	p.Win, p.From, p.To = win, win.From, win.To
 	return nil

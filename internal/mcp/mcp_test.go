@@ -478,3 +478,23 @@ func TestScopeActorAll(t *testing.T) {
 		t.Fatal("actor=bot accepted")
 	}
 }
+
+func TestMCP24hComparesPrevious24h(t *testing.T) {
+	h, db := setup(t)
+	if _, err := db.Exec(`INSERT INTO events(site_id,ts,type,anon_id,session_id,path,env) VALUES('s',?,'pageview','P','p1','/','production')`,
+		fixedNow.UnixMilli()-30*3600_000); err != nil {
+		t.Fatal(err)
+	}
+	res := callTool(t, h, "get_stats", map[string]any{"site": "s", "range": "24h"})
+	var st struct {
+		Prev *struct{ Visitors int } `json:"prev"`
+	}
+	if err := json.Unmarshal(res.StructuredContent, &st); err != nil || st.Prev == nil || st.Prev.Visitors != 1 {
+		t.Fatalf("prev %+v err %v: %s", st.Prev, err, res.StructuredContent)
+	}
+	res = callTool(t, h, "get_series", map[string]any{"site": "s", "range": "24h", "metric": "visitors"})
+	var se struct{ Bucket string }
+	if err := json.Unmarshal(res.StructuredContent, &se); err != nil || se.Bucket != "hour" {
+		t.Fatalf("series %s", res.StructuredContent)
+	}
+}
