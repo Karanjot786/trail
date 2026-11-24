@@ -76,7 +76,8 @@ var (
 		"error": true, "outbound": true, "form": true, "vital": true,
 	}
 	// Anon ids are stored and shown in reports, so keep them to a plain charset.
-	reID = regexp.MustCompile(`^[A-Za-z0-9_-]{1,64}$`)
+	reToken = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
+	reID    = regexp.MustCompile(`^[A-Za-z0-9_-]{1,64}$`)
 )
 
 // payload is the wire format sent by the tracker.
@@ -98,6 +99,7 @@ type payload struct {
 	RC  float64                    `json:"rc"`
 	C   float64                    `json:"c"` // age of the event in ms at send time
 	M   string                     `json:"m"` // "f" full (default), "p" private
+	K   string                     `json:"k"` // visit token echoed from X-Trail-K (private mode)
 }
 
 type handler struct {
@@ -111,6 +113,7 @@ type handler struct {
 	rv    *edgegeo.Resolver // nil: no edge geo; the client IP comes from ips
 	cls   Classifier        // nil: no AI agent classification
 	log   *sampler          // rate-limited refusal log
+	key   []byte            // seals visit tokens
 }
 
 // Classifier recognises AI browsing agents (agents.Directory).
@@ -167,6 +170,7 @@ func New(st *store.Store, geo *enrich.Geo, reg *sites.Registry, opts ...Option) 
 	if h.priv == nil {
 		h.priv = NewPrivate(time.UTC, time.Now)
 	}
+	h.key = st.EngageKey()
 	if h.ips == nil {
 		h.ips = netx.Default()
 	}
@@ -205,6 +209,7 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// tracker can read the 4xx and drop the events instead of retrying them.
 	origin := r.Header.Get("Origin")
 	w.Header().Set("Vary", "Origin")
+	w.Header().Set("Access-Control-Expose-Headers", "X-Trail-K")
 	if origin != "" {
 		w.Header().Set("Access-Control-Allow-Origin", origin)
 	} else {
@@ -310,14 +315,24 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Private events get a server-side identity. One request has one IP and
 	// UA, so Identify runs once; the IP is used only for this hash.
-	var anon, sess string
+	var tok string
 	for i := range evs {
-		if ps[i].M == "p" {
-			if anon == "" {
-				anon, sess = h.priv.Identify(ps[i].S, res.IP, r.UserAgent())
-			}
-			evs[i].AnonID, evs[i].SessionID, evs[i].UserID = anon, sess, ""
+		if ps[i].M != "p" {
+			continue
 		}
+		var a, ss string
+		if v, ok := h.visit(site.ID, ps[i].K); ok {
+			a, ss = h.priv.Resume(v)
+		} else {
+			a, ss = h.priv.Identify(ps[i].S, res.IP, r.UserAgent())
+		}
+		if tok == "" {
+			tok, _ = sealVisit(h.key, site.ID, visit{Anon: a, Session: ss, Issued: h.priv.now()})
+		}
+		evs[i].AnonID, evs[i].SessionID, evs[i].UserID = a, ss, ""
+	}
+	if tok != "" {
+		w.Header().Set("X-Trail-K", tok)
 	}
 
 	if ag := h.classify(r, site.ID, res); ag.ID != "" {
@@ -333,6 +348,14 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("X-Trail-Accepted", strconv.Itoa(len(evs)))
 	w.Header().Set("X-Trail-Rejected", strconv.Itoa(rejected))
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// visit opens a wire token; a bad or oversized one is ignored, never an error.
+func (h *handler) visit(site, k string) (visit, bool) {
+	if k == "" || len(k) > maxTokenLen || !reToken.MatchString(k) {
+		return visit{}, false
+	}
+	return openVisit(h.key, site, k, h.priv.now())
 }
 
 // sourceHost is the host of the page that sent r: the Origin header, else the
