@@ -162,4 +162,74 @@ describe('useQuery', () => {
     await flush()
     expect(fn).toHaveBeenCalledTimes(CACHE_MAX + 2)
   })
+
+  it('a poll does not abort its own request in flight', async () => {
+    vi.useFakeTimers()
+    setHidden(false)
+    const fn = vi.fn(() => new Promise<number>((res) => setTimeout(() => res(7), 8000)))
+    const out: { r?: QueryResult<number> } = {}
+    render(<Probe k="slow-live" fn={fn} poll={5000} out={out} />)
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(8000)
+    })
+    expect(out.r!.data).toBe(7)
+    expect(fn).toHaveBeenCalledTimes(1)
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000)
+    })
+    expect(fn).toHaveBeenCalledTimes(2)
+  })
+
+  it('loading clears when the key changes to a fresh cached key', async () => {
+    const prime = render(<Probe k="fresh-b" fn={async () => 'B'} out={{}} />)
+    await flush()
+    prime.unmount()
+    const out: { r?: QueryResult<string> } = {}
+    const r = render(<Probe k="fresh-a" fn={() => new Promise<string>(() => {})} out={out} />)
+    await flush()
+    expect(out.r!.loading).toBe(true)
+    r.rerender(<Probe k="fresh-b" fn={async () => 'B'} out={out} />)
+    await flush()
+    expect(out.r!.loading).toBe(false)
+    expect(out.r!.data).toBe('B')
+  })
+
+  it('loading clears when enabled turns false mid-request', async () => {
+    const out: { r?: QueryResult<string> } = {}
+    const r = render(<Probe k="dis" fn={() => new Promise<string>(() => {})} out={out} />)
+    await flush()
+    expect(out.r!.loading).toBe(true)
+    r.rerender(<Probe k="dis" fn={() => new Promise<string>(() => {})} out={out} opts={{ enabled: false }} />)
+    await flush()
+    expect(out.r!.loading).toBe(false)
+  })
+
+  it('two hooks sharing a key both see loading false after it resolves, and a later run of one does not abort the other', async () => {
+    let n = 0
+    let release: (v: string) => void = () => {}
+    const fn = vi.fn(() => {
+      n++
+      return n === 1 ? Promise.resolve('one') : new Promise<string>((res) => (release = res))
+    })
+    const a: { r?: QueryResult<string> } = {}
+    const b: { r?: QueryResult<string> } = {}
+    render(
+      <>
+        <Probe k="shared" fn={fn} out={a} />
+        <Probe k="shared" fn={fn} out={b} />
+      </>,
+    )
+    await flush()
+    expect(fn).toHaveBeenCalledTimes(1)
+    expect(a.r!.loading).toBe(false)
+    expect(b.r!.loading).toBe(false)
+    // B refetches and is in flight; A refetching joins it and must not abort it for B.
+    act(() => b.r!.refetch())
+    act(() => a.r!.refetch())
+    expect(fn).toHaveBeenCalledTimes(2)
+    await act(async () => release('two'))
+    expect(a.r!.loading).toBe(false)
+    expect(b.r!.loading).toBe(false)
+    expect(b.r!.data).toBe('two')
+  })
 })

@@ -74,6 +74,7 @@ export function useQuery<T>(key: string, fn: (signal: AbortSignal) => Promise<T>
   fnRef.current = fn
   const ctl = useRef<AbortController | null>(null)
   const loading = useRef(false)
+  const wasLoading = useRef(false)
   // The last data this hook showed, so a new key keeps the previous numbers on screen while it loads.
   const shown = useRef<{ data?: unknown; at: number | null; scope: string }>({ at: null, scope: '' })
   // Previous data is only ever shown within the same site (and share link).
@@ -108,8 +109,12 @@ export function useQuery<T>(key: string, fn: (signal: AbortSignal) => Promise<T>
     }
     const r = req
     r.users++
-    // Superseded or unmounted: drop out; the shared request is aborted when nobody waits for it.
+    // This hook leaves the request exactly once: on abort (superseded, key change, disabled, unmount) or on settle.
+    let done = false
     mine.signal.addEventListener('abort', () => {
+      if (ctl.current === mine) loading.current = false
+      if (done) return
+      done = true
       if (--r.users <= 0 && inflight.get(key) === r) {
         inflight.delete(key)
         r.ctl.abort()
@@ -121,7 +126,8 @@ export function useQuery<T>(key: string, fn: (signal: AbortSignal) => Promise<T>
       () => undefined,
       () => undefined,
     ).then(() => {
-      if (mine.signal.aborted) return
+      if (mine.signal.aborted || done) return
+      done = true
       r.users--
       loading.current = false
       rerender()
@@ -129,11 +135,22 @@ export function useQuery<T>(key: string, fn: (signal: AbortSignal) => Promise<T>
   }, [key])
 
   useEffect(() => {
-    if (!enabled) return
+    if (!enabled) {
+      // A request that was in flight was just aborted by the cleanup: repaint without its loading state.
+      if (wasLoading.current) {
+        wasLoading.current = false
+        rerender()
+      }
+      return
+    }
+    wasLoading.current = false
     const hit = cache.get(key)
     if (!hit || hit.error || hit.data === undefined || Date.now() - hit.at >= staleMs) run()
     else rerender()
-    return () => ctl.current?.abort()
+    return () => {
+      wasLoading.current = loading.current
+      ctl.current?.abort()
+    }
   }, [key, enabled, staleMs, run])
 
   useEffect(() => {
@@ -151,7 +168,7 @@ export function useQuery<T>(key: string, fn: (signal: AbortSignal) => Promise<T>
     const start = () => {
       if (id || document.hidden || !online()) return
       id = window.setInterval(() => {
-        if (!document.hidden && online()) run()
+        if (!document.hidden && online() && !loading.current) run()
       }, pollMs)
     }
     const stop = () => {
@@ -161,12 +178,12 @@ export function useQuery<T>(key: string, fn: (signal: AbortSignal) => Promise<T>
     const onVis = () => {
       if (document.hidden) stop()
       else {
-        run()
+        if (!loading.current) run()
         start()
       }
     }
     const onOnline = () => {
-      run()
+      if (!loading.current) run()
       start()
     }
     start()
