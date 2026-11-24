@@ -58,7 +58,7 @@ describe('Shell', () => {
   })
 
   it('share mode hides Share, the switcher menu, Settings and Views; chips have no remove', async () => {
-    mockState.shareMeta = { site: site('demo'), state: '', hideRevenue: false, expires: null }
+    mockState.shareMeta = { site: site('demo'), state: 'f=country:IN', hideRevenue: false, expires: null }
     visit('/share/shr_abc/?site=demo&f=country:IN')
     render(<App />)
     await flush()
@@ -121,5 +121,41 @@ describe('Shell', () => {
     const calls = vi.mocked(api.stats).mock.calls as unknown[][]
     expect(calls.length).toBeGreaterThan(0)
     for (const c of calls) expect((c[0] as URLSearchParams).has('tz')).toBe(false)
+  })
+
+  it('a share link opens on its saved range and filters', async () => {
+    mockState.shareMeta = { site: site('demo'), state: 'range=7d&f=country:IN', hideRevenue: false, expires: null }
+    visit('/share/shr_abc/')
+    render(<App />)
+    await flush()
+    await screen.findByRole('navigation', { name: 'Main' })
+    await flush()
+    expect(location.search).toContain('range=7d')
+    expect(location.search).toContain('f=country%3AIN')
+    const bar = screen.getByRole('region', { name: 'Filters' })
+    expect(bar.querySelector('[data-fixed]')).toBeTruthy()
+    expect(screen.getByLabelText(/Date range: Last 7 days/)).toBeTruthy()
+  })
+
+  it('re-pins range, env, actor and filters a viewer edits', async () => {
+    mockState.shareMeta = { site: site('demo'), state: 'range=7d', hideRevenue: false, expires: null }
+    visit('/share/shr_abc/?range=12mo&env=all&actor=all&f=device:mobile')
+    render(<App />)
+    await flush()
+    await screen.findByRole('navigation', { name: 'Main' })
+    await flush()
+    expect(location.search).toBe('?site=demo&range=7d')
+  })
+
+  it('share mode shows no range or compare menu, only the label', async () => {
+    mockState.shareMeta = { site: site('demo'), state: 'range=7d', hideRevenue: false, expires: null }
+    visit('/share/shr_abc/')
+    render(<App />)
+    await flush()
+    await screen.findByRole('navigation', { name: 'Main' })
+    await flush()
+    expect(screen.queryByRole('button', { name: /date range/i })).toBeNull()
+    expect(screen.queryByRole('button', { name: /compare/i })).toBeNull()
+    expect(screen.getByLabelText(/Date range: /)).toBeTruthy()
   })
 })

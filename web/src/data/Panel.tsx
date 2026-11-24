@@ -137,9 +137,13 @@ export function Panel({ id, title, tabs, definition }: PanelProps) {
             )
           })}
           <MenuSeparator />
-          <MenuItem onSelect={() => download(api.exportUrl('/breakdown', exportQ(), 'csv'))}>Export CSV</MenuItem>
-          <MenuItem onSelect={() => download(api.exportUrl('/breakdown', exportQ(), 'json'))}>Export JSON</MenuItem>
-          <MenuItem onSelect={() => void copyCurl()}>Copy as API call</MenuItem>
+          {!share && (
+            <>
+              <MenuItem onSelect={() => download(api.exportUrl('/breakdown', exportQ(), 'csv'))}>Export CSV</MenuItem>
+              <MenuItem onSelect={() => download(api.exportUrl('/breakdown', exportQ(), 'json'))}>Export JSON</MenuItem>
+              <MenuItem onSelect={() => void copyCurl()}>Copy as API call</MenuItem>
+            </>
+          )}
           <MenuItem onSelect={openReport}>Open full report</MenuItem>
         </Menu>
       </div>

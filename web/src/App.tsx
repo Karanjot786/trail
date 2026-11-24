@@ -3,6 +3,7 @@
 import { lazy, Suspense, useEffect, useState } from 'react'
 import { invalidate, onUnauthorized } from './api/useQuery'
 import { go, invalidRange, linkTo, navigate, useUrlState } from './state/useUrlState'
+import { shareView } from './state/url'
 import { Shell } from './shell/Shell'
 import { Login } from './shell/Login'
 import { useSitesQuery } from './shell/useSite'
@@ -24,7 +25,9 @@ export function App() {
   const gone = useGone()
 
   // Keep the URL complete and honest: a site is always named, a share link pins its own site.
-  const shareSite = meta.data?.site.id
+  // A share link opens on, and keeps, the view it was saved with; a viewer cannot edit their way out of it.
+  const pin = isShare && meta.data ? shareView(s, meta.data.site.id, meta.data.state) : null
+  const pinKey = pin ? JSON.stringify(pin) : ''
   const firstSite = sites.data?.[0]?.id
   const noSites = !isShare && sites.data != null && sites.data.length === 0
   const target = onboardingRedirect({ prefix: s.prefix, screen: s.screen, site: s.site, fixtures: mode === 'fixtures' }, sites.data, isSkipped)
@@ -32,7 +35,7 @@ export function App() {
   const welcome = target ? `${target.tab}|${target.site}` : ''
   useEffect(() => {
     if (isShare) {
-      if (shareSite && s.site !== shareSite) navigate({ site: shareSite }, { replace: true })
+      if (pin) navigate(pin, { replace: true })
       else if (s.screen === 'settings' || s.screen === 'welcome') navigate({ screen: 'overview', tab: '', id: null }, { replace: true })
     } else if (open && s.screen === 'welcome') {
       navigate({ screen: 'overview', tab: '', id: null, sheet: null }, { replace: true }) // the demo never onboards
@@ -47,7 +50,7 @@ export function App() {
       const url = linkTo({ site: firstSite })
       go(bad == null ? url : `${url}${url.includes('?') ? '&' : '?'}range=${encodeURIComponent(bad)}`, { replace: true })
     }
-  }, [isShare, shareSite, firstSite, noSites, s.site, s.screen, open, welcome])
+  }, [isShare, pinKey, firstSite, noSites, s.site, s.screen, open, welcome])
 
   if (!authed)
     return (

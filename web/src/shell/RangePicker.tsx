@@ -53,6 +53,16 @@ export function RangePicker() {
     </button>
   )
 
+  // A share link's range is part of the link: show it, offer no menu.
+  if (s.prefix.startsWith('/share/'))
+    return (
+      <span className="btn range-btn" data-static="" role="group" aria-label={`Date range: ${long}`}>
+        <Calendar size={14} aria-hidden="true" />
+        <span className="rl" aria-hidden="true">{long}</span>
+        <span className="rs" aria-hidden="true">{short}</span>
+      </span>
+    )
+
   return (
     <PP.Root open={custom} onOpenChange={setCustom}>
       <PP.Anchor asChild>

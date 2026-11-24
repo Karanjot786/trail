@@ -286,3 +286,15 @@ export function apiQuery(s: UrlState): URLSearchParams {
   for (const f of s.filters) q.append('f', `${f.dim}:${f.value}`)
   return q
 }
+
+/**
+ * The patch that puts a share link's URL on the view the link was saved with (site, range, comparison, env,
+ * actor and filters), or null when it already is there. `state` is the link's saved `viewState` query string.
+ * What the viewer may still choose (metric, panels, tabs, sheets) is left alone.
+ */
+export function shareView(cur: UrlState, siteId: string, state: string): Partial<UrlState> | null {
+  const v = parseUrl('/', `?${state}`).state
+  const key = (fs: Filter[]) => fs.map((f) => `${f.dim}:${f.value}`).join('\n')
+  if (cur.site === siteId && cur.range === v.range && cur.cmp === v.cmp && cur.env === v.env && cur.actor === v.actor && key(cur.filters) === key(v.filters)) return null
+  return { site: siteId, range: v.range, cmp: v.cmp, env: v.env, actor: v.actor, filters: v.filters }
+}

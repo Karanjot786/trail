@@ -57,3 +57,18 @@ check('a revoked share answers 410 and the open page says so, with no login form
   await expect(page.getByLabel(/password/i)).toHaveCount(0)
   app.errors.length = 0 // the 410s are the expected network answer
 })
+
+chk(55, 'a share link opens on its saved range and filters, keeps them when edited, and has no export or API controls', async ({ page, goto }) => {
+  const s = await newShare(page, { state: 'range=7d&f=country:IN' })
+  await goto(s.path)
+  await expect(page.getByLabel(/^Date range: Last 7 days/)).toBeVisible()
+  await expect(page.getByRole('region', { name: 'Filters' }).locator('[data-fixed]')).toHaveCount(1)
+  await page.getByRole('button', { name: 'Panel options' }).first().click()
+  await expect(page.getByText('Export CSV')).toHaveCount(0)
+  await expect(page.getByText('Copy as API call')).toHaveCount(0)
+  await page.keyboard.press('Escape')
+  await goto(s.path + '?range=12mo&env=all')
+  await expect.poll(() => page.evaluate(() => location.search)).toContain('range=7d')
+  expect(await page.evaluate(() => location.search)).not.toContain('env=all')
+  await page.request.delete(`/api/shares/${s.id}`)
+})

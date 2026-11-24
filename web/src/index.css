@@ -38,6 +38,7 @@ b, strong { font-weight: 600; }
 .btn-primary { background: var(--primary); border-color: var(--primary); color: var(--on-primary); }
 .btn-danger { background: var(--danger-bg); border-color: transparent; color: var(--danger); }
 .btn-sm { height: var(--layout-control-sm); padding: 0 10px; font-size: 12px; }
+.btn[data-static] { cursor: default; }
 .btn[aria-pressed="true"], .btn[data-on="true"] { background: var(--accent-soft); border-color: var(--accent-line); color: var(--fg); }
 .icon-btn {
   position: relative; display: inline-grid; place-items: center; width: var(--layout-control-md); height: var(--layout-control-md); border-radius: var(--radius-control); color: var(--muted);
