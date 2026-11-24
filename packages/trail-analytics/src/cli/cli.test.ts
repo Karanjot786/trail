@@ -24,6 +24,8 @@ afterEach(() => {
   for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true });
 });
 
+const okFetch = (async (u: any) => new Response('', { status: String(u).includes('/_t/t.js') ? 200 : 202 })) as unknown as typeof fetch;
+
 function io(over: Partial<Io> = {}) {
   const out: string[] = [];
   const err: string[] = [];
@@ -40,6 +42,7 @@ function io(over: Partial<Io> = {}) {
     readStdin: async () => '',
     askSecret: async () => '',
     pmVersion: () => undefined,
+    fetch: okFetch,
   };
   return { io: { ...base, ...over }, out, err, spawn, text: () => out.join('') + err.join('') };
 }
@@ -621,6 +624,85 @@ describe('init', () => {
       const d = fixture('report-crivello');
       writeFileSync(join(d, 'apps/web/package.json'), JSON.stringify({ name: 'w', dependencies: { next: 'latest' } }));
       expect(detect(join(d, 'apps/web')).nextMajor).toBe(16);
+    });
+  });
+
+  describe('output (task 10)', () => {
+    it('non-TTY prints DRY RUN first and last', async () => {
+      const d = fixture('next16-app');
+      const r = await run(d, ['--no-install']);
+      expect(r.code).toBe(1);
+      const banner = 'DRY RUN: nothing will be written. Add --yes to apply.';
+      expect(r.out[0]).toContain(banner);
+      expect(r.out[r.out.length - 1]).toContain(banner);
+      expect(existsSync(join(d, 'proxy.ts'))).toBe(false);
+    });
+
+    it('--dry-run also gets the banner and writes nothing', async () => {
+      const d = fixture('next16-app');
+      const r = await run(d, ['--dry-run', '--no-install'], io({ isTTY: true }));
+      expect(r.out[0]).toContain('DRY RUN');
+      expect(existsSync(join(d, 'proxy.ts'))).toBe(false);
+    });
+
+    it('applying prints the plain banner first', async () => {
+      const d = fixture('next16-app');
+      const r = await run(d, ['--yes', '--no-install']);
+      expect(r.out[0]).toContain('trail-analytics init');
+      expect(r.text()).not.toContain('DRY RUN');
+    });
+
+    it('prints sections in order', async () => {
+      const d = fixture('report-agent-skills');
+      const r = await run(d, ['--no-install', '--dry-run']);
+      const t = r.text();
+      const at = (s: string) => {
+        const i = t.indexOf(s);
+        expect(i, s).toBeGreaterThan(-1);
+        return i;
+      };
+      const order = [at('DRY RUN'), at('Next.js'), at('accepts the crawl token'), at('+++ b/'), at('Environment (set before you deploy):'), at('Testing: Trail ignores localhost'), at('If Cloudflare sits in front')];
+      expect([...order].sort((a, b) => a - b)).toEqual(order);
+    });
+
+    it('stops before writing when the token is rejected (401)', async () => {
+      const d = fixture('next16-app');
+      const fetch = (async (u: any) => new Response('', { status: String(u).includes('/_t/t.js') ? 200 : 401 })) as unknown as typeof globalThis.fetch;
+      const r = await run(d, ['--yes', '--no-install'], io({ fetch }));
+      expect(r.code).toBe(1);
+      expect(r.text()).toContain('Error:');
+      expect(r.text()).toContain('token rejected');
+      expect(existsSync(join(d, 'proxy.ts'))).toBe(false);
+      expect(existsSync(join(d, '.env.local'))).toBe(false);
+    });
+
+    it('--offline skips the check', async () => {
+      const d = fixture('next16-app');
+      const fetch = vi.fn(async () => new Response('', { status: 500 })) as unknown as typeof globalThis.fetch;
+      const r = await run(d, ['--yes', '--no-install', '--offline'], io({ fetch }));
+      expect(r.code).toBe(0);
+      expect(fetch).not.toHaveBeenCalled();
+    });
+
+    it('prints wrangler commands for the agent-skills fixture', async () => {
+      const d = fixture('report-agent-skills');
+      const r = await run(d, ['--no-install', '--dry-run']);
+      expect(r.text()).toContain('npx wrangler secret put TRAIL_CRAWL_TOKEN');
+      expect(r.text()).toContain('.dev.vars');
+    });
+
+    it('prints the localhost note', async () => {
+      const d = fixture('next16-app');
+      const r = await run(d, ['--yes', '--no-install']);
+      expect(r.text()).toContain('Trail ignores localhost and automated browsers. To see events locally add dev to the tag (<Analytics … dev />)');
+      expect(r.text()).toContain('npx trail-analytics verify --url https://<your-site>');
+    });
+
+    it('never prints the token in envSteps', async () => {
+      const d = fixture('report-agent-skills');
+      const r = await run(d, ['--no-install', '--dry-run']);
+      expect(r.text()).not.toContain(TOKEN);
+      expect(r.text()).toContain("grep '^TRAIL_CRAWL_TOKEN=' .env.local");
     });
   });
 });

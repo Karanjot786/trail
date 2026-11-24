@@ -7,6 +7,7 @@ export interface Args {
   dryRun: boolean;
   cwd?: string;
   install: boolean;
+  offline: boolean;
   help: boolean;
 }
 
@@ -25,14 +26,18 @@ Options:
   --dry-run         Show the changes and write nothing
   --cwd <dir>       Project directory (default: the current directory)
   --no-install      Do not install trail-analytics
+  --offline         Skip the check that your Trail server is reachable and accepts the token
   --help, -h        Show this help
+
+Environment: TRAIL_URL, TRAIL_SITE and TRAIL_CRAWL_TOKEN must be set on your host before you
+deploy (init prints the exact commands). They are read by the server-side proxy at runtime.
 
 Exit codes: 0 applied or nothing to do, 1 error, 2 unsupported framework or manual steps needed.
 `;
 
 /** Parses `init` flags. Throws an Error with a user-facing message on a bad flag. */
 export function parseArgs(argv: string[]): Args {
-  const a: Args = { cmd: '', yes: false, dryRun: false, install: true, help: false };
+  const a: Args = { cmd: '', yes: false, dryRun: false, install: true, offline: false, help: false };
   const val = (i: number, f: string) => {
     const v = argv[i + 1];
     if (v === undefined || v.startsWith('--')) throw new Error(`${f} needs a value`);
@@ -51,6 +56,7 @@ export function parseArgs(argv: string[]): Args {
       case '--yes': case '-y': a.yes = true; break;
       case '--dry-run': a.dryRun = true; break;
       case '--no-install': a.install = false; break;
+      case '--offline': a.offline = true; break;
       case '--help': case '-h': a.help = true; break;
       default:
         if (!t.startsWith('-') && !a.cmd) a.cmd = t;
