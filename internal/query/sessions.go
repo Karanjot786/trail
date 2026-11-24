@@ -271,24 +271,26 @@ func goalHit(g Goal, s Step) bool {
 	return s.Path == g.Match
 }
 
+var journeySQL = `WITH idm AS (SELECT anon_id, user_id FROM identity_map WHERE site_id=? AND rowid IN
+  (SELECT min(rowid) FROM identity_map WHERE site_id=? GROUP BY anon_id)),
+anons AS (SELECT anon_id FROM idm WHERE user_id=?
+  UNION SELECT ? WHERE NOT EXISTS (SELECT 1 FROM idm WHERE anon_id=?))
+SELECT e.session_id, e.ts, e.type, e.path, e.name, e.engaged_ms, e.scroll_pct, e.props, ` + sourceNameExpr + `,
+  e.country, e.city, e.device, e.agent, e.agent_via
+FROM anons CROSS JOIN events e INDEXED BY events_site_anon_ts LEFT JOIN idm USING(anon_id)
+WHERE e.site_id=? AND e.anon_id=anons.anon_id AND ` + journeyCond + `
+ORDER BY e.ts, e.id`
+
 // Journey returns every session of person on site (a person's or an AI agent's, never other bots), oldest first, numbered from the
 // person's first visit ever. person is a user id or an anon id, resolved through identity_map
 // as in base. Each session lists the goals among goals it hit (first hit of each).
 func Journey(db *sql.DB, site, person string, goals []Goal) ([]JourneySession, error) {
-	q := `WITH idm AS (SELECT anon_id, user_id FROM identity_map WHERE site_id=? AND rowid IN
-  (SELECT min(rowid) FROM identity_map WHERE site_id=? GROUP BY anon_id))
-SELECT e.session_id, e.ts, e.type, e.path, e.name, e.engaged_ms, e.scroll_pct, e.props, ` + sourceNameExpr + `,
-  e.country, e.city, e.device, e.agent, e.agent_via
-FROM events e LEFT JOIN idm USING(anon_id)
-WHERE e.site_id=? AND ` + journeyCond + ` AND COALESCE(idm.user_id, e.anon_id)=?
-ORDER BY e.ts, e.id`
-
 	out := []JourneySession{}
 	bySession := map[string]int{}
 	lastPV := map[string]int{} // session → index of its latest pageview step
 	hit := map[string]map[int64]bool{}
 	via := map[string]int{} // session → best viaRank seen
-	err := forRows(db, q, []any{site, site, site, person}, func(r *sql.Rows) error {
+	err := forRows(db, journeySQL, []any{site, site, person, person, person, site}, func(r *sql.Rows) error {
 		var sid, props, src, country, city, device, agent, agentVia string
 		var s Step
 		if err := r.Scan(&sid, &s.TS, &s.Type, &s.Path, &s.Name, &s.EngagedMs, &s.ScrollPct, &props, &src,
