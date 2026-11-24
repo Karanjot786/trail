@@ -10,6 +10,7 @@ import (
 	"net/netip"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -91,10 +92,10 @@ func TestCheckReasonCodes(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if len(got.Checks) != 6 {
+			if len(got.Checks) != 7 {
 				t.Fatalf("checks %+v", got.Checks)
 			}
-			ids := []string{"page", "script", "csp", "origin", "first_event", "delivery"}
+			ids := []string{"page", "script", "csp", "origin", "first_event", "delivery", "robots"}
 			for i, it := range got.Checks {
 				if it.ID != ids[i] {
 					t.Fatalf("order %d: %s", i, it.ID)
@@ -396,6 +397,93 @@ func TestCheckBotProtection(t *testing.T) {
 			}
 			if got.Checks[1].Status != "pending" || got.Checks[2].Status != "pending" {
 				t.Errorf("script/csp %+v %+v", got.Checks[1], got.Checks[2])
+			}
+		})
+	}
+}
+
+func TestRobotsBlocked(t *testing.T) {
+	cf, err := os.ReadFile("testdata/robots-cloudflare.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	bots := []string{"GPTBot", "ClaudeBot", "CCBot", "PerplexityBot"}
+	if got := robotsBlocked(string(cf), bots); !slices.Equal(got, []string{"GPTBot", "ClaudeBot", "CCBot"}) {
+		t.Errorf("cloudflare: %v", got)
+	}
+	if got := robotsBlocked("User-agent: *\nDisallow: /\n", bots); len(got) != 4 {
+		t.Errorf("star: %v", got)
+	}
+	if got := robotsBlocked("User-agent: *\nDisallow: /\n\nUser-agent: gptbot\nAllow: /\n", bots); slices.Contains(got, "GPTBot") || len(got) != 3 {
+		t.Errorf("own group wins: %v", got)
+	}
+	if got := robotsBlocked("User-agent: GPTBot\nDisallow: /private\n", bots); len(got) != 0 {
+		t.Errorf("partial: %v", got)
+	}
+	if got := robotsBlocked("User-agent: GPTBot\nUser-agent: CCBot # both\nDisallow: /  # all\n", bots); !slices.Equal(got, []string{"GPTBot", "CCBot"}) {
+		t.Errorf("shared group and comments: %v", got)
+	}
+	if got := robotsBlocked("", bots); len(got) != 0 {
+		t.Errorf("empty: %v", got)
+	}
+}
+
+func TestFetchPathRefusesBadPaths(t *testing.T) {
+	f := NewSafeFetcher()
+	for _, p := range []string{"x", "", "/a?b", "/a#b", "//evil.com/", "/@x", "/a b", "/a\\b"} {
+		if _, err := f.FetchPath(context.Background(), "example.com", p); err == nil {
+			t.Errorf("%q accepted", p)
+		}
+	}
+}
+
+type pathFetch struct {
+	fakeFetch
+	robots Page
+	err    error
+}
+
+func (f pathFetch) FetchPath(_ context.Context, _, path string) (Page, error) {
+	if path != "/robots.txt" {
+		return Page{Status: 404, Header: http.Header{}}, nil
+	}
+	return f.robots, f.err
+}
+
+func TestCheckRobots(t *testing.T) {
+	cf, _ := os.ReadFile("testdata/robots-cloudflare.txt")
+	for _, c := range []struct {
+		name   string
+		f      Fetcher
+		status string
+		code   ReasonCode
+	}{
+		{"blocks ai", pathFetch{fakeFetch{page: html(goodTag)}, Page{Status: 200, Header: http.Header{}, Body: cf}, nil}, "warn", CodeRobotsBlocksAI},
+		{"404", pathFetch{fakeFetch{page: html(goodTag)}, Page{Status: 404, Header: http.Header{}}, nil}, "pass", CodeOK},
+		{"error", pathFetch{fakeFetch{page: html(goodTag)}, Page{}, errors.New("boom")}, "pass", CodeOK},
+		{"not a path fetcher", fakeFetch{page: html(goodTag)}, "pass", CodeOK},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			st, err := store.Open(filepath.Join(t.TempDir(), "i.db"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer st.Close()
+			reg, _ := sites.Open(st.DB())
+			site, _ := reg.Add(sites.Site{ID: "s", Domain: "example.com"})
+			got, err := Check(context.Background(), st.DB(), reg, site, "trail.example.net", c.f)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(got.Checks) != 7 {
+				t.Fatalf("checks %d", len(got.Checks))
+			}
+			r := got.Checks[6]
+			if r.ID != "robots" || r.Status != c.status || r.Code != c.code {
+				t.Fatalf("robots %+v", r)
+			}
+			if c.code == CodeRobotsBlocksAI && (!strings.Contains(r.Detail, "GPTBot") || got.State != "waiting") {
+				t.Errorf("detail %q state %s", r.Detail, got.State)
 			}
 		})
 	}

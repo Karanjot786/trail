@@ -124,14 +124,31 @@ func (f *SafeFetcher) client(host string) *http.Client {
 	}
 }
 
+// PathFetcher is a Fetcher that can also load another path of the site
+// (robots.txt). Fetchers that do not implement it simply skip those checks.
+type PathFetcher interface {
+	FetchPath(ctx context.Context, host, path string) (Page, error)
+}
+
 // Fetch loads https://{host}/. host is the site's registered domain.
 func (f *SafeFetcher) Fetch(ctx context.Context, host string) (Page, error) {
+	return f.FetchPath(ctx, host, "/")
+}
+
+// FetchPath loads https://{host}{path} under the same rules as Fetch. path must
+// start with a single "/" and carry no query, fragment, userinfo, backslash,
+// space or control character.
+func (f *SafeFetcher) FetchPath(ctx context.Context, host, path string) (Page, error) {
 	if host == "" || strings.ContainsAny(host, "/?#@\\ ") {
 		return Page{}, errors.New("bad host")
 	}
+	if !strings.HasPrefix(path, "/") || strings.HasPrefix(path, "//") || strings.ContainsAny(path, "?#@\\ ") ||
+		strings.IndexFunc(path, func(r rune) bool { return r < 0x20 || r == 0x7f }) >= 0 {
+		return Page{}, errors.New("bad path")
+	}
 	ctx, cancel := context.WithTimeout(ctx, fetchTimeout)
 	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://"+host+"/", nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://"+host+path, nil)
 	if err != nil {
 		return Page{}, err
 	}

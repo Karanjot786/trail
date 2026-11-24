@@ -21,11 +21,12 @@ const (
 	CodeRetriesHigh       ReasonCode = "retries_high"
 	CodeAPIMissing        ReasonCode = "api_missing"
 	CodeBotProtection     ReasonCode = "bot_protection"
+	CodeRobotsBlocksAI    ReasonCode = "robots_blocks_ai"
 )
 
 // CheckItem is one line of the install checklist.
 type CheckItem struct {
-	ID     string     `json:"id"` // page | script | csp | origin | first_event | delivery
+	ID     string     `json:"id"` // page | script | csp | origin | first_event | delivery | robots
 	Label  string     `json:"label"`
 	Status string     `json:"status"` // pass | fail | warn | pending
 	Code   ReasonCode `json:"code"`

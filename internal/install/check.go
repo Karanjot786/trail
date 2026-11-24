@@ -17,12 +17,15 @@ const retriesHigh = 0.05
 // csp, origin, first_event, delivery). trailHost is this server's host (as the
 // tracker's src must name it); fetch loads the site's home page.
 func Check(ctx context.Context, db *sql.DB, reg *sites.Registry, site sites.Site, trailHost string, fetch Fetcher) (InstallCheck, error) {
-	out := InstallCheck{CheckedAt: time.Now().UnixMilli(), Checks: make([]CheckItem, 0, 6)}
+	out := InstallCheck{CheckedAt: time.Now().UnixMilli(), Checks: make([]CheckItem, 0, 7)}
 	first, last, err := firstEvent(db, site.ID)
 	if err != nil {
 		return out, err
 	}
 	out.LastEventAt = last
+	// The robots.txt read runs beside the page fetch so both share one 5 s budget.
+	robots := make(chan CheckItem, 1)
+	go func() { robots <- robotsCheck(ctx, fetch, site.Domain) }()
 	page, err := fetch.Fetch(ctx, site.Domain)
 	vendor, walled := "", false
 	if err == nil {
@@ -72,7 +75,7 @@ func Check(ctx context.Context, db *sql.DB, reg *sites.Registry, site sites.Site
 	if err != nil {
 		return out, err
 	}
-	out.Checks = append(out.Checks, del)
+	out.Checks = append(out.Checks, del, <-robots)
 
 	out.State, out.Checks = finalize(out.Checks, last)
 	return out, nil
