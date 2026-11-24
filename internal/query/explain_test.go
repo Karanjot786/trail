@@ -75,7 +75,14 @@ func explainAll(t *testing.T, db *sql.DB, now time.Time) map[string][]string {
 		if err != nil {
 			t.Fatal(err)
 		}
-		allReports(t, ldb, Params{Site: "demo", Env: "production", From: w.From, To: w.To, Win: w, TZ: ist, Now: now, Limit: 100})
+		p := Params{Site: "demo", Env: "production", From: w.From, To: w.To, Win: w, TZ: ist, Now: now, Limit: 100}
+		allReports(t, ldb, p)
+		if rk == "30d" { // the outbound filter, a session subquery allReports does not issue
+			p.Filters = map[string]string{"event": outboundKey}
+			if _, err := Stats(ldb, p); err != nil {
+				t.Fatal(err)
+			}
+		}
 	}
 	plans := map[string][]string{}
 	for _, l := range lc.out {
@@ -101,13 +108,24 @@ func explainAll(t *testing.T, db *sql.DB, now time.Time) map[string][]string {
 	return plans
 }
 
+// typeOnlyShapes are the (site, type) lookups with no name term: the event catalogue, the outbound
+// count, the outbound filter (Stats event=outbound) and the event breakdown. Only the partial
+// events_site_type_ts can seek them, because events_site_name_ts requires name<>”.
+var typeOnlyShapes = []string{
+	"type<>'pageview' AND type='event' GROUP BY name",
+	"FROM ev WHERE type<>'pageview' AND type='outbound'",
+	"type<>'pageview' AND type='outbound' AND ts BETWEEN",
+	"type<>'pageview' AND type IN ('outbound','event')",
+}
+
 func TestPlanGuard(t *testing.T) {
 	_, b, now := seedPair(t)
 	plans := explainAll(t, b, now)
 	if len(plans) < 50 {
 		t.Fatalf("captured only %d statements", len(plans))
 	}
-	named, lookback, typeOnly := 0, 0, 0
+	named, lookback := 0, 0
+	typeOnly := map[string]int{}
 	for q, lines := range plans {
 		plan := strings.Join(lines, "\n")
 		// The fold lookback reads ev from a two-part subquery aliased e: its "SCAN e" walks that
@@ -133,16 +151,22 @@ func TestPlanGuard(t *testing.T) {
 		if nameLookup.MatchString(q) && !nameLookupExempt(q, plan) && !strings.Contains(plan, "events_site_name_ts") {
 			t.Errorf("name lookup does not use events_site_name_ts (name<>'' term lost?)\n%s\n%s", plan, q)
 		}
-		if (strings.Contains(q, "type='outbound'") || strings.Contains(q, "type='event' GROUP BY")) &&
-			!nameLookup.MatchString(q) && strings.Contains(plan, "events_site_type_ts (site_id=? AND type=?") {
-			typeOnly++
+		for _, m := range typeOnlyShapes {
+			if strings.Contains(q, m) {
+				typeOnly[m]++
+				if !strings.Contains(plan, "events_site_type_ts") {
+					t.Errorf("type-only lookup does not use events_site_type_ts (type<>'pageview' term lost?)\n%s\n%s", plan, q)
+				}
+			}
 		}
 		if nameLookup.MatchString(q) && strings.Contains(plan, "events_site_name_ts") {
 			named++
 		}
 	}
-	if typeOnly < 3 {
-		t.Errorf("only %d type-only scans used events_site_type_ts (event catalogue, outbound, event breakdown)", typeOnly)
+	for _, m := range typeOnlyShapes {
+		if typeOnly[m] == 0 {
+			t.Errorf("no captured statement has the type-only shape %q", m)
+		}
 	}
 	if lookback < 3 {
 		t.Errorf("only %d lookback statements were checked (Live and activeNow)", lookback)

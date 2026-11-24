@@ -214,8 +214,10 @@ func migrateVersioned(db *sql.DB) error {
 	if v < verTypeIdx {
 		// events_site_name_ts is partial (name<>''), so a lookup by type alone (event catalogue, the
 		// outbound filter, the event breakdown) cannot use it and would scan events_site_ts over the
-		// window. This full index restores the seek; it is additive, so a downgrade is unaffected.
-		if _, err := db.Exec(`CREATE INDEX IF NOT EXISTS events_site_type_ts ON events(site_id, type, ts)`); err != nil {
+		// window. This index restores the seek. It is partial (non-pageview rows are a small share after the
+		// fold), and the three reports' WHERE carry a literal type<>'pageview' so the planner can use it.
+		// It is additive, so a downgrade is unaffected.
+		if _, err := db.Exec(`CREATE INDEX IF NOT EXISTS events_site_type_ts ON events(site_id, type, ts) WHERE type<>'pageview'`); err != nil {
 			return fmt.Errorf("migrate to v4: %w", err)
 		}
 		if err := done(verTypeIdx); err != nil {

@@ -222,11 +222,11 @@ func evWhere(p Params, skipPage bool) (string, []any, error) {
 		case dimEvent:
 			// An event filter keeps whole sessions that fired the event.
 			if v == outboundKey {
-				sb.WriteString(" AND e.session_id IN (SELECT session_id FROM events WHERE site_id=? AND type='outbound' AND ts BETWEEN ? AND ?)")
+				sb.WriteString(" AND e.session_id IN (SELECT session_id FROM events WHERE site_id=? AND type<>'pageview' AND type='outbound' AND ts BETWEEN ? AND ?)")
 				args = append(args, p.Site, lo, p.To)
 				continue
 			}
-			sb.WriteString(" AND e.session_id IN (SELECT session_id FROM events WHERE site_id=? AND type='event' AND name<>'' AND name=?)")
+			sb.WriteString(" AND e.session_id IN (SELECT session_id FROM events WHERE site_id=? AND type<>'pageview' AND type='event' AND name<>'' AND name=?)")
 			args = append(args, p.Site, v)
 		case dimGoal:
 			// A goal filter keeps whole sessions that hit the goal (any kind of goal).

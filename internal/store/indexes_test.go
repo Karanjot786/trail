@@ -1,6 +1,7 @@
 package store
 
 import (
+	"fmt"
 	"path/filepath"
 	"reflect"
 	"sort"
@@ -149,26 +150,44 @@ func TestMigrateV3EndIndex(t *testing.T) {
 
 // A v3 database (no events_site_type_ts) gets the v4 index: (site, type) scans of the type-only reports
 // (event catalogue, outbound filter, event breakdown) need it because events_site_name_ts is partial.
+// The index is partial (non-pageview rows only), so it stays small. Starting from v1, v2 or v3, and
+// reopening, all end at the same set.
 func TestMigrateV4TypeIndex(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "a.db")
-	s, err := Open(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, q := range []string{`DROP INDEX events_site_type_ts`, `PRAGMA user_version=3`} {
-		if _, err := s.db.Exec(q); err != nil {
+	for _, from := range []int{1, 2, 3} {
+		path := filepath.Join(t.TempDir(), "a.db")
+		s, err := Open(path)
+		if err != nil {
 			t.Fatal(err)
 		}
-	}
-	_ = s.Close()
-	if s, err = Open(path); err != nil {
-		t.Fatal(err)
-	}
-	defer s.Close()
-	if got := eventIndexes(t, s); !reflect.DeepEqual(got, wantIndexes) {
-		t.Errorf("indexes %v, want %v", got, wantIndexes)
-	}
-	if got := userVersion(t, s); got != schemaVersion {
-		t.Errorf("user_version %d, want %d", got, schemaVersion)
+		qs := []string{`DROP INDEX events_site_type_ts`, fmt.Sprintf(`PRAGMA user_version=%d`, from)}
+		if from == 1 {
+			qs = append(qs, `DROP INDEX events_site_name_ts`, `CREATE INDEX events_site_type_name_ts ON events(site_id, type, name, ts)`,
+				`CREATE INDEX events_site_user_ts ON events(site_id, user_id, ts)`)
+		}
+		if from < 3 {
+			qs = append(qs, `DROP INDEX events_site_end`)
+		}
+		for _, q := range qs {
+			if _, err := s.db.Exec(q); err != nil {
+				t.Fatal(err)
+			}
+		}
+		_ = s.Close()
+		for i := 0; i < 2; i++ { // the second open must change nothing
+			if s, err = Open(path); err != nil {
+				t.Fatalf("from v%d open %d: %v", from, i, err)
+			}
+			if got := eventIndexes(t, s); !reflect.DeepEqual(got, wantIndexes) {
+				t.Errorf("from v%d open %d: indexes %v, want %v", from, i, got, wantIndexes)
+			}
+			if got := userVersion(t, s); got != schemaVersion {
+				t.Errorf("from v%d open %d: user_version %d, want %d", from, i, got, schemaVersion)
+			}
+			var def string
+			if err := s.db.QueryRow(`SELECT sql FROM sqlite_master WHERE name='events_site_type_ts'`).Scan(&def); err != nil || !strings.Contains(def, "WHERE type<>'pageview'") {
+				t.Errorf("events_site_type_ts sql %q %v", def, err)
+			}
+			_ = s.Close()
+		}
 	}
 }

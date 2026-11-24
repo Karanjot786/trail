@@ -208,7 +208,7 @@ FROM (SELECT ` + sessCols[dim] + ` AS k, person, pv, eng FROM ss) WHERE k!=''` +
 	case dimEvent:
 		sqlText = cte + `SELECT k, count(DISTINCT person), 0, count(*), count(DISTINCT session_id), 0, '', ''
 FROM (SELECT CASE WHEN type='outbound' THEN '` + outboundKey + `' ELSE name END AS k, person, session_id
-  FROM ev WHERE type='outbound' OR (type='event' AND name!=''))
+  FROM ev WHERE type<>'pageview' AND type IN ('outbound','event') AND (type='outbound' OR name!=''))
 WHERE k!=''` + search + order
 	case dimGoal:
 		args = append(args, p.Site)

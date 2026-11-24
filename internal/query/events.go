@@ -149,7 +149,7 @@ func EventCatalogue(db *sql.DB, p Params) ([]EventRow, error) {
 	rows := []EventRow{}
 	byName := map[string]int{}
 	err = forRows(db, cte+`SELECT name, count(*), count(DISTINCT person), max(ts) FROM ev
-WHERE type='event' GROUP BY name ORDER BY 2 DESC, 1 LIMIT ?`, append(args, maxCatalogue), func(r *sql.Rows) error {
+WHERE type<>'pageview' AND type='event' GROUP BY name ORDER BY 2 DESC, 1 LIMIT ?`, append(args, maxCatalogue), func(r *sql.Rows) error {
 		e := EventRow{Kind: "custom", Props: []EventProp{}}
 		if err := r.Scan(&e.Name, &e.Count, &e.People, &e.LastSeen); err != nil {
 			return err
@@ -164,7 +164,7 @@ WHERE type='event' GROUP BY name ORDER BY 2 DESC, 1 LIMIT ?`, append(args, maxCa
 
 	aggs := map[string]map[string]*propAgg{}
 	err = forRows(db, cte+`SELECT ev.name, j.key, `+propValueSQ+`, count(*) FROM ev, `+propsEachSQ+`
-WHERE ev.type='event' GROUP BY 1, 2, 3`, args, func(r *sql.Rows) error {
+WHERE ev.type<>'pageview' AND ev.type='event' GROUP BY 1, 2, 3`, args, func(r *sql.Rows) error {
 		var name, key, val string
 		var n int
 		if err := r.Scan(&name, &key, &val, &n); err != nil {
@@ -182,13 +182,13 @@ WHERE ev.type='event' GROUP BY 1, 2, 3`, args, func(r *sql.Rows) error {
 
 	out := EventRow{Name: outboundName, Kind: "outbound", Props: []EventProp{}}
 	var last sql.NullInt64
-	if err := db.QueryRow(cte+`SELECT count(*), count(DISTINCT person), max(ts) FROM ev WHERE type='outbound'`, args...).
+	if err := db.QueryRow(cte+`SELECT count(*), count(DISTINCT person), max(ts) FROM ev WHERE type<>'pageview' AND type='outbound'`, args...).
 		Scan(&out.Count, &out.People, &last); err != nil {
 		return nil, fmt.Errorf("outbound: %w", err)
 	}
 	if out.Count > 0 {
 		out.LastSeen = last.Int64
-		err = forRows(db, cte+`SELECT `+outboundTargetSQ+`, count(*) FROM ev WHERE type='outbound' GROUP BY 1`, args, func(r *sql.Rows) error {
+		err = forRows(db, cte+`SELECT `+outboundTargetSQ+`, count(*) FROM ev WHERE type<>'pageview' AND type='outbound' GROUP BY 1`, args, func(r *sql.Rows) error {
 			var target string
 			var n int
 			if err := r.Scan(&target, &n); err != nil {
