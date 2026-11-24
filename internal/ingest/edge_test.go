@@ -233,3 +233,27 @@ func TestIngestRewriteEdgeUsesSignedIP(t *testing.T) {
 		t.Fatalf("rows %q, want %q", got, want)
 	}
 }
+
+func TestProxyStatusHeader(t *testing.T) {
+	_, h, tok := edgeSetup(t)
+	status := func(r *http.Request) (string, bool) {
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, r)
+		v := w.Header().Values("X-Trail-Proxy-Status")
+		if len(v) == 0 {
+			return "", false
+		}
+		return v[0], true
+	}
+	if got, _ := status(forward(tok, "203.0.113.1", "IN|MH|Mumbai", "vercel", pageview)); got != "ok" {
+		t.Errorf("valid signature: status %q, want ok", got)
+	}
+	bad := forward(tok, "203.0.113.2", "IN|MH|Mumbai", "vercel", pageview)
+	bad.Header.Set("X-Trail-Proxy", "v1;k=bad;t=1;s=00")
+	if got, _ := status(bad); got != "invalid" {
+		t.Errorf("bad signature: status %q, want invalid", got)
+	}
+	if got, ok := status(beacon("203.0.113.3", pageview, nil)); ok {
+		t.Errorf("no proxy header: status %q, want none", got)
+	}
+}
