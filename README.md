@@ -179,7 +179,7 @@ Script attributes:
 | `data-forms` | Opt in to form-submit events; records the form id or name, never field values. Loaded via `t.x.js` |
 | `data-errors` | Opt in to JS error events, at most 5 per page. Loaded via `t.x.js` |
 | `data-hash` | Count hash-router navigation (`#/x`, `#!/x`) as pageviews. Loaded via `t.x.js` |
-| `data-cfasync` | Set to `false` on Cloudflare so Rocket Loader leaves the tag alone (otherwise the tracker may not start) |
+| `data-cfasync` | Set to `false` on Cloudflare so Rocket Loader leaves the tag alone (it can delay or interfere with the tracker) |
 
 Any element with `data-trail="Name"` records a named click event (full mode). `/_t/t.p.js` is a smaller private-only build.
 

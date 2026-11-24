@@ -43,7 +43,7 @@ Routers that keep the page in the URL fragment (`example.com/#/pricing`) change 
 
 ## Cloudflare Rocket Loader
 
-Rocket Loader defers scripts and runs them in a way that leaves `document.currentScript` empty, which the tracker needs to find its own tag, so it silently does nothing. Opt the tag out:
+Cloudflare Rocket Loader defers and rewrites scripts, which can delay or interfere with the tracker. Opt the tag out:
 
 ```html
 <script defer src="/_t/t.js" data-site="mysite" data-cfasync="false"></script>
