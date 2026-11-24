@@ -62,6 +62,9 @@ func TestCheckReasonCodes(t *testing.T) {
 		{"bots only", fakeFetch{page: html(goodTag)}, []store.Event{ev("production", true, 0)}, false, "first_event", CodeBotFiltered, "waiting"},
 		{"retries", fakeFetch{page: html(goodTag)}, []store.Event{ev("production", false, 1), ev("production", false, 0)}, false, "delivery", CodeRetriesHigh, "receiving"},
 		{"ok", fakeFetch{page: html(goodTag)}, []store.Event{ev("production", false, 0)}, false, "first_event", CodeOK, "receiving"},
+		{"origin while receiving", fakeFetch{page: html(goodTag)}, []store.Event{ev("production", false, 0)}, true, "origin", CodeOriginNotAllowed, "receiving"},
+		{"csp while receiving", fakeFetch{page: csp("script-src 'self'")}, []store.Event{ev("production", false, 0)}, false, "csp", CodeCSPBlocked, "receiving"},
+		{"fetch failed while receiving", fakeFetch{err: errors.New("dial: no such host")}, []store.Event{ev("production", false, 0)}, false, "page", CodeFetchFailed, "receiving"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			st, err := store.Open(filepath.Join(t.TempDir(), "i.db"))
@@ -97,6 +100,12 @@ func TestCheckReasonCodes(t *testing.T) {
 				}
 				if it.ID == c.id && it.Code != c.code {
 					t.Errorf("%s: code %s, want %s (%s)", it.ID, it.Code, c.code, it.Detail)
+				}
+				if got.State == "receiving" && it.Status == "fail" {
+					t.Errorf("%s is fail while receiving", it.ID)
+				}
+				if got.State == "receiving" && it.ID == c.id && c.code != CodeOK && it.Status != "warn" {
+					t.Errorf("%s: status %s, want warn while receiving", it.ID, it.Status)
 				}
 			}
 			if got.State != c.state {
@@ -189,6 +198,38 @@ func TestSameSiteRedirect(t *testing.T) {
 	} {
 		if got := sameSite(c.to, c.host); got != c.ok {
 			t.Errorf("sameSite(%q, %q) = %v, want %v", c.to, c.host, got, c.ok)
+		}
+	}
+}
+
+func TestOriginFixVercel(t *testing.T) {
+	if got := originFix("myapp-git-feat-acme.vercel.app"); !strings.Contains(got, "*-acme.vercel.app") {
+		t.Errorf("vercel: %q", got)
+	}
+	if got := originFix("staging.other.io"); !strings.Contains(got, "*-team.vercel.app") || strings.Contains(got, "*-other") {
+		t.Errorf("generic: %q", got)
+	}
+	if got := originFix(""); !strings.Contains(got, "*-team.vercel.app") {
+		t.Errorf("empty: %q", got)
+	}
+}
+
+func TestCheckOriginFixNamesVercelScope(t *testing.T) {
+	st, err := store.Open(filepath.Join(t.TempDir(), "i.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	reg, _ := sites.Open(st.DB())
+	site, _ := reg.Add(sites.Site{ID: "s", Domain: "example.com"})
+	reg.RejectFrom("s", "myapp-abc123def-acme.vercel.app")
+	got, err := Check(context.Background(), st.DB(), reg, site, "trail.example.net", fakeFetch{page: html(goodTag)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, it := range got.Checks {
+		if it.ID == "origin" && !strings.Contains(it.Fix, "*-acme.vercel.app") {
+			t.Errorf("fix %q", it.Fix)
 		}
 	}
 }

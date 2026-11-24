@@ -50,7 +50,7 @@ func Check(ctx context.Context, db *sql.DB, reg *sites.Registry, site sites.Site
 		}
 		out.Checks = append(out.Checks, item("origin", "Events come from an allowed address", "fail", CodeOriginNotAllowed,
 			fmt.Sprintf("%d events in the last 24 hours came from %s.", n, from),
-			"Add the host (or *.example.com) under the site's allowed origins."))
+			originFix(reg.LastRejectedHost(site.ID))))
 	} else {
 		out.Checks = append(out.Checks, item("origin", "Events come from an allowed address", "pass", CodeOK, "No events were refused for their origin.", ""))
 	}
@@ -68,16 +68,39 @@ func Check(ctx context.Context, db *sql.DB, reg *sites.Registry, site sites.Site
 	}
 	out.Checks = append(out.Checks, del)
 
-	out.State = "waiting"
-	if last != nil {
-		out.State = "receiving"
+	out.State, out.Checks = finalize(out.Checks, last)
+	return out, nil
+}
+
+// finalize decides the overall state once all checks are in. A site that has
+// received a non-bot event is "receiving" and its failures become warnings;
+// otherwise any failure means "blocked", else "waiting".
+func finalize(checks []CheckItem, lastEventAt *int64) (string, []CheckItem) {
+	if lastEventAt != nil {
+		for i := range checks {
+			if checks[i].Status == "fail" {
+				checks[i].Status = "warn"
+			}
+		}
+		return "receiving", checks
 	}
-	for _, c := range out.Checks {
+	for _, c := range checks {
 		if c.Status == "fail" {
-			out.State = "blocked"
+			return "blocked", checks
 		}
 	}
-	return out, nil
+	return "waiting", checks
+}
+
+// originFix tells the owner which origin to add. Vercel preview hosts end in
+// -<team>.vercel.app, so a refused one yields an exact suggestion.
+func originFix(lastHost string) string {
+	if first, ok := strings.CutSuffix(strings.ToLower(lastHost), ".vercel.app"); ok && !strings.Contains(first, ".") {
+		if i := strings.LastIndexByte(first, '-'); i >= 0 && i < len(first)-1 {
+			return "Add *-" + first[i+1:] + ".vercel.app under the site's allowed origins (Vercel preview URLs end in -<team>.vercel.app)."
+		}
+	}
+	return "Add the host (or *.example.com or *-team.vercel.app) under the site's allowed origins."
 }
 
 func item(id, label, status string, code ReasonCode, detail, fix string) CheckItem {
