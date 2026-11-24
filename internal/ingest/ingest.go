@@ -358,7 +358,20 @@ func (h *handler) visit(site, k string) (visit, bool) {
 	if k == "" || len(k) > maxTokenLen || !reToken.MatchString(k) {
 		return visit{}, false
 	}
-	return openVisit(h.key, site, k, h.priv.now())
+	now := h.priv.now()
+	v, ok := openVisit(h.key, site, k, now)
+	// A token from before today's salt belongs to yesterday's rotation: resuming it would
+	// keep one private id across the boundary for a tab that stays open. Identify issues
+	// today's id instead (and keeps a still-live yesterday visit by its own rule).
+	if ok && v.Issued.Before(startOfDay(now.In(h.priv.tz))) {
+		return visit{}, false
+	}
+	return v, ok
+}
+
+func startOfDay(t time.Time) time.Time {
+	y, m, d := t.Date()
+	return time.Date(y, m, d, 0, 0, 0, 0, t.Location())
 }
 
 // sourceHost is the host of the page that sent r: the Origin header, else the

@@ -138,3 +138,28 @@ func TestBadTokenNotRejected(t *testing.T) {
 		}
 	}
 }
+
+// A token resealed on every request must not carry one private id across the
+// daily salt rotation.
+func TestTokenFromBeforeRotationIsNotResumed(t *testing.T) {
+	c := newClock(time.UTC, 23, 50)
+	st, h := newHandler(t, map[string]string{"s1": "example.com"}, WithPrivate(NewPrivate(time.UTC, c.now)))
+	k1 := postFrom(h, privPV, hdrIP("203.0.113.1")).Header().Get("X-Trail-K")
+	c.add(5 * time.Minute) // still the same day: resealed, same anon
+	k2 := postFrom(h, privEngage(k1), hdrIP("198.51.100.9")).Header().Get("X-Trail-K")
+	c.add(10 * time.Minute) // past midnight
+	k3 := postFrom(h, privEngage(k2), hdrIP("198.51.100.9")).Header().Get("X-Trail-K")
+	key := st.EngageKey()
+	v1, ok1 := openVisit(key, "s1", k1, c.now())
+	v2, ok2 := openVisit(key, "s1", k2, c.now())
+	v3, ok3 := openVisit(key, "s1", k3, c.now())
+	if !ok1 || !ok2 || !ok3 {
+		t.Fatalf("tokens did not open: %v %v %v", ok1, ok2, ok3)
+	}
+	if v1.Anon != v2.Anon {
+		t.Errorf("same-day resume changed the anon")
+	}
+	if v3.Anon == v2.Anon {
+		t.Errorf("anon survived the salt rotation via the token: %s", v3.Anon)
+	}
+}
