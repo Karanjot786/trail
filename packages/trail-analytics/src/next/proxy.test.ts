@@ -64,10 +64,19 @@ describe('next/proxy', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('passes /t/e through when TRAIL_URL is not set', async () => {
+  it('serves the stub when TRAIL_URL is not set', async () => {
     vi.stubEnv('TRAIL_URL', '');
-    const res = await proxy(rq('/t/e', CHROME, { method: 'POST', body: '[]' }) as any, event as any);
-    expect(res.headers.get('x-middleware-next')).toBe('1');
+    const res = await proxy(rq('/t/t.js', CHROME) as any, event as any);
+    expect(res.status).toBe(200);
+    expect(res.headers.get('x-trail-error')).toBe('no-url');
+    expect(res.headers.get('x-middleware-next')).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('uses nextUrl.pathname so basePath works', async () => {
+    const req = Object.assign(new Request('https://shop.example/docs/t/t.js', { headers: { 'user-agent': CHROME } }), { nextUrl: { pathname: '/t/t.js' } });
+    await proxy(req as any, event as any);
+    expect(fetchMock.mock.calls[0][0]).toBe('https://trail.example/_t/t.js');
   });
 
   it('withTrail keeps the user handler response and still reports', async () => {
@@ -80,13 +89,41 @@ describe('next/proxy', () => {
 
   it('withTrail forwards /t/e when the user handler continues', async () => {
     const h = withTrail(() => undefined);
-    const res = await h(rq('/t/e', CHROME, { method: 'POST', body: '[]' }) as any, event as any);
-    expect(res?.status).toBe(202);
+    const res = (await h(rq('/t/e', CHROME, { method: 'POST', body: '[]' }) as any, event as any)) as unknown as Response;
+    expect(res.status).toBe(202);
+  });
+
+  it('withTrail serves /t/t.js even when the handler rewrites every path (next-intl)', async () => {
+    const handler = vi.fn(() => new Response(null, { headers: { 'x-middleware-rewrite': 'https://shop.example/en/t/t.js' } }));
+    const h = withTrail(handler);
+    await h(rq('/t/t.js', CHROME) as any, event as any);
+    expect(fetchMock.mock.calls[0][0]).toBe('https://trail.example/_t/t.js');
+    expect(handler).not.toHaveBeenCalled();
+  });
+
+  it('withTrail serves /t/e even when the handler redirects (auth)', async () => {
+    const handler = vi.fn(() => new Response(null, { status: 307, headers: { location: '/login' } }));
+    const h = withTrail(handler);
+    const res = (await h(rq('/t/e', CHROME, { method: 'POST', body: '[]' }) as any, event as any)) as Response;
+    expect(res.status).toBe(202);
+    expect(handler).not.toHaveBeenCalled();
+  });
+
+  it("withTrail returns a sync handler's value synchronously for normal paths", () => {
+    const mine = new Response('x');
+    const res = withTrail(() => mine)(rq('/', CHROME) as any, event as any);
+    expect(res).toBe(mine);
+    expect(res).not.toBeInstanceOf(Promise);
+  });
+
+  it('withTrail works without an event', async () => {
+    const mine = new Response('x');
+    expect(withTrail(() => mine)(rq('/', GPT) as any)).toBe(mine);
   });
 
   it('imports no node: modules (runs on Edge and Node)', () => {
     const src = readFileSync(resolve(__dirname, 'proxy.ts'), 'utf8');
     expect(src).not.toMatch(/from ['"]node:/);
-    for (const f of ['filter', 'forward', 'send', 'env']) expect(readFileSync(resolve(__dirname, `../crawl/${f}.ts`), 'utf8')).not.toMatch(/from ['"]node:/);
+    for (const f of ['filter', 'forward', 'send', 'env', 'ip', 'cloudflare.gen']) expect(readFileSync(resolve(__dirname, `../crawl/${f}.ts`), 'utf8')).not.toMatch(/from ['"]node:/);
   });
 });

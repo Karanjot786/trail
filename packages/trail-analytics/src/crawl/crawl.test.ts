@@ -39,10 +39,11 @@ describe('shouldReport', () => {
 });
 
 describe('toLine', () => {
-  it('takes cf-connecting-ip first, then x-real-ip, then the first x-forwarded-for', () => {
+  it('ignores an unproven cf-connecting-ip, then takes the first x-forwarded-for, then x-real-ip', () => {
     const all = { 'cf-connecting-ip': '1.1.1.1', 'x-real-ip': '2.2.2.2', 'x-forwarded-for': '3.3.3.3, 4.4.4.4' };
-    expect(toLine(rq('/', GPT, { headers: all })).ip).toBe('1.1.1.1');
-    expect(toLine(rq('/', GPT, { headers: { 'x-real-ip': '2.2.2.2', 'x-forwarded-for': '3.3.3.3' } })).ip).toBe('2.2.2.2');
+    expect(toLine(rq('/', GPT, { headers: all })).ip).toBe('3.3.3.3');
+    expect(toLine(rq('/', GPT, { headers: { 'cf-connecting-ip': '1.1.1.1', 'x-forwarded-for': '3.3.3.3, 173.245.48.1' } })).ip).toBe('1.1.1.1');
+    expect(toLine(rq('/', GPT, { headers: { 'x-real-ip': '2.2.2.2' } })).ip).toBe('2.2.2.2');
     expect(toLine(rq('/', GPT, { headers: { 'x-forwarded-for': ' 3.3.3.3 , 4.4.4.4' } })).ip).toBe('3.3.3.3');
     expect(toLine(rq('/', GPT)).ip).toBeUndefined();
   });
@@ -159,6 +160,31 @@ describe('adapters', () => {
     expect(next).not.toHaveBeenCalled();
     expect(out).toBeInstanceOf(Response);
     expect(fetchMock.mock.calls[0][0]).toBe('https://t.example/_t/e');
+  });
+
+  it('hono serves the stub without TRAIL_URL', async () => {
+    vi.stubEnv('TRAIL_URL', '');
+    const mw = hono({});
+    const next = vi.fn();
+    const c: any = { req: { raw: rq('/t/t.js', CHROME), path: '/t/t.js' }, res: undefined };
+    const out = (await mw(c, next)) as Response;
+    expect(next).not.toHaveBeenCalled();
+    expect(out.status).toBe(200);
+    expect(out.headers.get('x-trail-error')).toBe('no-url');
+  });
+
+  it('express serves /t/t.x.js', async () => {
+    fetchMock.mockResolvedValue(new Response('/*x*/', { status: 200, headers: { 'content-type': 'text/javascript' } }));
+    const mw = express(opts);
+    const req: any = { method: 'GET', originalUrl: '/t/t.x.js', url: '/t/t.x.js', protocol: 'https', headers: { host: 'example.com', 'user-agent': CHROME } };
+    let body = '';
+    const done = new Promise<void>((ok) => {
+      const res: any = { statusCode: 0, setHeader: vi.fn(), on: vi.fn(), end: (b: Uint8Array) => ((body = new TextDecoder().decode(b)), ok()) };
+      mw(req, res, vi.fn());
+    });
+    await done;
+    expect(fetchMock.mock.calls[0][0]).toBe('https://t.example/_t/t.x.js');
+    expect(body).toBe('/*x*/');
   });
 
   it('express reports on finish with res.statusCode', async () => {

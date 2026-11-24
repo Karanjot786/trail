@@ -18,6 +18,8 @@ export interface TrailCrawlOptions {
   url?: string;
   site?: string;
   token?: string;
+  /** Header that carries the client IP on your host (env TRAIL_IP_HEADER), e.g. cloudfront-viewer-address. */
+  ipHeader?: string;
 }
 
 export type WaitUntil = (p: Promise<unknown>) => void;

@@ -14,7 +14,7 @@ export function withTrail<F extends (req: Request, ...a: any[]) => Response | Pr
   return (async (req: Request, ...rest: any[]) => {
     const e = rest[0] && typeof rest[0] === 'object' ? (rest[0] as Env) : undefined;
     const ctx = rest[1] as Ctx | undefined;
-    if (isTrailPath(req) && (opts.url || e?.TRAIL_URL || (globalThis as any).process?.env?.TRAIL_URL)) return forward(req, { ...opts, env: e });
+    if (isTrailPath(req)) return forward(req, { ...opts, env: e });
     const res = await handler(req, ...rest);
     if (shouldReport(req)) report(req, { ...opts, env: e, status: res.status, waitUntil: ctx?.waitUntil ? (p) => ctx.waitUntil(p) : undefined });
     return res;
@@ -26,10 +26,7 @@ export function hono(opts: TrailCrawlOptions = {}) {
   return async (c: any, next: () => Promise<void>): Promise<Response | void> => {
     const req: Request = c.req.raw;
     const e: Env | undefined = c.env && typeof c.env === 'object' ? c.env : undefined;
-    if (isTrailPath(req)) {
-      const fwd = await forward(req, { ...opts, env: e });
-      if (fwd.status !== 404) return fwd;
-    }
+    if (isTrailPath(req)) return forward(req, { ...opts, env: e });
     await next();
     if (!shouldReport(req)) return;
     let waitUntil: ((p: Promise<unknown>) => void) | undefined;
@@ -78,7 +75,7 @@ export function express(opts: TrailCrawlOptions = {}) {
     } catch {
       return next();
     }
-    if (isTrailPath(r) && (opts.url || (globalThis as any).process?.env?.TRAIL_URL)) {
+    if (isTrailPath(r)) {
       (async () => {
         const body = req.method === 'POST' ? await readBody(req) : undefined;
         const out = await forward(toRequest(req, body), { ...opts, ip: req.ip ?? req.socket?.remoteAddress });

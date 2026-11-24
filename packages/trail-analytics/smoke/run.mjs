@@ -1,9 +1,9 @@
-// Real-framework smoke: `node smoke/run.mjs [next15|next16|astro|all]`.
+// Real-framework smoke: `node smoke/run.mjs [next15|next16|astro|report-genzcareer|report-agent-skills|report-reelcn|report-plumb|all]`.
 // For each target: npm pack -> copy a fixture to a temp dir -> install the framework and the tarball
 // -> `trail-analytics init --yes` -> build -> start -> drive it with crawler and browser requests
 // against the mock Trail (smoke/mock-trail.mjs) -> kill everything and delete the temp dir.
-import { execFileSync, spawn } from 'node:child_process';
-import { cpSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { execFileSync, spawn, spawnSync } from 'node:child_process';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -21,6 +21,44 @@ const TARGETS = {
   next15: { fixture: 'next15-app', port: 3301, hook: 'middleware.ts', status: 0, build: ['npx', ['next', 'build']], start: (p) => ['npx', ['next', 'start', '-p', String(p), '-H', '127.0.0.1']] },
   next16: { fixture: 'next16-app', port: 3302, hook: 'proxy.ts', status: 0, build: ['npx', ['next', 'build']], start: (p) => ['npx', ['next', 'start', '-p', String(p), '-H', '127.0.0.1']] },
   astro: { fixture: 'astro-ssr', port: 3303, hook: 'astro.config.mjs', status: 200, build: ['npx', ['astro', 'build']], start: () => ['node', ['dist/server/entry.mjs']] },
+};
+
+// The install-report shapes. Each copies a report-* fixture, fills the files a real app would have (the
+// fixtures only keep what init touches), installs the packed tarball, runs init, then `next build` and `tsc`.
+const REPORTS = {
+  'report-genzcareer': {
+    port: 3311,
+    appDir: '.',
+    hook: 'proxy.ts',
+    types: ['@types/jest'],
+    tsc: true,
+    scaffold: {
+      'components/analytics.tsx': 'export function Analytics() {\n  return null;\n}\n',
+      'app/page.tsx': 'export default function Page() {\n  return <h1>genz</h1>;\n}\n',
+    },
+  },
+  'report-agent-skills': {
+    port: 3312,
+    appDir: '.',
+    hook: 'src/middleware.ts',
+    types: [],
+    tsc: true,
+    scaffold: {
+      'src/i18n/routing.ts': "import { defineRouting } from 'next-intl/routing';\nexport const routing = defineRouting({ locales: ['en'], defaultLocale: 'en' });\n",
+      'src/lib/bots.ts': "export const isSeoBot = (r: Request) => /semrush/i.test(r.headers.get('user-agent') ?? '');\n",
+      'src/app/[locale]/page.tsx': 'export default function Page() {\n  return <h1>skills</h1>;\n}\n',
+    },
+  },
+  'report-reelcn': {
+    port: 3313,
+    appDir: 'apps/www',
+    hook: 'proxy.ts',
+    types: [],
+    tsc: true,
+    exit2: true, // the narrow /docs matcher prints a manual step
+    scaffold: { 'app/page.tsx': 'export default function Page() {\n  return <h1>reelcn</h1>;\n}\n' },
+  },
+  'report-plumb': { port: 3314, appDir: '.', hook: 'app/layout.jsx', types: [], tsc: false, scaffold: {} },
 };
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -53,7 +91,7 @@ async function target(name, tarball, mock) {
     run('npm', ['install', '--no-audit', '--no-fund', '--loglevel=error', tarball], dir);
     const ver = JSON.parse(readFileSync(join(dir, `node_modules/${name === 'astro' ? 'astro' : 'next'}/package.json`), 'utf8')).version;
     log(`${name}: framework ${ver}`);
-    run('node', [join(dir, 'node_modules/trail-analytics/dist/cli.js'), 'init', '--url', TRAIL, '--site', SITE, '--token', TOKEN, '--yes', '--no-install', '--cwd', dir], dir);
+    run('node', [join(dir, 'node_modules/trail-analytics/dist/cli.js'), 'init', '--url', TRAIL, '--site', SITE, '--token', TOKEN, '--yes', '--no-install', '--offline', '--cwd', dir], dir);
     log(`${name}: init wrote\n${readFileSync(join(dir, t.hook), 'utf8')}`);
     const t0 = Date.now();
     run(t.build[0], t.build[1], dir, { NEXT_TELEMETRY_DISABLED: '1', ASTRO_TELEMETRY_DISABLED: '1' });
@@ -97,7 +135,7 @@ async function target(name, tarball, mock) {
     check(js.status === 200 && (await js.text()) === STUB_JS, 'GET /t/t.js is served from Trail');
     // 5. a beacon, signed
     const body = JSON.stringify([{ s: SITE, n: 'pageview', u: base + '/' }]);
-    const b = await fetch(base + '/t/e', { method: 'POST', body, headers: { 'content-type': 'text/plain;charset=UTF-8', 'user-agent': CHROME, origin: base, 'x-real-ip': '203.0.113.7' } });
+    const b = await fetch(base + '/t/e', { method: 'POST', body, headers: { 'content-type': 'text/plain;charset=UTF-8', 'user-agent': CHROME, origin: base, 'x-vercel-id': 'smoke::1', 'x-real-ip': '203.0.113.7' } });
     await until(() => mock.state.beacons.length >= 1);
     const got = mock.state.beacons[0];
     check(b.status === 202 && got?.verdict === '' && got.body === body, `POST /t/e reaches Trail signed, body intact (status ${b.status}, verdict "${got?.verdict}")`);
@@ -126,10 +164,95 @@ async function target(name, tarball, mock) {
   return { ...res, fails };
 }
 
+async function startApp(dir, t, extraEnv) {
+  const app = spawn('npx', ['next', 'start', '-p', String(t.port), '-H', '127.0.0.1'], {
+    cwd: dir,
+    env: { ...process.env, PORT: String(t.port), NEXT_TELEMETRY_DISABLED: '1', ...extraEnv },
+    stdio: ['ignore', 'pipe', 'pipe'],
+    detached: true,
+  });
+  let out = '';
+  app.stdout.on('data', (d) => (out += d));
+  app.stderr.on('data', (d) => (out += d));
+  const base = `http://127.0.0.1:${t.port}`;
+  const up = await until(() => fetch(base + '/', { redirect: 'manual' }).then((r) => r.status < 500, () => false), 60000, 300);
+  if (!up) throw new Error(`app did not start:\n${out}`);
+  return { app, base };
+}
+
+async function stopApp(app) {
+  if (!app?.pid) return;
+  try {
+    process.kill(-app.pid, 'SIGTERM');
+  } catch {}
+  await sleep(500);
+  try {
+    process.kill(-app.pid, 'SIGKILL');
+  } catch {}
+}
+
+async function reportTarget(name, tarball, mock) {
+  const t = REPORTS[name];
+  const root = mkdtempSync(join(process.env.SMOKE_TMP ?? tmpdir(), `trail-smoke-${name}-`));
+  const dir = join(root, t.appDir);
+  const fails = [];
+  const check = (ok, what) => (ok ? log(`  ok   ${what}`) : (fails.push(what), log(`  FAIL ${what}`)));
+  let app;
+  const res = { name, buildMs: 0, lines: 0 };
+  try {
+    cpSync(join(PKG, 'test/fixtures', name), root, { recursive: true });
+    for (const [f, body] of Object.entries(t.scaffold)) {
+      const p = join(dir, f);
+      mkdirSync(dirname(p), { recursive: true });
+      if (!existsSync(p)) writeFileSync(p, body);
+    }
+    log(`${name}: install in ${dir}`);
+    const types = t.tsc ? ['typescript@5', '@types/node', '@types/react', ...t.types] : [];
+    run('npm', ['install', '--no-audit', '--no-fund', '--loglevel=error', '--no-package-lock', '--legacy-peer-deps', tarball, ...types], dir);
+    const ver = JSON.parse(readFileSync(join(dir, 'node_modules/next/package.json'), 'utf8')).version;
+    log(`${name}: next ${ver}`);
+    const init = spawnSync('node', [join(dir, 'node_modules/trail-analytics/dist/cli.js'), 'init', '--url', TRAIL, '--site', SITE, '--token', TOKEN, '--yes', '--no-install', '--offline', '--cwd', dir], { cwd: dir, encoding: 'utf8' });
+    check(init.status === 0 || (t.exit2 && init.status === 2), `init exits ${t.exit2 ? '0 or 2' : '0'} (got ${init.status})`);
+    log(`${name}: init output\n${init.stdout}${init.stderr}`);
+    log(`${name}: hook\n${readFileSync(join(dir, t.hook), 'utf8')}`);
+    const t0 = Date.now();
+    run('npx', ['next', 'build'], dir, { NEXT_TELEMETRY_DISABLED: '1' });
+    res.buildMs = Date.now() - t0;
+    check(true, `next build exits 0 (${res.buildMs} ms, next ${ver})`);
+    if (t.tsc) {
+      // Run after the build: next build completes tsconfig (moduleResolution, include) the way a real app has it.
+      const tsc = spawnSync('npx', ['tsc', '--noEmit'], { cwd: dir, encoding: 'utf8' });
+      check(tsc.status === 0, `tsc --noEmit is clean${tsc.status === 0 ? '' : '\n' + tsc.stdout + tsc.stderr}`);
+    }
+    // configured
+    ({ app } = await startApp(dir, t, {}));
+    const base = `http://127.0.0.1:${t.port}`;
+    const js = await fetch(base + '/t/t.js', { headers: { 'user-agent': CHROME } });
+    check(js.status === 200 && (await js.text()) === STUB_JS, 'GET /t/t.js is served from Trail');
+    const home = await fetch(base + '/', { headers: { 'user-agent': CHROME }, redirect: 'manual' });
+    check(home.status < 500, `GET / answers ${home.status}`);
+    await stopApp(app);
+    app = undefined;
+    // TRAIL_URL unset (CI or preview): stub, never a 404
+    ({ app } = await startApp(dir, t, { TRAIL_URL: '' }));
+    const stub = await fetch(base + '/t/t.js', { headers: { 'user-agent': CHROME } });
+    const stubText = await stub.text();
+    check(stub.status === 200 && stubText.includes('TRAIL_URL is not set'), `GET /t/t.js without TRAIL_URL gives the 200 stub (status ${stub.status})`);
+    res.lines = mock.state.total;
+  } catch (e) {
+    fails.push(String(e?.message ?? e).slice(0, 2000));
+    log(`  FAIL ${fails[fails.length - 1]}`);
+  } finally {
+    await stopApp(app);
+    if (!process.env.SMOKE_KEEP) rmSync(root, { recursive: true, force: true });
+  }
+  return { ...res, fails };
+}
+
 const which = process.argv[2] ?? 'all';
-const names = which === 'all' ? Object.keys(TARGETS) : [which];
-if (!names.every((n) => TARGETS[n])) {
-  console.error(`usage: node smoke/run.mjs [${Object.keys(TARGETS).join('|')}|all]`);
+const names = which === 'all' ? [...Object.keys(TARGETS), ...Object.keys(REPORTS)] : [which];
+if (!names.every((n) => TARGETS[n] || REPORTS[n])) {
+  console.error(`usage: node smoke/run.mjs [${[...Object.keys(TARGETS), ...Object.keys(REPORTS)].join('|')}|all]`);
   process.exit(1);
 }
 const packDir = mkdtempSync(join(tmpdir(), 'trail-pack-'));
@@ -138,7 +261,7 @@ const tarball = join(packDir, tgz);
 const mock = await startMock({ port: MOCK, token: TOKEN, site: SITE });
 const results = [];
 try {
-  for (const n of names) results.push(await target(n, tarball, mock));
+  for (const n of names) results.push(await (REPORTS[n] ? reportTarget : target)(n, tarball, mock));
 } finally {
   await mock.close();
   rmSync(packDir, { recursive: true, force: true });

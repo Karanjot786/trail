@@ -1,0 +1,5 @@
+{
+  "name": "report-agent-skills",
+  "private": true,
+  "dependencies": { "next": "16.2.9", "next-intl": "^4.0.0", "@opennextjs/cloudflare": "^1.0.0", "react": "^19.0.0", "react-dom": "^19.0.0" }
+}

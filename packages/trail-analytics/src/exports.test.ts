@@ -25,9 +25,9 @@ describe('package exports', () => {
   });
 
   it('lists the 0.2.0 entry points and the CLI bin', () => {
-    expect(pkg.version).toBe('0.2.0');
+    expect(pkg.version).toBe('0.3.0');
     expect(entries.map(([k]) => k)).toEqual(['.', './react', './next', './next/proxy', './astro', './astro/middleware', './crawl']);
-    expect(pkg.bin).toEqual({ 'trail-analytics': './dist/cli.js' });
+    expect(pkg.bin).toEqual({ 'trail-analytics': 'dist/cli.js' });
     expect(entries.find(([k]) => k === './astro/middleware')?.[1].require).toBeUndefined();
   });
 

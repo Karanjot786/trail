@@ -1,4 +1,3 @@
-import { env } from '../crawl/env';
 import { isTrailPath, shouldReport } from '../crawl/filter';
 import { forward } from '../crawl/forward';
 import { report } from '../crawl/send';
@@ -6,7 +5,6 @@ import { report } from '../crawl/send';
 /** The parts of NextRequest / NextFetchEvent this module uses (no runtime import of `next`). */
 type NextRequestLike = Request;
 interface NextFetchEventLike { waitUntil(p: Promise<unknown>): void }
-type Handler = (req: NextRequestLike, event: NextFetchEventLike) => Response | undefined | null | void | Promise<Response | undefined | null | void>;
 
 /** Exactly what `NextResponse.next()` returns: Next continues to the route when it sees this header. */
 const next = () => new Response(null, { headers: { 'x-middleware-next': '1' } });
@@ -21,18 +19,23 @@ const reportCrawler = (req: Request, event?: NextFetchEventLike) => {
  * Serves `/t/t.js` and `/t/e` first-party (beacons signed with the edge's geo)
  * and reports AI crawler requests. Status is 0: the proxy runs before the route.
  */
-export default async function proxy(req: NextRequestLike, event: NextFetchEventLike): Promise<Response> {
-  if (isTrailPath(req) && env('TRAIL_URL')) return forward(req);
+export default async function proxy(req: NextRequestLike, event?: NextFetchEventLike): Promise<Response> {
+  if (isTrailPath(req)) return forward(req);
   reportCrawler(req, event);
   return next();
 }
 
-/** Wraps your own proxy/middleware. Trail paths are served only when your handler continues. */
-export function withTrail<H extends Handler>(handler: H): (req: NextRequestLike, event: NextFetchEventLike) => Promise<Response | undefined | null | void> {
-  return async (req, event) => {
+/**
+ * Wraps your own proxy/middleware and keeps its type (NextRequest, optional event, sync or async).
+ * Trail paths are served first and your handler never sees them: `/t/*` only proxies Trail.
+ * Note: for a Trail path the returned value is a `Promise<Response>` whatever `R` is; Next awaits any return value.
+ */
+export function withTrail<Req extends Request, Ev extends NextFetchEventLike = NextFetchEventLike, R = unknown>(
+  handler: (req: Req, event: Ev) => R,
+): (req: Req, event?: Ev) => R {
+  return (req, event) => {
+    if (isTrailPath(req)) return forward(req) as unknown as R;
     reportCrawler(req, event);
-    const res = await handler(req, event);
-    if (isTrailPath(req) && env('TRAIL_URL') && (!res || res.headers.get('x-middleware-next') === '1')) return forward(req);
-    return res;
+    return handler(req, event as Ev);
   };
 }

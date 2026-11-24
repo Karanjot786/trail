@@ -1,7 +1,12 @@
-import { readFileSync, statSync } from 'node:fs';
+import { needsInstall, VERSION } from './version';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Project } from './detect';
 import type { Change } from './diff';
+import { insertImport, parse } from './ast';
+import { wrapHook } from './hook';
+import { editLayout, findRootLayouts, handScriptLines } from './layout';
+import { readNextConfig } from './nextconfig';
 import * as T from './templates';
 
 export interface PlanFs {
@@ -9,6 +14,10 @@ export interface PlanFs {
   isDir(rel: string): boolean;
   /** `git check-ignore -q rel` exited 0. */
   gitIgnored(rel: string): boolean;
+  /** `git ls-files --error-unmatch -- rel` exited 0. */
+  gitTracked(rel: string): boolean;
+  /** Entry names of a directory, [] on error. */
+  list(rel: string): string[];
 }
 
 export interface PlanOptions { url: string; site: string; token: string }
@@ -17,10 +26,10 @@ export interface Plan {
   changes: Change[];
   manual: string[];
   warnings: string[];
-  install?: { cmd: string; args: string[] };
+  install?: { cmd: string; args: string[]; cwd: string };
 }
 
-export function nodeFs(cwd: string, gitIgnored: (rel: string) => boolean): PlanFs {
+export function nodeFs(cwd: string, gitIgnored: (rel: string) => boolean, gitTracked: (rel: string) => boolean = () => false): PlanFs {
   return {
     read: (rel) => {
       try {
@@ -37,76 +46,71 @@ export function nodeFs(cwd: string, gitIgnored: (rel: string) => boolean): PlanF
       }
     },
     gitIgnored,
+    gitTracked,
+    list: (rel) => {
+      try {
+        return readdirSync(join(cwd, rel));
+      } catch {
+        return [];
+      }
+    },
   };
 }
 
 const eolOf = (s: string | null) => (s && /\r\n/.test(s) ? '\r\n' : '\n');
 const firstExisting = (fs: PlanFs, names: string[]) => names.find((n) => fs.read(n) !== null);
 
-/** Inserts `line` after the last top-level import statement (or at the top). */
-function addImport(src: string, line: string, eol: string): string {
-  const re = /^import[\s\S]*?(?:from\s*)?['"][^'"]+['"];?[ \t]*$/gm;
-  let end = -1;
-  for (let m; (m = re.exec(src)); ) end = m.index + m[0].length;
-  if (end < 0) return line + eol + src;
-  const semi = /;[ \t]*$/.test(src.slice(0, end)) ? '' : '';
-  return src.slice(0, end) + eol + line + semi + src.slice(end);
-}
+interface TagPaths { src: string; api: string }
 
-const usesSemi = (src: string) => {
-  const m = src.match(/^import .*$/m);
-  return m ? /;\s*$/.test(m[0]) : true;
-};
-
-function planLayout(fs: PlanFs, p: Project, o: PlanOptions, out: Plan) {
+function planLayout(fs: PlanFs, p: Project, o: PlanOptions, out: Plan, tp: TagPaths) {
   const at = p.srcDir ? 'src/' : '';
   if (p.router !== 'app') {
-    out.manual.push(T.pagesSnippet(o.site, at));
+    out.manual.push(T.pagesSnippet(o.site, at, tp.src, tp.api));
     return;
   }
-  const file = firstExisting(fs, ['tsx', 'jsx', 'ts', 'js'].map((e) => `${at}app/layout.${e}`));
-  if (!file) {
-    out.manual.push(T.layoutSnippet(o.site, `${at}app/layout`));
+  const appDir = `${at}app`;
+  const files = findRootLayouts(fs, appDir);
+  if (!files.length) {
+    out.manual.push(`No root layout (a layout with <html>) found in ${appDir}/layout.* or ${appDir}/[*]/layout.*.\n\n${T.layoutSnippet(o.site, `${appDir}/layout`, tp.src, tp.api)}`);
     return;
   }
-  const before = fs.read(file)!;
-  const eol = eolOf(before);
-  const hasImport = /from\s*['"]trail-analytics\/next['"]/.test(before);
-  const tag = /<Analytics\b[^>]*\/>/.exec(before);
-  if (hasImport && tag) {
-    if (/\bsrc=/.test(tag[0]) && /\bapi=/.test(tag[0])) return;
-    let t = tag[0].replace(/\s*\/>$/, '');
-    if (!/\bsrc=/.test(t)) t += ' src="/t/t.js"';
-    if (!/\bapi=/.test(t)) t += ' api="/t/e"';
-    out.changes.push({ path: file, before, after: before.replace(tag[0], t + ' />') });
-    return;
+  for (const file of files) {
+    const before = fs.read(file)!;
+    const e = editLayout(before, file, { site: o.site, ...tp });
+    if (e && 'manual' in e) out.manual.push(`${e.manual}\n\n${T.layoutSnippet(o.site, file, tp.src, tp.api)}`);
+    else if (e) out.changes.push({ path: file, before, after: e.after });
+    for (const n of handScriptLines(before, file)) out.warnings.push(`${file} also loads the Trail script by hand (line ${n}); remove it, the component replaces it.`);
   }
-  const bodies = before.split('</body>').length - 1;
-  if (bodies !== 1) {
-    out.manual.push(T.layoutSnippet(o.site, file));
-    return;
-  }
-  let after = hasImport ? before : addImport(before, `import { Analytics } from 'trail-analytics/next'${usesSemi(before) ? ';' : ''}`, eol);
-  const i = after.indexOf('</body>');
-  const lineStart = after.lastIndexOf('\n', i - 1) + 1;
-  const indent = after.slice(lineStart, i);
-  const tagText = T.analyticsTag(o.site);
-  after = /^[ \t]*$/.test(indent)
-    ? after.slice(0, lineStart) + indent + '  ' + tagText + eol + after.slice(lineStart)
-    : after.slice(0, i) + tagText + after.slice(i);
-  out.changes.push({ path: file, before, after });
 }
 
 function planNext(fs: PlanFs, p: Project, o: PlanOptions, out: Plan) {
   const at = p.srcDir ? 'src/' : '';
-  if (p.hookFile) {
+  const cfg = readNextConfig(fs);
+  const staticExport = cfg.output === 'export';
+  const base = cfg.basePath ?? '';
+  const tp: TagPaths = staticExport
+    ? { src: `${o.url}/_t/t.js`, api: `${o.url}/_t/e` }
+    : { src: `${base}/t/t.js`, api: `${base}/t/e${cfg.trailingSlash ? '/' : ''}` };
+  if (staticExport) {
+    out.warnings.push(T.STATIC_EXPORT_WARNING);
+  } else if (p.hookFile) {
     const src = fs.read(p.hookFile) ?? '';
-    if (!src.includes('trail-analytics')) out.manual.push(T.withTrailSnippet(p.hookFile));
+    const name = /(?:^|\/)middleware\.[a-z]+$/.test(p.hookFile) ? 'middleware' : 'proxy';
+    const e = wrapHook(src, p.hookFile, name);
+    if (e.kind === 'manual') {
+      out.manual.push(`${e.reason}.\n\n${e.snippet}`);
+    } else {
+      if (e.after !== src) out.changes.push({ path: p.hookFile, before: src, after: e.after });
+      if (e.matcher.status === 'dynamic') out.manual.push(T.matcherDynamicSnippet(p.hookFile));
+      else if (e.matcher.status !== 'none' && e.matcher.narrow) out.manual.push(T.narrowMatcher(p.hookFile, (e.matcher.entries ?? []).join(', ')));
+    }
   } else {
-    const name: 'proxy' | 'middleware' = (p.nextMajor ?? 16) >= 16 ? 'proxy' : 'middleware';
+    const known = p.nextMajor !== undefined;
+    const name: 'proxy' | 'middleware' = known && p.nextMajor! >= 16 ? 'proxy' : 'middleware';
+    if (!known) out.warnings.push(T.UNKNOWN_NEXT_WARNING);
     out.changes.push({ path: `${at}${name}.${p.ext}`, before: null, after: T.nextHook(name, p.ext) });
   }
-  planLayout(fs, p, o, out);
+  planLayout(fs, p, o, out, tp);
   for (const d of ['app/t', 'src/app/t', 'pages/t', 'src/pages/t']) if (fs.isDir(d)) out.warnings.push(`${d} exists: requests to /t/t.js and /t/e are served by Trail; other /t/... paths still reach your routes.`);
 }
 
@@ -140,7 +144,12 @@ function planAstro(fs: PlanFs, p: Project, o: PlanOptions, out: Plan) {
     out.manual.push(T.astroSnippet(o.site));
     return;
   }
-  after = addImport(after, `import trail from 'trail-analytics/astro'${usesSemi(before) ? ';' : ''}`, eol);
+  const ast = parse(before, file);
+  if (!ast) {
+    out.manual.push(T.astroSnippet(o.site));
+    return;
+  }
+  after = insertImport(after, ast, "import trail from 'trail-analytics/astro'");
   out.changes.push({ path: file, before, after });
 }
 
@@ -155,44 +164,101 @@ function ignoredByText(gitignore: string | null, name: string): boolean {
   });
 }
 
+export const envFileFor = (p: Pick<Project, 'framework'>) => (p.framework === 'next' ? '.env.local' : '.env');
+
+const ENV_LINE = /^(\s*(?:export\s+)?)([A-Z0-9_]+)(\s*=\s*)(.*?)(\s*)$/;
+const unquote = (v: string) => (/^(["']).*\1$/.test(v) ? v.slice(1, -1) : v);
+
+/** The value of `key` in a dotenv text, quotes removed, or undefined. */
+export function readEnvValue(text: string | null, key: string): string | undefined {
+  for (const l of (text ?? '').split(/\r?\n/)) {
+    const m = ENV_LINE.exec(l);
+    if (m && m[2] === key) return unquote(m[4]);
+  }
+  return undefined;
+}
+
+const WRANGLER = ['wrangler.toml', 'wrangler.json', 'wrangler.jsonc'];
+
 function planEnv(fs: PlanFs, p: Project, o: PlanOptions, out: Plan) {
-  const file = p.framework === 'next' ? '.env.local' : '.env';
+  const file = envFileFor(p);
   const before = fs.read(file);
   const eol = eolOf(before);
-  const have = new Set((before ?? '').split(/\r?\n/).map((l) => /^\s*(?:export\s+)?([A-Z0-9_]+)\s*=/.exec(l)?.[1]).filter(Boolean));
-  const add = ([['TRAIL_URL', o.url], ['TRAIL_SITE', o.site], ['TRAIL_CRAWL_TOKEN', o.token]] as const).filter(([k]) => !have.has(k)).map(([k, v]) => `${k}=${v}`);
-  if (add.length) {
-    const base = before ?? '';
-    const sep = base === '' || base.endsWith('\n') ? '' : eol;
-    out.changes.push({ path: file, before, after: base + sep + add.join(eol) + eol });
+  const wanted = [['TRAIL_URL', o.url], ['TRAIL_SITE', o.site], ['TRAIL_CRAWL_TOKEN', o.token]] as const;
+  const tracked = before !== null && fs.gitTracked(file);
+  if (tracked) {
+    out.manual.push(`${file} is tracked by git, so init will not write the token into it. Run: git rm --cached ${file} && echo ${file} >> .gitignore, then rerun init. Or set the three variables only in your host (see below).`);
+  } else {
+    const lines = (before ?? '').split(/\r?\n/);
+    const seen = new Set<string>();
+    for (let i = 0; i < lines.length; i++) {
+      const m = ENV_LINE.exec(lines[i]);
+      const want = m && wanted.find(([k]) => k === m[2]);
+      if (!m || !want) continue;
+      seen.add(m[2]);
+      if (unquote(m[4]) !== want[1]) lines[i] = `${m[1]}${m[2]}${m[3]}${want[1]}${m[5]}`;
+    }
+    const add = wanted.filter(([k]) => !seen.has(k)).map(([k, v]) => `${k}=${v}`);
+    let after = lines.join(eol);
+    if (add.length) after += (after === '' || after.endsWith('\n') ? '' : eol) + add.join(eol) + eol;
+    if (after !== (before ?? '') || before === null) out.changes.push({ path: file, before, after });
   }
+  const names = tracked ? [] : [file];
+  if (WRANGLER.some((w) => fs.read(w) !== null)) names.push('.dev.vars');
   const gi = fs.read('.gitignore');
-  if (!fs.gitIgnored(file) && !ignoredByText(gi, file)) {
-    const ge = eolOf(gi);
+  const ge = eolOf(gi);
+  const todo = names.filter((n) => !fs.gitIgnored(n) && !ignoredByText(gi, n));
+  if (todo.length) {
     const base = gi ?? '';
-    out.changes.push({ path: '.gitignore', before: gi, after: base + (base === '' || base.endsWith('\n') ? '' : ge) + file + ge });
+    out.changes.push({ path: '.gitignore', before: gi, after: base + (base === '' || base.endsWith('\n') ? '' : ge) + todo.join(ge) + ge });
   }
 }
 
-const needsInstall = (range: string | undefined) => {
-  if (!range) return true;
-  const m = /(\d+)\.(\d+)/.exec(range);
-  if (!m) return false; // workspace:, file:, link: … leave alone
-  return Number(m[1]) === 0 && Number(m[2]) < 3;
-};
+const SECTIONS = ['dependencies', 'devDependencies'] as const;
 
-const INSTALL: Record<Project['pm'], string[]> = { pnpm: ['add'], npm: ['i'], yarn: ['add'], bun: ['add'] };
+/** package.json with trail-analytics set to ^VERSION, keeping indentation, EOL and the trailing newline; null when nothing changes. */
+function withTrailDep(raw: string): string | null {
+  let pkg: any;
+  try {
+    pkg = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  if (!pkg || typeof pkg !== 'object') return null;
+  const where = SECTIONS.find((k) => pkg[k] && typeof pkg[k] === 'object' && 'trail-analytics' in pkg[k]);
+  if (where) pkg[where]['trail-analytics'] = `^${VERSION}`;
+  else {
+    const deps: Record<string, string> = pkg.dependencies && typeof pkg.dependencies === 'object' ? pkg.dependencies : {};
+    const keys = Object.keys(deps);
+    const sorted = keys.every((k, i) => i === 0 || keys[i - 1] <= k);
+    deps['trail-analytics'] = `^${VERSION}`;
+    pkg.dependencies = sorted ? Object.fromEntries(Object.entries(deps).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))) : deps;
+  }
+  const indent = /^([ \t]+)"/m.exec(raw)?.[1] ?? '  ';
+  const eol = eolOf(raw);
+  const out = JSON.stringify(pkg, null, indent).replace(/\n/g, eol) + (/\n$/.test(raw) ? eol : '');
+  return out === raw ? null : out;
+}
+
+function planInstall(fs: PlanFs, p: Project, out: Plan) {
+  if (!needsInstall(p.trailDep, VERSION)) return;
+  const raw = fs.read('package.json');
+  const after = raw === null ? null : withTrailDep(raw);
+  if (raw !== null && after !== null) out.changes.push({ path: 'package.json', before: raw, after });
+  if (p.ws.lockfile) out.install = { cmd: p.ws.pm, args: ['install'], cwd: p.ws.root };
+  else out.warnings.push('No lockfile found, so init did not install (that would create one). Run your usual install.');
+}
 
 /** Everything init would do, without touching the disk. */
 export function plan(p: Project, o: PlanOptions, fs: PlanFs): Plan {
   const out: Plan = { changes: [], manual: [], warnings: [] };
   if (p.framework === 'unknown') {
-    out.manual.push(T.GENERIC);
+    out.manual.push(T.genericSnippet(o.url, o.site));
     return out;
   }
   if (p.framework === 'next') planNext(fs, p, o, out);
   else planAstro(fs, p, o, out);
   planEnv(fs, p, o, out);
-  if (needsInstall(p.trailDep)) out.install = { cmd: p.pm, args: [...INSTALL[p.pm], 'trail-analytics@^0.2.0'] };
+  planInstall(fs, p, out);
   return out;
 }
