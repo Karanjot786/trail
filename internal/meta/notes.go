@@ -151,7 +151,11 @@ func AddView(db *sql.DB, v SavedView) (SavedView, error) {
 	return v, nil
 }
 
-// DeleteView removes a saved view.
-func DeleteView(db *sql.DB, id int64) error {
+// DeleteView removes a saved view. A non-empty site limits the delete to that
+// site's own views; a miss is ErrNotFound, so hidden views stay hidden.
+func DeleteView(db *sql.DB, id int64, site string) error {
+	if site != "" {
+		return deleteOne(db, `DELETE FROM views WHERE id=? AND site_id=?`, id, site)
+	}
 	return deleteOne(db, `DELETE FROM views WHERE id=?`, id)
 }
