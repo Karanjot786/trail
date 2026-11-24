@@ -141,6 +141,20 @@ func migrateVersioned(db *sql.DB) error {
 			return fmt.Errorf("set user_version: %w", err)
 		}
 	}
+	if v < 2 {
+		// New names, not reused ones, so a downgraded binary recreates its own full indexes. Create
+		// before drop. Runs at Open, before ingest listens, so the index build blocks no writer.
+		for _, q := range []string{
+			`CREATE INDEX IF NOT EXISTS events_site_name_ts ON events(site_id, type, name, ts) WHERE name<>''`,
+			`DROP INDEX IF EXISTS events_site_type_name_ts`,
+			`DROP INDEX IF EXISTS events_site_user_ts`,
+			`PRAGMA user_version=2`,
+		} {
+			if _, err := db.Exec(q); err != nil {
+				return fmt.Errorf("migrate to v2: %w", err)
+			}
+		}
+	}
 	return nil
 }
 

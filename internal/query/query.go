@@ -198,7 +198,7 @@ func evWhere(p Params, skipPage bool) (string, []any, error) {
 				args = append(args, p.Site, p.From, p.To)
 				continue
 			}
-			sb.WriteString(" AND e.session_id IN (SELECT session_id FROM events WHERE site_id=? AND type='event' AND name=?)")
+			sb.WriteString(" AND e.session_id IN (SELECT session_id FROM events WHERE site_id=? AND type='event' AND name<>'' AND name=?)")
 			args = append(args, p.Site, v)
 		case dimGoal:
 			// A goal filter keeps whole sessions that hit the goal (any kind of goal).

@@ -18,7 +18,7 @@ func TestSchemaApplies(t *testing.T) {
 				t.Errorf("open %d: table %s missing", i, name)
 			}
 		}
-		for _, name := range []string{"events_site_type_name_ts", "events_site_session_ts", "notes_site_ts"} {
+		for _, name := range []string{"events_site_name_ts", "events_site_session_ts", "notes_site_ts"} {
 			if n := count(t, s, `SELECT count(*) FROM sqlite_master WHERE type='index' AND name='`+name+`'`); n != 1 {
 				t.Errorf("open %d: index %s missing", i, name)
 			}

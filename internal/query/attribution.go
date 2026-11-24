@@ -9,7 +9,7 @@ import (
 
 // goalHitCond is true when events row x is a hit of goals row g: an event goal matches the
 // event name, a page goal the exact path or, when it ends in *, the path prefix (case-sensitive).
-const goalHitCond = `((g.kind='event' AND x.type='event' AND x.name=g.match) OR
+const goalHitCond = `((g.kind='event' AND x.type='event' AND x.name<>'' AND x.name=g.match) OR
   (g.kind='page' AND x.type='pageview' AND (CASE WHEN substr(g.match,-1)='*'
     THEN substr(x.path,1,length(g.match)-1)=substr(g.match,1,length(g.match)-1) ELSE x.path=g.match END)))`
 
@@ -21,7 +21,7 @@ const pvPeople = `person IN (SELECT person FROM ev WHERE type='pageview')`
 func goalWhere(g Goal) (string, []any) {
 	switch {
 	case g.Kind == "event":
-		return "type='event' AND name=?", []any{g.Match}
+		return "type='event' AND name<>'' AND name=?", []any{g.Match}
 	case strings.HasSuffix(g.Match, "*"):
 		prefix := strings.TrimSuffix(g.Match, "*")
 		return "type='pageview' AND substr(path,1,length(?))=?", []any{prefix, prefix}

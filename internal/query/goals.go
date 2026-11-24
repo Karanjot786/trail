@@ -192,7 +192,7 @@ func goalNumbers(db *sql.DB, p Params, g Goal, total int) (GoalPrev, error) {
 	var where string
 	switch {
 	case g.Kind == "event":
-		where, args = "type='event' AND name=?", append(args, g.Match)
+		where, args = "type='event' AND name<>'' AND name=?", append(args, g.Match)
 	case strings.HasSuffix(g.Match, "*"):
 		// substr = is case-sensitive like the exact-path goal; LIKE is not.
 		prefix := strings.TrimSuffix(g.Match, "*")

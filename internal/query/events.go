@@ -275,7 +275,7 @@ func eventWhere(name string) (string, []any) {
 	if name == outboundName {
 		return "type='outbound'", nil
 	}
-	return "type='event' AND name=?", []any{name}
+	return "type='event' AND name<>'' AND name=?", []any{name}
 }
 
 // EventDetail returns one event's counts (and the comparison period's), its series, a breakdown of
