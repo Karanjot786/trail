@@ -498,3 +498,67 @@ func TestSeriesBadMetric(t *testing.T) {
 		t.Fatalf("err = %v", err)
 	}
 }
+
+// pathFilterFixture: session sa lands on / from google, engages, then views /pricing; sb only views /.
+func pathFilterFixture(t *testing.T) *sql.DB {
+	t.Helper()
+	land := pv("A", "sa", "/", t0)
+	land.RefHost = "google.com"
+	return fixture(t, land, engage("A", "sa", t0+20000, 20000), pv("A", "sa", "/pricing", t0+30000), pv("B", "sb", "/", t0))
+}
+
+func pathFilter() Params {
+	p := around()
+	p.Filters = map[string]string{"path": "/pricing"}
+	return p
+}
+
+func TestPathFilterKeepsSessionMetrics(t *testing.T) {
+	s := mustStats(t, pathFilterFixture(t), pathFilter())
+	if s.Visitors != 1 || s.Pageviews != 1 || s.Sessions != 1 || s.Bounce != 0 || s.DurationMs != 30000 {
+		t.Fatalf("got %+v, want 1 visitor, 1 pageview, 1 session, bounce 0, 30000 ms", s.Totals)
+	}
+}
+
+func TestPathFilterSourceIsLanding(t *testing.T) {
+	rows, err := Breakdown(pathFilterFixture(t), pathFilter(), "referrer", "", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 1 || rows[0].Key != "google.com" || rows[0].Visitors != 1 {
+		t.Fatalf("rows = %+v", rows)
+	}
+}
+
+func TestPathFilterSeriesDuration(t *testing.T) {
+	r, err := Series(pathFilterFixture(t), pathFilter(), "duration", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, pt := range r.Points {
+		if pt.T <= t0 && pt.V != nil && *pt.V == 30000 {
+			return
+		}
+	}
+	t.Fatalf("no bucket with 30000: %+v", r.Points)
+}
+
+func TestPathFilterSessionsList(t *testing.T) {
+	rows, _, err := Sessions(pathFilterFixture(t), pathFilter(), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 1 || rows[0].DurationMs != 30000 || rows[0].Pages != 2 || rows[0].Entry != "/" {
+		t.Fatalf("rows = %+v", rows)
+	}
+}
+
+func TestPathFilterPathBreakdownKeepsRows(t *testing.T) {
+	rows, err := Breakdown(pathFilterFixture(t), pathFilter(), "path", "", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 1 || rows[0].Key != "/pricing" || rows[0].Pageviews != 1 {
+		t.Fatalf("rows = %+v", rows)
+	}
+}

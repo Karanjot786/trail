@@ -98,15 +98,57 @@ func (p Params) Prev() (Params, bool) {
 
 // The v3 JSON types (Totals, StatsResult, Point, SeriesResult, Row, Person/Visitor) live in types.go.
 
-// base builds the person CTE (idm, ev) for p, with env and filters applied.
+// pageDims are the row dims about one page. In sev they select whole sessions that viewed
+// the page instead of filtering rows.
+var pageDims = map[string]bool{"path": true, "route": true, "host": true}
+
+// base builds the person CTEs for p, with env and filters applied:
+//   - idm maps anon ids to user ids;
+//   - ev holds the rows that match every filter (page counts, visitors, breakdown keys);
+//   - sev holds every row of the sessions that viewed a page matching the path, route and
+//     host filters, with all other conditions the same as ev. Session metrics (sessions,
+//     duration, bounce, entry, exit, sources, campaigns) read sev, so a page filter keeps
+//     whole sessions. With no page filter sev is ev.
 func base(p Params) (string, []any, error) {
+	evW, evA, err := evWhere(p, false)
+	if err != nil {
+		return "", nil, err
+	}
+	args := append([]any{p.Site, p.Site}, evA...)
 	var sb strings.Builder
 	sb.WriteString(`WITH idm AS (SELECT anon_id, user_id FROM identity_map WHERE site_id=? AND rowid IN
   (SELECT min(rowid) FROM identity_map WHERE site_id=? GROUP BY anon_id)),
 ev AS (SELECT e.*, COALESCE(idm.user_id, e.anon_id) AS person, idm.user_id IS NOT NULL AS ident
   FROM events e LEFT JOIN idm USING(anon_id)
-  WHERE e.site_id=? AND e.ts BETWEEN ? AND ? AND ` + actorCond(p, "e"))
-	args := []any{p.Site, p.Site, p.Site, p.From, p.To}
+  WHERE ` + evW + `),
+`)
+	hasPage := false
+	for k := range p.Filters {
+		if pageDims[k] {
+			hasPage = true
+		}
+	}
+	if !hasPage {
+		sb.WriteString("sev AS (SELECT * FROM ev)\n")
+		return sb.String(), args, nil
+	}
+	sevW, sevA, err := evWhere(p, true)
+	if err != nil {
+		return "", nil, err
+	}
+	sb.WriteString(`sev AS (SELECT e.*, COALESCE(idm.user_id, e.anon_id) AS person, idm.user_id IS NOT NULL AS ident
+  FROM events e LEFT JOIN idm USING(anon_id)
+  WHERE ` + sevW + `)
+`)
+	return sb.String(), append(args, sevA...), nil
+}
+
+// evWhere is the WHERE clause (on alias e) for p's window, actor, env and filters. With
+// skipPage, path, route and host become "sessions that viewed a matching page".
+func evWhere(p Params, skipPage bool) (string, []any, error) {
+	var sb strings.Builder
+	sb.WriteString("e.site_id=? AND e.ts BETWEEN ? AND ? AND " + actorCond(p, "e"))
+	args := []any{p.Site, p.From, p.To}
 	if p.Env != "" && p.Env != "all" {
 		sb.WriteString(" AND e.env=?")
 		args = append(args, p.Env)
@@ -124,6 +166,11 @@ ev AS (SELECT e.*, COALESCE(idm.user_id, e.anon_id) AS person, idm.user_id IS NO
 		v := p.Filters[k]
 		switch d.kind {
 		case dimRow:
+			if skipPage && pageDims[k] {
+				sb.WriteString(" AND e.session_id IN (SELECT session_id FROM events WHERE site_id=? AND type='pageview' AND ts BETWEEN ? AND ? AND " + d.expr + "=?)")
+				args = append(args, p.Site, p.From, p.To, v)
+				continue
+			}
 			sb.WriteString(" AND e." + d.expr + "=?") // expr comes from the dims allowlist
 			args = append(args, v)
 		case dimClock:
@@ -159,7 +206,6 @@ ev AS (SELECT e.*, COALESCE(idm.user_id, e.anon_id) AS person, idm.user_id IS NO
 			args = append(args, v, p.Site, p.From, p.To)
 		}
 	}
-	sb.WriteString(")\n")
 	return sb.String(), args, nil
 }
 
@@ -281,7 +327,7 @@ WHERE cur=(SELECT cur FROM pc GROUP BY cur ORDER BY count(*) DESC, cur LIMIT 1)`
 // columns of a min() aggregate from the row holding the minimum, i.e. the landing pageview.
 var sessSrc = `SELECT session_id, person, min(ts) AS start, ` + sourceNameExpr + ` AS source, ` + channelExpr + ` AS channel,
   ` + aiSourceExpr + ` AS ai, path AS entry, country, city, device, browser, os, referrer_host, utm_source, utm_medium, utm_campaign, utm_term, utm_content
-FROM ev WHERE type='pageview' GROUP BY session_id`
+FROM sev WHERE type='pageview' GROUP BY session_id`
 
 var seriesMetrics = map[string]bool{
 	"visitors": true, "pageviews": true, "sessions": true, "duration": true,

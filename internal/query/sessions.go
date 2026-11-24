@@ -11,7 +11,7 @@ import (
 // sessionAgg aggregates ev (from base) into one row per session.
 const sessionAgg = `SELECT session_id, min(ts) AS start, max(ts) AS end, max(ts)-min(ts) AS dur, sum(type='pageview') AS pv,
   max(engaged_ms) AS em, max(type IN ('event','identify')) AS ce
-FROM ev GROUP BY session_id`
+FROM sev GROUP BY session_id`
 
 // engagedExpr is 1 when a sessionAgg row is an engaged session (GA4 rule).
 const engagedExpr = `(pv>=2 OR em>=10000 OR ce)`
@@ -184,14 +184,14 @@ func Sessions(db *sql.DB, p Params, person string) ([]SessionRow, int, error) {
 		where, wargs = " WHERE sx.person=?", []any{person}
 	}
 	sx := cte + `, sx AS (SELECT session_id, person, max(ident) AS ident, min(ts) AS start, max(ts)-min(ts) AS dur,
-  sum(type='pageview') AS pv, max(agent) AS agent FROM ev GROUP BY session_id)
+  sum(type='pageview') AS pv, max(agent) AS agent FROM sev GROUP BY session_id)
 `
 	var total int
 	if err := db.QueryRow(sx+`SELECT count(*) FROM sx`+where, append(append([]any{}, args...), wargs...)...).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("sessions total: %w", err)
 	}
 	sqlText := sx + `, sl AS (` + sessSrc + `),
-  se AS (SELECT session_id, max(ts), path AS exitp FROM ev WHERE type='pageview' GROUP BY session_id)
+  se AS (SELECT session_id, max(ts), path AS exitp FROM sev WHERE type='pageview' GROUP BY session_id)
 SELECT sx.session_id, sx.person, sx.ident, sx.start, sx.dur, sx.pv, coalesce(sl.entry,''), coalesce(se.exitp,''),
   coalesce(sl.source,'Direct'), coalesce(sl.country,''), coalesce(sl.city,''), coalesce(sl.device,''),
   coalesce(sl.browser,''), coalesce(sl.os,''), sx.agent
