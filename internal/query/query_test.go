@@ -562,3 +562,54 @@ func TestPathFilterPathBreakdownKeepsRows(t *testing.T) {
 		t.Fatalf("rows = %+v", rows)
 	}
 }
+
+func onlineFixture(t *testing.T) (*sql.DB, int64) {
+	t.Helper()
+	now := time.Now().UnixMilli()
+	prod := pv("A", "sa", "/", now-minute)
+	prev := pv("B", "sb", "/", now-minute)
+	prev.Env = "preview"
+	// C and D are two anon ids of one user, both active.
+	return fixture(t, prod, prev,
+		pv("C", "sc", "/", now-minute), identify("C", "sc", "u1", now-minute+1),
+		pv("D", "sd", "/", now-2*minute), identify("D", "sd", "u1", now-2*minute+1)), now
+}
+
+func TestOnlineHonoursEnv(t *testing.T) {
+	db, now := onlineFixture(t)
+	p := params(now-day, now)
+	p.Env = "production"
+	if s := mustStats(t, db, p); s.Online != 2 {
+		t.Fatalf("production online = %d, want 2 (A and user u1)", s.Online)
+	}
+	p.Env = "all"
+	if s := mustStats(t, db, p); s.Online != 3 {
+		t.Fatalf("all online = %d, want 3", s.Online)
+	}
+}
+
+func TestOnlineHonoursFilters(t *testing.T) {
+	now := time.Now().UnixMilli()
+	db := fixture(t, pv("A", "sa", "/pricing", now-minute), pv("B", "sb", "/", now-minute))
+	p := params(now-day, now)
+	p.Filters = map[string]string{"path": "/pricing"}
+	if s := mustStats(t, db, p); s.Online != 1 {
+		t.Fatalf("online = %d, want 1", s.Online)
+	}
+}
+
+func TestOnlineMatchesLive(t *testing.T) {
+	db, now := onlineFixture(t)
+	for _, env := range []string{"production", "all"} {
+		p := params(now-day, now)
+		p.Env = env
+		p.Now = time.UnixMilli(now)
+		live, err := Live(db, p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if s := mustStats(t, db, p); s.Online != live.Active {
+			t.Fatalf("env %s: online %d != live active %d", env, s.Online, live.Active)
+		}
+	}
+}

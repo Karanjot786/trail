@@ -264,11 +264,21 @@ func (p Params) now() time.Time {
 }
 
 // online counts people seen in the five minutes before p.Now.
-func online(db *sql.DB, p Params) (int, error) {
+func online(db *sql.DB, p Params) (int, error) { return activeNow(db, p) }
+
+// activeNow counts the people seen in the five minutes before p.Now, in p's env and
+// filters. Live reads the same rows, so the two numbers agree. Actor is ignored (people only).
+func activeNow(db *sql.DB, p Params) (int, error) {
 	nowMs := p.now().UnixMilli()
+	lp := p
+	lp.Actor = ""
+	lp.From, lp.To = nowMs-onlineWindow.Milliseconds(), nowMs
+	cte, args, err := base(lp)
+	if err != nil {
+		return 0, err
+	}
 	var n int
-	if err := db.QueryRow(`SELECT count(DISTINCT anon_id) FROM events WHERE site_id=? AND ts>=? AND ts<=? AND `+peopleOnly("events"),
-		p.Site, nowMs-onlineWindow.Milliseconds(), nowMs).Scan(&n); err != nil {
+	if err := db.QueryRow(cte+`SELECT count(DISTINCT person) FROM ev`, args...).Scan(&n); err != nil {
 		return 0, fmt.Errorf("online: %w", err)
 	}
 	return n, nil
