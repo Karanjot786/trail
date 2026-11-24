@@ -319,7 +319,8 @@ func TestEventBreakdownTotal(t *testing.T) {
 	ev := func(anon string, ts int64) store.Event {
 		return store.Event{Type: "event", AnonID: anon, SessionID: anon, Name: "Signup", TS: ts}
 	}
-	db := fixture(t, ev("A", t0), ev("A", t0+1), ev("B", t0), pv("A", "A", "/", t0))
+	// B needs a pageview to count as a visitor (#4: a person is someone with a pageview in the window).
+	db := fixture(t, ev("A", t0), ev("A", t0+1), ev("B", t0), pv("A", "A", "/", t0), pv("B", "B", "/", t0-1))
 	rows, err := Breakdown(db, around(), "event", "", 10)
 	if err != nil {
 		t.Fatal(err)

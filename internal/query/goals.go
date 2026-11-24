@@ -217,7 +217,7 @@ func Delivery(db *sql.DB, p Params) (DeliveryResult, error) {
 	if err != nil {
 		return d, err
 	}
-	if err := db.QueryRow(cte+`SELECT count(*), coalesce(sum(retry>=1),0) FROM ev`, args...).
+	if err := db.QueryRow(cte+`SELECT count(*), coalesce(sum(retry>=1),0) FROM ev WHERE type<>'engage'`, args...).
 		Scan(&d.Events, &d.Retried); err != nil {
 		return d, fmt.Errorf("delivery: %w", err)
 	}

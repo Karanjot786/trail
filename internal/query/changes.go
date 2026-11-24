@@ -154,7 +154,7 @@ func dayChange(db *sql.DB, p Params, loc *time.Location) (ChangeItem, bool, erro
 	}
 	dayKey := func(ms int64) string { return time.UnixMilli(ms).In(loc).Format("2006-01-02") }
 	people := map[string]map[string]bool{}
-	err = forRows(db, cte+`SELECT ts, person FROM ev`, args, func(r *sql.Rows) error {
+	err = forRows(db, cte+`SELECT ts, person FROM ev WHERE type<>'engage'`, args, func(r *sql.Rows) error {
 		var ts int64
 		var person string
 		if err := r.Scan(&ts, &person); err != nil {

@@ -9,9 +9,17 @@ import (
 )
 
 // sessionAgg aggregates ev (from base) into one row per session.
-const sessionAgg = `SELECT session_id, min(ts) AS start, max(ts) AS end, max(ts)-min(ts) AS dur, sum(type='pageview') AS pv,
-  max(engaged_ms) AS em, max(type IN ('event','identify')) AS ce
-FROM sev GROUP BY session_id`
+const sessionAgg = `SELECT session_id, min(ts) AS start, max(` + activeEnd + `) AS end, max(` + activeEnd + `)-min(ts) AS dur,
+  sum(type='pageview') AS pv, max(engaged_ms) AS em, max(type IN ('event','identify')) AS ce
+FROM sev GROUP BY session_id HAVING pv>0`
+
+// activeEnd is a row's last moment of activity: a pageview whose engage events were folded
+// into it ends dwell_ms after it started; every other row ends at its own ts.
+const activeEnd = "(ts+dwell_ms)"
+
+// pvPerson keeps the people with a pageview in the window; rows of anyone else (for example an
+// engage that arrived in a new session) never make a visitor.
+const pvPerson = "person IN (SELECT person FROM ev WHERE type='pageview')"
 
 // engagedExpr is 1 when a sessionAgg row is an engaged session (GA4 rule).
 const engagedExpr = `(pv>=2 OR em>=10000 OR ce)`
@@ -88,15 +96,19 @@ func Visitors(db *sql.DB, p Params, q string) ([]Person, int, error) {
 	if q != "" {
 		where, qargs = " WHERE instr(lower(person), lower(?))>0", []any{q}
 	}
+	// evp is ev without engage rows that belong to no pageview session, for people with a pageview.
+	cte += `, evp AS (SELECT * FROM ev WHERE ` + pvPerson + ` AND (type<>'engage' OR session_id IN (SELECT session_id FROM ev WHERE type='pageview')))
+`
 	var total int
-	if err := db.QueryRow(cte+`SELECT count(DISTINCT person) FROM ev`+where, append(append([]any{}, args...), qargs...)...).
+	if err := db.QueryRow(cte+`SELECT count(DISTINCT person) FROM evp`+where, append(append([]any{}, args...), qargs...)...).
 		Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("visitors total: %w", err)
 	}
-	sqlText := cte + `, px AS (SELECT person, max(ident) AS ident, min(ts) AS first, max(ts) AS last,
-    count(DISTINCT session_id) AS visits, sum(type='pageview') AS pages FROM ev` + where + ` GROUP BY person),
-  pd AS (SELECT person, sum(d) AS dur FROM (SELECT person, max(ts)-min(ts) AS d FROM ev GROUP BY session_id) GROUP BY person),
-  pl AS (SELECT person, max(ts), country, region, city, device, browser, os FROM ev GROUP BY person),
+	sqlText := cte + `, px AS (SELECT person, max(ident) AS ident, min(ts) AS first, max(` + activeEnd + `) AS last,
+    count(DISTINCT session_id) AS visits, sum(type='pageview') AS pages FROM evp` + where + ` GROUP BY person),
+  pd AS (SELECT person, sum(d) AS dur FROM (SELECT person, max(` + activeEnd + `)-min(ts) AS d FROM evp GROUP BY session_id
+    HAVING sum(type='pageview')>0) GROUP BY person),
+  pl AS (SELECT person, max(ts), country, region, city, device, browser, os FROM evp GROUP BY person),
   ps AS (SELECT person, min(ts), ` + sourceNameExpr + ` AS source FROM ev WHERE type='pageview' GROUP BY person)
 SELECT px.person, px.ident, px.first, px.last, px.visits, px.pages, coalesce(pd.dur,0), pl.country, pl.region, pl.city,
   pl.device, pl.browser, pl.os, coalesce(ps.source,'Direct')
@@ -183,8 +195,8 @@ func Sessions(db *sql.DB, p Params, person string) ([]SessionRow, int, error) {
 	if person != "" {
 		where, wargs = " WHERE sx.person=?", []any{person}
 	}
-	sx := cte + `, sx AS (SELECT session_id, person, max(ident) AS ident, min(ts) AS start, max(ts)-min(ts) AS dur,
-  sum(type='pageview') AS pv, max(agent) AS agent FROM sev GROUP BY session_id)
+	sx := cte + `, sx AS (SELECT session_id, person, max(ident) AS ident, min(ts) AS start, max(` + activeEnd + `)-min(ts) AS dur,
+  sum(type='pageview') AS pv, max(agent) AS agent FROM sev GROUP BY session_id HAVING pv>0)
 `
 	var total int
 	if err := db.QueryRow(sx+`SELECT count(*) FROM sx`+where, append(append([]any{}, args...), wargs...)...).Scan(&total); err != nil {
@@ -276,7 +288,7 @@ var journeySQL = `WITH idm AS (SELECT anon_id, user_id FROM identity_map WHERE s
 anons AS (SELECT anon_id FROM idm WHERE user_id=?
   UNION SELECT ? WHERE NOT EXISTS (SELECT 1 FROM idm WHERE anon_id=?))
 SELECT e.session_id, e.ts, e.type, e.path, e.name, e.engaged_ms, e.scroll_pct, e.props, ` + sourceNameExpr + `,
-  e.country, e.city, e.device, e.agent, e.agent_via
+  e.country, e.city, e.device, e.agent, e.agent_via, e.dwell_ms
 FROM anons CROSS JOIN events e INDEXED BY events_site_anon_ts LEFT JOIN idm USING(anon_id)
 WHERE e.site_id=? AND e.anon_id=anons.anon_id AND ` + journeyCond + `
 ORDER BY e.ts, e.id`
@@ -292,9 +304,10 @@ func Journey(db *sql.DB, site, person string, goals []Goal) ([]JourneySession, e
 	via := map[string]int{} // session → best viaRank seen
 	err := forRows(db, journeySQL, []any{site, site, person, person, person, site}, func(r *sql.Rows) error {
 		var sid, props, src, country, city, device, agent, agentVia string
+		var dwell int64
 		var s Step
 		if err := r.Scan(&sid, &s.TS, &s.Type, &s.Path, &s.Name, &s.EngagedMs, &s.ScrollPct, &props, &src,
-			&country, &city, &device, &agent, &agentVia); err != nil {
+			&country, &city, &device, &agent, &agentVia, &dwell); err != nil {
 			return err
 		}
 		i, ok := bySession[sid]
@@ -306,7 +319,7 @@ func Journey(db *sql.DB, site, person string, goals []Goal) ([]JourneySession, e
 				Visit: i + 1, Country: country, City: city, Device: device})
 		}
 		sess := &out[i]
-		sess.DurationMs = s.TS - sess.Start
+		sess.DurationMs = max(sess.DurationMs, s.TS+dwell-sess.Start)
 		sess.Agent = max(sess.Agent, agent)
 		if agent != "" {
 			via[sid] = max(via[sid], viaRank[agentVia], 1)

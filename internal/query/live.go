@@ -17,25 +17,32 @@ func Live(db *sql.DB, p Params) (LiveResult, error) {
 	res := LiveResult{AsOf: now, Countries: []KeyCount{}, Sources: []KeyCount{}, Pages: []KeyCount{}, Stream: []LiveEvent{}}
 	lp := p
 	lp.Actor = "" // Live is people only, whatever actor says
-	lp.From, lp.To = now-onlineWindow.Milliseconds(), now
+	from := now - onlineWindow.Milliseconds()
+	lp.From, lp.To = from-foldLookback, now
 	cte, args, err := base(lp)
 	if err != nil {
 		return res, err
 	}
+	// Active is what happened in the last five minutes: a row at ts, or a pageview whose folded
+	// engage reaches ts+dwell_ms. ev reaches a day further back to find those pageviews.
+	cte += `, ap AS (SELECT * FROM ev WHERE ` + activeEnd + `>=?)
+`
+	args = append(args, from)
 	// The landing source of each active session, read from the session's whole history.
-	srcCTE := cte + `, act AS (SELECT DISTINCT session_id FROM ev),
+	srcCTE := cte + `, act AS (SELECT DISTINCT session_id FROM ap),
   src AS (SELECT session_id, min(ts), ` + sourceNameExpr + ` AS source FROM events
     WHERE site_id=? AND type='pageview' AND session_id IN (SELECT session_id FROM act) GROUP BY session_id)
 `
 	sargs := append(append([]any{}, args...), p.Site)
-	if err := db.QueryRow(cte+`SELECT count(DISTINCT person), count(*), coalesce(sum(type IN ('pageview','event')),0) FROM ev`, args...).
+	if err := db.QueryRow(cte+`SELECT (SELECT count(DISTINCT person) FROM ap), coalesce(sum(type<>'engage' AND ts>=?),0),
+  coalesce(sum(type IN ('pageview','event') AND ts>=?),0) FROM ev`, append(append([]any{}, args...), from, from)...).
 		Scan(&res.Active, &res.Events5m, &res.StreamTotal); err != nil {
 		return res, fmt.Errorf("live totals: %w", err)
 	}
 	err = forRows(db, srcCTE+`SELECT ev.ts, ev.person, ev.ident, ev.session_id, ev.type, ev.path, ev.name, ev.country, ev.city,
   coalesce(src.source,'Direct')
-FROM ev LEFT JOIN src USING(session_id) WHERE ev.type IN ('pageview','event') ORDER BY ev.ts DESC, ev.id DESC LIMIT ?`,
-		append(sargs, liveStreamCap), func(r *sql.Rows) error {
+FROM ev LEFT JOIN src USING(session_id) WHERE ev.type IN ('pageview','event') AND ev.ts>=? ORDER BY ev.ts DESC, ev.id DESC LIMIT ?`,
+		append(sargs, from, liveStreamCap), func(r *sql.Rows) error {
 			var e LiveEvent
 			var ident bool
 			if err := r.Scan(&e.TS, &e.Person, &ident, &e.SessionID, &e.Type, &e.Path, &e.Name, &e.Country, &e.City, &e.Source); err != nil {
@@ -50,8 +57,8 @@ FROM ev LEFT JOIN src USING(session_id) WHERE ev.type IN ('pageview','event') OR
 	}
 	// Each active person's latest event gives their country, source and current page.
 	countries, sources, pages := map[string]int{}, map[string]int{}, map[string]int{}
-	err = forRows(db, srcCTE+`, last AS (SELECT person, max(ts), session_id, country FROM ev GROUP BY person),
-  lastpv AS (SELECT person, max(ts), path FROM ev WHERE type='pageview' GROUP BY person)
+	err = forRows(db, srcCTE+`, last AS (SELECT person, max(`+activeEnd+`), session_id, country FROM ap GROUP BY person),
+  lastpv AS (SELECT person, max(ts), path FROM ev WHERE type='pageview' AND person IN (SELECT person FROM ap) GROUP BY person)
 SELECT last.country, coalesce(src.source,'Direct'), coalesce(lastpv.path,'')
 FROM last LEFT JOIN src USING(session_id) LEFT JOIN lastpv USING(person)`, sargs, func(r *sql.Rows) error {
 		var c, s, pg string

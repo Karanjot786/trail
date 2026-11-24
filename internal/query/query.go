@@ -68,6 +68,7 @@ const (
 	defaultLimit = 100
 	maxLimit     = 1000
 	onlineWindow = 5 * time.Minute
+	foldLookback = int64(24 * time.Hour / time.Millisecond) // how far back a folded pageview's dwell can reach
 )
 
 // Params scopes a dashboard query. Env "" or "all" means every environment.
@@ -272,13 +273,15 @@ func activeNow(db *sql.DB, p Params) (int, error) {
 	nowMs := p.now().UnixMilli()
 	lp := p
 	lp.Actor = ""
-	lp.From, lp.To = nowMs-onlineWindow.Milliseconds(), nowMs
+	from := nowMs - onlineWindow.Milliseconds()
+	// A pageview with engage folded into it is active until ts+dwell_ms, so look back a day for those.
+	lp.From, lp.To = from-foldLookback, nowMs
 	cte, args, err := base(lp)
 	if err != nil {
 		return 0, err
 	}
 	var n int
-	if err := db.QueryRow(cte+`SELECT count(DISTINCT person) FROM ev`, args...).Scan(&n); err != nil {
+	if err := db.QueryRow(cte+`SELECT count(DISTINCT person) FROM ev WHERE `+activeEnd+`>=?`, append(args, from)...).Scan(&n); err != nil {
 		return 0, fmt.Errorf("online: %w", err)
 	}
 	return n, nil
@@ -290,7 +293,7 @@ func totals(db *sql.DB, p Params, goal *Goal) (Totals, error) {
 	if err != nil {
 		return t, err
 	}
-	if err := db.QueryRow(cte+`SELECT count(DISTINCT person), coalesce(sum(type='pageview'),0),
+	if err := db.QueryRow(cte+`SELECT count(DISTINCT CASE WHEN type='pageview' THEN person END), coalesce(sum(type='pageview'),0),
   count(DISTINCT CASE WHEN type IN ('event','outbound') THEN person END) FROM ev`, args...).
 		Scan(&t.Visitors, &t.Pageviews, &t.EventPeople); err != nil {
 		return t, fmt.Errorf("totals: %w", err)
@@ -315,7 +318,7 @@ WHERE cur=(SELECT cur FROM pc GROUP BY cur ORDER BY count(*) DESC, cur LIMIT 1)`
 		if err != nil {
 			return t, err
 		}
-		if err := db.QueryRow(bcte+`SELECT count(DISTINCT person) FROM ev`, bargs...).Scan(&t.BaseVisitors); err != nil {
+		if err := db.QueryRow(bcte+`SELECT count(DISTINCT CASE WHEN type='pageview' THEN person END) FROM ev`, bargs...).Scan(&t.BaseVisitors); err != nil {
 			return t, fmt.Errorf("base visitors: %w", err)
 		}
 	}
@@ -454,7 +457,7 @@ func seriesPoints(db *sql.DB, p Params, metric string, b buckets, goal *Goal) ([
 		err = perBucket(cte+`SELECT ts FROM ev WHERE type='pageview'`, args, func() []any { return nil }, func(i int) { vals[i]++ })
 	case "visitors":
 		var sets []map[string]bool
-		sets, err = distinct(cte+`SELECT ts, person FROM ev`, args)
+		sets, err = distinct(cte+`SELECT ts, person FROM ev WHERE type='pageview'`, args)
 		for i, s := range sets {
 			vals[i] = float64(len(s))
 		}
