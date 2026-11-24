@@ -26,7 +26,7 @@ var (
 )
 
 // Site is one tracked site. Origins are hosts (or *.suffix patterns) allowed
-// besides Domain and its subdomains. Created is unix ms.
+// besides Domain and its subdomains (*.suffix or *-suffix patterns). Created is unix ms.
 type Site struct {
 	ID      string   `json:"id"`
 	Domain  string   `json:"domain"`
@@ -292,9 +292,8 @@ func normalize(s Site) (Site, error) {
 		if o == "" || slices.Contains(origins, o) {
 			continue
 		}
-		host, wild := strings.CutPrefix(o, "*.")
-		if !isHost(host) || (wild && !strings.Contains(host, ".")) {
-			return s, fmt.Errorf("%w: origin %q must be a hostname or *.example.com", ErrInvalid, o)
+		if !validOrigin(o) {
+			return s, fmt.Errorf("%w: origin %q must be a hostname, *.example.com or *-team.vercel.app", ErrInvalid, o)
 		}
 		origins = append(origins, o)
 	}
@@ -303,6 +302,18 @@ func normalize(s Site) (Site, error) {
 	}
 	s.Origins = origins
 	return s, nil
+}
+
+// validOrigin accepts a bare host, *.host (host has a dot), or *-suffix where
+// suffix (leading hyphens trimmed) is a host of at least 3 labels, so a
+// pattern can never cover a whole registrable domain.
+func validOrigin(o string) bool {
+	if rest, ok := strings.CutPrefix(o, "*-"); ok {
+		rest = strings.TrimLeft(rest, "-")
+		return isHost(rest) && strings.Count(rest, ".") >= 2
+	}
+	host, wild := strings.CutPrefix(o, "*.")
+	return isHost(host) && (!wild || strings.Contains(host, "."))
 }
 
 func isHost(h string) bool { return len(h) <= 253 && reHost.MatchString(h) }

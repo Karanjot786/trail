@@ -134,7 +134,8 @@ export interface Crawlers {
 export type ReasonCode =
   | 'ok' | 'fetch_failed' | 'script_missing' | 'wrong_site_id' | 'wrong_host' | 'csp_blocked'
   | 'origin_not_allowed' | 'no_events' | 'events_preview_only' | 'bot_filtered' | 'retries_high'
-export interface CheckItem { id: 'page' | 'script' | 'csp' | 'origin' | 'first_event' | 'delivery'; label: string; status: 'pass' | 'fail' | 'warn' | 'pending'; code: ReasonCode; detail: string; fix: string }
+  | 'api_missing' | 'bot_protection' | 'robots_blocks_ai' | 'proxy_unsigned' | 'proxy_bad_signature'
+export interface CheckItem { id: 'page' | 'script' | 'csp' | 'origin' | 'first_event' | 'delivery' | 'robots' | 'proxy'; label: string; status: 'pass' | 'fail' | 'warn' | 'pending'; code: ReasonCode; detail: string; fix: string }
 export interface InstallCheck { state: 'waiting' | 'receiving' | 'blocked'; checkedAt: number; lastEventAt: number | null; checks: CheckItem[] }
 
 export type TokenScope = 'read' | 'notes' | 'write' | 'crawl'

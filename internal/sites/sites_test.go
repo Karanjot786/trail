@@ -63,21 +63,24 @@ func TestValidation(t *testing.T) {
 		many[i] = string(rune('a'+i)) + ".com"
 	}
 	for name, s := range map[string]Site{
-		"empty id":       {ID: "", Domain: "a.com"},
-		"upper id":       {ID: "Blog", Domain: "a.com"},
-		"leading dash":   {ID: "-blog", Domain: "a.com"},
-		"long id":        {ID: "a1234567890123456789012345678901234567890", Domain: "a.com"},
-		"id with dot":    {ID: "a.b", Domain: "a.com"},
-		"no domain":      {ID: "a", Domain: ""},
-		"scheme":         {ID: "a", Domain: "https://a.com"},
-		"path":           {ID: "a", Domain: "a.com/x"},
-		"port":           {ID: "a", Domain: "a.com:8080"},
-		"space":          {ID: "a", Domain: "a b.com"},
-		"bad origin":     {ID: "a", Domain: "a.com", Origins: []string{"https://b.com"}},
-		"bare wildcard":  {ID: "a", Domain: "a.com", Origins: []string{"*"}},
-		"tld wildcard":   {ID: "a", Domain: "a.com", Origins: []string{"*.com"}},
-		"inner wildcard": {ID: "a", Domain: "a.com", Origins: []string{"a.*.com"}},
-		"21 origins":     {ID: "a", Domain: "a.com", Origins: many},
+		"empty id":              {ID: "", Domain: "a.com"},
+		"upper id":              {ID: "Blog", Domain: "a.com"},
+		"leading dash":          {ID: "-blog", Domain: "a.com"},
+		"long id":               {ID: "a1234567890123456789012345678901234567890", Domain: "a.com"},
+		"id with dot":           {ID: "a.b", Domain: "a.com"},
+		"no domain":             {ID: "a", Domain: ""},
+		"scheme":                {ID: "a", Domain: "https://a.com"},
+		"path":                  {ID: "a", Domain: "a.com/x"},
+		"port":                  {ID: "a", Domain: "a.com:8080"},
+		"space":                 {ID: "a", Domain: "a b.com"},
+		"bad origin":            {ID: "a", Domain: "a.com", Origins: []string{"https://b.com"}},
+		"bare wildcard":         {ID: "a", Domain: "a.com", Origins: []string{"*"}},
+		"tld wildcard":          {ID: "a", Domain: "a.com", Origins: []string{"*.com"}},
+		"inner wildcard":        {ID: "a", Domain: "a.com", Origins: []string{"a.*.com"}},
+		"21 origins":            {ID: "a", Domain: "a.com", Origins: many},
+		"hyphen on registrable": {ID: "a", Domain: "a.com", Origins: []string{"*-shop.com"}},
+		"hyphen no host":        {ID: "a", Domain: "a.com", Origins: []string{"*-"}},
+		"star mid":              {ID: "a", Domain: "a.com", Origins: []string{"a*-b.vercel.app"}},
 	} {
 		if _, err := r.Add(s); !errors.Is(err, ErrInvalid) {
 			t.Errorf("%s: err %v, want ErrInvalid", name, err)
@@ -267,5 +270,28 @@ func TestRejectFromRemembersHost(t *testing.T) {
 	r.RejectFrom("unknown", "x.com")
 	if r.LastRejectedHost("unknown") != "" {
 		t.Fatal("unknown site should not be tracked")
+	}
+}
+
+func TestHyphenWildcardOrigins(t *testing.T) {
+	r, _ := open(t)
+	s, err := r.Add(Site{ID: "s", Domain: "example.com", Origins: []string{"*-Acme.vercel.app", "*--docs.netlify.app"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(s.Origins, []string{"*-acme.vercel.app", "*--docs.netlify.app"}) {
+		t.Fatalf("origins %q", s.Origins)
+	}
+	for host, want := range map[string]bool{
+		"myapp-git-feat-x-acme.vercel.app":    true,
+		"myapp-a1b2c3d4e-acme.vercel.app":     true,
+		"deploy-preview-12--docs.netlify.app": true,
+		"acme.vercel.app":                     false,
+		"myapp-evil.vercel.app":               false,
+		"x.myapp-acme.vercel.app.evil.com":    false,
+	} {
+		if got := r.Allowed("s", host); got != want {
+			t.Errorf("Allowed(%q) = %v, want %v", host, got, want)
+		}
 	}
 }

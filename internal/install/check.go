@@ -4,8 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"net/url"
-	"regexp"
 	"strings"
 	"time"
 
@@ -15,30 +13,46 @@ import (
 // retriesHigh is the share of retried events (last 24 h) above which delivery warns.
 const retriesHigh = 0.05
 
-var (
-	scriptTag = regexp.MustCompile(`(?is)<script\b[^>]*>`)
-	attrRe    = regexp.MustCompile(`(?is)([a-z][a-z0-9_:-]*)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+))`)
-	trackerJS = regexp.MustCompile(`/_t/t(\.[a-z]+)?\.js(\?|$)`)
-)
-
 // Check runs the install checklist for site (plan §0.5 order: page, script,
 // csp, origin, first_event, delivery). trailHost is this server's host (as the
 // tracker's src must name it); fetch loads the site's home page.
 func Check(ctx context.Context, db *sql.DB, reg *sites.Registry, site sites.Site, trailHost string, fetch Fetcher) (InstallCheck, error) {
-	out := InstallCheck{CheckedAt: time.Now().UnixMilli(), Checks: make([]CheckItem, 0, 6)}
+	out := InstallCheck{CheckedAt: time.Now().UnixMilli(), Checks: make([]CheckItem, 0, 7)}
+	first, last, err := firstEvent(db, site.ID)
+	if err != nil {
+		return out, err
+	}
+	out.LastEventAt = last
+	// The robots.txt read runs beside the page fetch so both share one 5 s budget.
+	robots := make(chan CheckItem, 1)
+	go func() { robots <- robotsCheck(ctx, fetch, site.Domain) }()
 	page, err := fetch.Fetch(ctx, site.Domain)
-	if err == nil && page.Status >= 400 {
+	vendor, walled := "", false
+	if err == nil {
+		vendor, walled = botWall(page)
+	}
+	if walled {
+		out.Checks = append(out.Checks,
+			item("page", "Your home page loads", "warn", CodeBotProtection,
+				fmt.Sprintf("%s bot protection answered %d instead of the page, so the script and security-policy checks could not run.", vendor, page.Status),
+				fmt.Sprintf("This does not block real visitors. To run these checks, allow the user agent \"TrailInstallCheck\" in your %s firewall, or confirm with a test visit.", vendor)),
+			item("script", "The Trail script is on the page", "pending", CodeBotProtection, "Needs the page to load first.", ""),
+			item("csp", "Your security policy allows Trail", "pending", CodeBotProtection, "Needs the page to load first.", ""))
+	} else if err == nil && page.Status >= 400 {
 		err = fmt.Errorf("https://%s/ answered %d", site.Domain, page.Status)
 	}
-	if err != nil {
+	switch {
+	case walled:
+	case err != nil:
 		out.Checks = append(out.Checks,
 			item("page", "Your home page loads", "fail", CodeFetchFailed, "Could not load https://"+site.Domain+"/: "+short(err.Error()),
 				"Check that the site is public and serves HTTPS. If it is not live yet, send a test visit instead."),
 			item("script", "The Trail script is on the page", "pending", CodeFetchFailed, "Needs the page to load first.", ""),
 			item("csp", "Your security policy allows Trail", "pending", CodeFetchFailed, "Needs the page to load first.", ""))
-	} else {
+	default:
+		tag := findTracker(string(page.Body))
 		out.Checks = append(out.Checks, item("page", "Your home page loads", "pass", CodeOK, fmt.Sprintf("https://%s/ answered %d.", site.Domain, page.Status), ""))
-		out.Checks = append(out.Checks, scriptCheck(string(page.Body), site, trailHost), cspCheck(page.Header.Get("Content-Security-Policy"), site, trailHost))
+		out.Checks = append(out.Checks, scriptCheck(tag, site, trailHost, last != nil), cspCheck(page.Header.Values("Content-Security-Policy"), tag, site, trailHost))
 	}
 
 	if n := reg.Rejected24h(site.ID); n > 0 {
@@ -50,34 +64,52 @@ func Check(ctx context.Context, db *sql.DB, reg *sites.Registry, site sites.Site
 		}
 		out.Checks = append(out.Checks, item("origin", "Events come from an allowed address", "fail", CodeOriginNotAllowed,
 			fmt.Sprintf("%d events in the last 24 hours came from %s.", n, from),
-			"Add the host (or *.example.com) under the site's allowed origins."))
+			originFix(reg.LastRejectedHost(site.ID))))
 	} else {
 		out.Checks = append(out.Checks, item("origin", "Events come from an allowed address", "pass", CodeOK, "No events were refused for their origin.", ""))
 	}
 
-	first, last, err := firstEvent(db, site.ID)
-	if err != nil {
-		return out, err
-	}
-	out.LastEventAt = last
 	out.Checks = append(out.Checks, first)
 
 	del, err := delivery(db, site.ID, time.Now().Add(-24*time.Hour).UnixMilli())
 	if err != nil {
 		return out, err
 	}
-	out.Checks = append(out.Checks, del)
+	out.Checks = append(out.Checks, del, <-robots)
 
-	out.State = "waiting"
-	if last != nil {
-		out.State = "receiving"
+	out.State, out.Checks = finalize(out.Checks, last)
+	return out, nil
+}
+
+// finalize decides the overall state once all checks are in. A site that has
+// received a non-bot event is "receiving" and its failures become warnings;
+// otherwise any failure means "blocked", else "waiting".
+func finalize(checks []CheckItem, lastEventAt *int64) (string, []CheckItem) {
+	if lastEventAt != nil {
+		for i := range checks {
+			if checks[i].Status == "fail" {
+				checks[i].Status = "warn"
+			}
+		}
+		return "receiving", checks
 	}
-	for _, c := range out.Checks {
+	for _, c := range checks {
 		if c.Status == "fail" {
-			out.State = "blocked"
+			return "blocked", checks
 		}
 	}
-	return out, nil
+	return "waiting", checks
+}
+
+// originFix tells the owner which origin to add. Vercel preview hosts end in
+// -<team>.vercel.app, so a refused one yields an exact suggestion.
+func originFix(lastHost string) string {
+	if first, ok := strings.CutSuffix(strings.ToLower(lastHost), ".vercel.app"); ok && !strings.Contains(first, ".") {
+		if i := strings.LastIndexByte(first, '-'); i >= 0 && i < len(first)-1 {
+			return "Add *-" + first[i+1:] + ".vercel.app under the site's allowed origins (Vercel preview URLs end in -<team>.vercel.app)."
+		}
+	}
+	return "Add the host (or *.example.com or *-team.vercel.app) under the site's allowed origins."
 }
 
 func item(id, label, status string, code ReasonCode, detail, fix string) CheckItem {
@@ -89,113 +121,6 @@ func short(s string) string {
 		return s[:160] + "…"
 	}
 	return s
-}
-
-func attrs(tag string) map[string]string {
-	m := map[string]string{}
-	for _, a := range attrRe.FindAllStringSubmatch(tag, -1) {
-		m[strings.ToLower(a[1])] = a[2] + a[3] + a[4]
-	}
-	return m
-}
-
-const scriptLabel = "The Trail script is on the page"
-
-func scriptCheck(html string, site sites.Site, trailHost string) CheckItem {
-	snippet := fmt.Sprintf(`<script defer src="https://%s/_t/t.js" data-site="%s"></script>`, trailHost, site.ID)
-	var found []map[string]string
-	for _, tag := range scriptTag.FindAllString(html, -1) {
-		a := attrs(tag)
-		if trackerJS.MatchString(a["src"]) {
-			found = append(found, a)
-		}
-	}
-	if len(found) == 0 {
-		return item("script", scriptLabel, "fail", CodeScriptMissing, "No Trail script tag on the home page.",
-			"Add this to the page's <head>: "+snippet)
-	}
-	a := found[0]
-	if a["data-site"] != site.ID {
-		return item("script", scriptLabel, "fail", CodeWrongSiteID,
-			fmt.Sprintf("The script says data-site=%q, but this site's id is %q.", a["data-site"], site.ID),
-			`Set data-site="`+site.ID+`".`)
-	}
-	if u, err := url.Parse(a["src"]); err == nil && u.Host != "" && !sameHost(u.Host, trailHost) {
-		return item("script", scriptLabel, "fail", CodeWrongHost,
-			fmt.Sprintf("The script loads from %s, not from this Trail (%s).", u.Host, trailHost), "Use: "+snippet)
-	}
-	return item("script", scriptLabel, "pass", CodeOK, "Found the Trail script with the right site id.", "")
-}
-
-func sameHost(a, b string) bool {
-	strip := func(h string) string {
-		if i := strings.LastIndexByte(h, ':'); i > 0 && !strings.HasSuffix(h, "]") {
-			h = h[:i]
-		}
-		return strings.ToLower(h)
-	}
-	return strip(a) == strip(b)
-}
-
-const cspLabel = "Your security policy allows Trail"
-
-// cspCheck reads the Content-Security-Policy header: script-src and
-// connect-src (or default-src) must allow the Trail host.
-func cspCheck(policy string, site sites.Site, trailHost string) CheckItem {
-	if strings.TrimSpace(policy) == "" {
-		return item("csp", cspLabel, "pass", CodeOK, "No Content-Security-Policy header.", "")
-	}
-	dirs := map[string][]string{}
-	for d := range strings.SplitSeq(policy, ";") {
-		f := strings.Fields(d)
-		if len(f) > 0 {
-			dirs[strings.ToLower(f[0])] = f[1:]
-		}
-	}
-	var blocked []string
-	for _, d := range []string{"script-src", "connect-src"} {
-		srcs, ok := dirs[d]
-		if !ok {
-			srcs, ok = dirs["default-src"]
-		}
-		if ok && !cspAllows(srcs, site.Domain, trailHost) {
-			blocked = append(blocked, d)
-		}
-	}
-	if len(blocked) > 0 {
-		return item("csp", cspLabel, "fail", CodeCSPBlocked,
-			"Your Content-Security-Policy "+strings.Join(blocked, " and ")+" does not include "+trailHost+".",
-			"Add https://"+trailHost+" to "+strings.Join(blocked, " and ")+".")
-	}
-	return item("csp", cspLabel, "pass", CodeOK, "The Content-Security-Policy allows "+trailHost+".", "")
-}
-
-func cspAllows(srcs []string, siteHost, trailHost string) bool {
-	th := strings.ToLower(trailHost)
-	for _, s := range srcs {
-		s = strings.ToLower(strings.Trim(s, `"`))
-		switch {
-		case s == "*" || s == "https:":
-			return true
-		case s == "'self'" && sameHost(siteHost, th):
-			return true
-		}
-		host := s
-		if u, err := url.Parse(s); err == nil && u.Host != "" {
-			if u.Scheme != "https" && u.Scheme != "" {
-				continue
-			}
-			host = u.Host
-		}
-		host = strings.TrimSuffix(host, "/")
-		if sameHost(host, th) {
-			return true
-		}
-		if suffix, ok := strings.CutPrefix(host, "*."); ok && strings.HasSuffix(strings.Split(th, ":")[0], "."+suffix) {
-			return true
-		}
-	}
-	return false
 }
 
 // firstEvent reports whether production events have arrived, and why not.
@@ -246,4 +171,23 @@ func delivery(db *sql.DB, site string, since int64) (CheckItem, error) {
 		return item("delivery", label, "pending", CodeOK, "Nothing delivered in the last 24 hours.", ""), nil
 	}
 	return item("delivery", label, "pass", CodeOK, fmt.Sprintf("%d events in the last 24 hours.", n), ""), nil
+}
+
+// botWall recognises a bot-protection challenge or block in place of the page.
+// Cloudflare sets cf-mitigated: challenge on every challenge; Vercel's firewall
+// sets x-vercel-mitigated.
+func botWall(p Page) (vendor string, ok bool) {
+	if p.Status != 403 && p.Status != 429 && p.Status != 503 {
+		return "", false
+	}
+	if strings.EqualFold(p.Header.Get("Cf-Mitigated"), "challenge") {
+		return "Cloudflare", true
+	}
+	if v := strings.ToLower(p.Header.Get("X-Vercel-Mitigated")); v == "challenge" || v == "deny" {
+		return "Vercel", true
+	}
+	if (p.Status == 403 || p.Status == 503) && strings.EqualFold(p.Header.Get("Server"), "cloudflare") {
+		return "Cloudflare", true
+	}
+	return "", false
 }
