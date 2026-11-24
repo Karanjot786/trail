@@ -18,7 +18,7 @@ func Live(db *sql.DB, p Params) (LiveResult, error) {
 	lp := p
 	lp.Actor = "" // Live is people only, whatever actor says
 	from := now - onlineWindow.Milliseconds()
-	lp.From, lp.To, lp.lookback, lp.matEv = from, now, foldLookback, true
+	lp.From, lp.To, lp.lookback = from, now, foldLookback
 	cte, args, err := base(lp)
 	if err != nil {
 		return res, err

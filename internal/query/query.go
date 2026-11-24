@@ -83,7 +83,6 @@ type Params struct {
 	Limit, Offset int
 	Sort          string
 	Actor         string // "" or "human": people only; "all": people and AI agents
-	matEv         bool   // base: build ev as a MATERIALIZED CTE
 	lookback      int64  // ms: also read folded pageviews that started up to this long before From and are still in dwell at From
 }
 
@@ -130,16 +129,10 @@ func base(p Params) (string, []any, error) {
 		srcA = []any{p.Site, p.From, p.To, p.Site, p.From, p.From - p.lookback, p.From}
 	}
 	args = append(append(args, srcA...), evA...)
-	// With a lookback, ev is small but its OR defeats the planner once it is flattened into a
-	// DISTINCT or an IN: it then scans the whole site. MATERIALIZED keeps the window read as written.
-	mat := ""
-	if p.lookback > 0 {
-		mat = ""
-	}
 	var sb strings.Builder
 	sb.WriteString(`WITH idm AS (SELECT anon_id, user_id FROM identity_map WHERE site_id=? AND rowid IN
   (SELECT min(rowid) FROM identity_map WHERE site_id=? GROUP BY anon_id)),
-ev AS ` + mat + `(SELECT e.*, COALESCE(idm.user_id, e.anon_id) AS person, idm.user_id IS NOT NULL AS ident
+ev AS (SELECT e.*, COALESCE(idm.user_id, e.anon_id) AS person, idm.user_id IS NOT NULL AS ident
   FROM ` + src + ` LEFT JOIN idm USING(anon_id)
   WHERE ` + evW + `),
 `)
