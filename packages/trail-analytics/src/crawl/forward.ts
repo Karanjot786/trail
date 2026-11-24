@@ -25,7 +25,7 @@ const clean = (v: string | undefined) => (v ?? '').replace(/\|/g, '');
 const PASS_JS = ['content-type', 'cache-control', 'etag', 'last-modified', 'expires'];
 
 const NO_URL_STUB = '/* trail-analytics: TRAIL_URL is not set on this server; analytics are off. */';
-const PASS_E = ['x-trail-accepted', 'x-trail-rejected', 'x-trail-proxy-status'];
+const PASS_E = ['x-trail-accepted', 'x-trail-rejected', 'x-trail-proxy-status', 'x-trail-k'];
 const fail = (e: unknown) => new Response(null, { status: e instanceof Error && e.name === 'TimeoutError' ? 504 : 502 });
 
 /** Serves `/t/t.js`, `/t/t.x.js`, `/t/t.p.js` and `/t/e` from the site's own origin, forwarding beacons to Trail with signed edge geo. Never turns a failure into a 204. */
