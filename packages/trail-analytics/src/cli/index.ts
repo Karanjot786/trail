@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { gitIgnored as gitIgnoredIn, gitTracked as gitTrackedIn, spawn as nodeSpawn, writeChanges } from './apply';
+import { gitIgnored as gitIgnoredIn, gitTracked as gitTrackedIn, globalPmVersion, spawn as nodeSpawn, spawnOptions, writeChanges } from './apply';
 import { HELP, parseArgs } from './args';
 import { detect } from './detect';
 import { mask, renderDiff } from './diff';
@@ -12,7 +12,9 @@ export interface Io {
   stderr(s: string): void;
   isTTY: boolean;
   ask(q: string): Promise<boolean>;
-  spawn(cmd: string, args: string[], opts: { cwd: string; shell: false }): Promise<number>;
+  spawn(cmd: string, args: string[], opts: { cwd: string; shell: boolean }): Promise<number>;
+  /** The globally installed version of a package manager (tests inject it). */
+  pmVersion?(pm: string): string | undefined;
   /** Overrides `git check-ignore` (tests). */
   gitIgnored?(rel: string): boolean;
   /** Overrides `git ls-files --error-unmatch` (tests). */
@@ -98,8 +100,9 @@ export async function main(argv: string[], io: Io): Promise<number> {
   say(`trail-analytics init: ${kind}\n\n`);
   if (p.changes.length) say(renderDiff(p.changes, secrets) + '\n');
   const install = a.install ? p.install : undefined;
-  if (install) say(`Install: ${install.cmd} ${install.args.join(' ')}\n\n`);
-  else if (p.install) say(`Not installing (--no-install). Run: ${p.install.cmd} ${p.install.args.join(' ')}\n\n`);
+  const where = p.install && p.install.cwd !== cwd ? ` (in ${p.install.cwd})` : '';
+  if (install) say(`Install: ${install.cmd} ${install.args.join(' ')}${where}\n\n`);
+  else if (p.install) say(`Not installing (--no-install). Run: ${p.install.cmd} ${p.install.args.join(' ')}${where}\n\n`);
   for (const w of p.warnings) say(`Warning: ${w}\n\n`);
   for (const m of p.manual) say(`Manual step: ${m}\n\n`);
   const exit = p.manual.length ? 2 : 0;
@@ -126,9 +129,12 @@ export async function main(argv: string[], io: Io): Promise<number> {
   writeChanges(cwd, p.changes);
   for (const c of p.changes) say(`${c.before == null ? 'created' : 'updated'} ${c.path}\n`);
   if (install) {
-    const code = await io.spawn(install.cmd, install.args, { cwd, shell: false });
+    const pinned = project.ws.pmVersion;
+    const have = pinned ? (io.pmVersion ?? globalPmVersion)(install.cmd) : undefined;
+    if (pinned && have && have !== pinned) say(`Your repo pins ${install.cmd}@${pinned}; you have ${have}. Init ran ${install.cmd} install anyway; if the lockfile changes more than the trail-analytics lines, run it with npx ${install.cmd}@${pinned} install.\n\n`);
+    const code = await io.spawn(install.cmd, install.args, { cwd: install.cwd, ...spawnOptions(process.platform) });
     if (code !== 0) {
-      io.stderr(`Install failed (${install.cmd} exited ${code}). Run it yourself: ${install.cmd} ${install.args.join(' ')}\n`);
+      io.stderr(`Install failed (${install.cmd} exited ${code}). Run it yourself${where}: ${install.cmd} ${install.args.join(' ')}\nAll other changes were written.\n`);
       return 1;
     }
   }

@@ -1,4 +1,4 @@
-import { installSpec, needsInstall, VERSION } from './version';
+import { needsInstall, VERSION } from './version';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Project } from './detect';
@@ -26,7 +26,7 @@ export interface Plan {
   changes: Change[];
   manual: string[];
   warnings: string[];
-  install?: { cmd: string; args: string[] };
+  install?: { cmd: string; args: string[]; cwd: string };
 }
 
 export function nodeFs(cwd: string, gitIgnored: (rel: string) => boolean, gitTracked: (rel: string) => boolean = () => false): PlanFs {
@@ -214,7 +214,40 @@ function planEnv(fs: PlanFs, p: Project, o: PlanOptions, out: Plan) {
   }
 }
 
-const INSTALL: Record<Project['pm'], string[]> = { pnpm: ['add'], npm: ['i'], yarn: ['add'], bun: ['add'] };
+const SECTIONS = ['dependencies', 'devDependencies'] as const;
+
+/** package.json with trail-analytics set to ^VERSION, keeping indentation, EOL and the trailing newline; null when nothing changes. */
+function withTrailDep(raw: string): string | null {
+  let pkg: any;
+  try {
+    pkg = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  if (!pkg || typeof pkg !== 'object') return null;
+  const where = SECTIONS.find((k) => pkg[k] && typeof pkg[k] === 'object' && 'trail-analytics' in pkg[k]);
+  if (where) pkg[where]['trail-analytics'] = `^${VERSION}`;
+  else {
+    const deps: Record<string, string> = pkg.dependencies && typeof pkg.dependencies === 'object' ? pkg.dependencies : {};
+    const keys = Object.keys(deps);
+    const sorted = keys.every((k, i) => i === 0 || keys[i - 1] <= k);
+    deps['trail-analytics'] = `^${VERSION}`;
+    pkg.dependencies = sorted ? Object.fromEntries(Object.entries(deps).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))) : deps;
+  }
+  const indent = /^([ \t]+)"/m.exec(raw)?.[1] ?? '  ';
+  const eol = eolOf(raw);
+  const out = JSON.stringify(pkg, null, indent).replace(/\n/g, eol) + (/\n$/.test(raw) ? eol : '');
+  return out === raw ? null : out;
+}
+
+function planInstall(fs: PlanFs, p: Project, out: Plan) {
+  if (!needsInstall(p.trailDep, VERSION)) return;
+  const raw = fs.read('package.json');
+  const after = raw === null ? null : withTrailDep(raw);
+  if (raw !== null && after !== null) out.changes.push({ path: 'package.json', before: raw, after });
+  if (p.ws.lockfile) out.install = { cmd: p.ws.pm, args: ['install'], cwd: p.ws.root };
+  else out.warnings.push('No lockfile found, so init did not install (that would create one). Run your usual install.');
+}
 
 /** Everything init would do, without touching the disk. */
 export function plan(p: Project, o: PlanOptions, fs: PlanFs): Plan {
@@ -226,6 +259,6 @@ export function plan(p: Project, o: PlanOptions, fs: PlanFs): Plan {
   if (p.framework === 'next') planNext(fs, p, o, out);
   else planAstro(fs, p, o, out);
   planEnv(fs, p, o, out);
-  if (needsInstall(p.trailDep, VERSION)) out.install = { cmd: p.pm, args: [...INSTALL[p.pm], installSpec()] };
+  planInstall(fs, p, out);
   return out;
 }

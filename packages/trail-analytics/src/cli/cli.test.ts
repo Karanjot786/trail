@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { detect } from './detect';
 import { renderDiff } from './diff';
 import { main, type Io } from './index';
+import { spawnOptions } from './apply';
 import { nodeFs, plan } from './plan';
 
 const FIX = resolve(__dirname, '../../test/fixtures');
@@ -38,6 +39,7 @@ function io(over: Partial<Io> = {}) {
     env: {},
     readStdin: async () => '',
     askSecret: async () => '',
+    pmVersion: () => undefined,
   };
   return { io: { ...base, ...over }, out, err, spawn, text: () => out.join('') + err.join('') };
 }
@@ -246,7 +248,8 @@ describe('init', () => {
     writeFileSync(join(d, 'pnpm-lock.yaml'), 'lockfileVersion: 9.0\n');
     const r = await run(d, ['--yes']);
     expect(r.code).toBe(0);
-    expect(r.spawn).toHaveBeenCalledWith('pnpm', ['add', 'trail-analytics@^0.3.0'], { cwd: d, shell: false });
+    expect(r.spawn).toHaveBeenCalledWith('pnpm', ['install'], { cwd: d, shell: process.platform === 'win32' });
+    expect(JSON.parse(read(d, 'package.json')).dependencies['trail-analytics']).toBe('^0.3.0');
   });
 
   it('TestInitDryRunWritesNothing', async () => {
@@ -535,6 +538,89 @@ describe('init', () => {
         const p = plan(detect(cwd), { url: 'https://trail.example.com', site: 'shop', token: TOKEN }, nodeFs(cwd, () => false));
         expect(p.changes, name).toEqual([]);
       }
+    });
+  });
+
+  describe('package manager, workspaces and lockfiles', () => {
+    it('TestInitReportCrivello writes the dependency and installs at the workspace root', async () => {
+      const d = fixture('report-crivello');
+      const app = join(d, 'apps/web');
+      const r = await run(app, ['--yes']);
+      expect(r.code).toBe(0);
+      const pkg = JSON.parse(read(app, 'package.json'));
+      expect(pkg.dependencies['trail-analytics']).toBe('^0.3.0');
+      expect(Object.keys(pkg.dependencies)).toEqual(['@vercel/analytics', 'next', 'react', 'react-dom', 'trail-analytics']);
+      expect(r.spawn).toHaveBeenCalledWith('pnpm', ['install'], { cwd: d, shell: false });
+      expect(existsSync(join(app, 'pnpm-lock.yaml'))).toBe(false);
+      expect(read(app, 'src/app/layout.tsx')).toContain('<TrailAnalytics site="shop"');
+      expect(r.text()).toContain('+    "trail-analytics": "^0.3.0"');
+    });
+
+    it('TestInitReportTermuiNoLockfile updates package.json and does not install', async () => {
+      const d = fixture('report-termui');
+      const r = await run(d, ['--yes']);
+      expect(r.code).toBe(0);
+      expect(r.spawn).not.toHaveBeenCalled();
+      expect(JSON.parse(read(d, 'package.json')).dependencies['trail-analytics']).toBe('^0.3.0');
+      expect(r.text()).toContain('No lockfile found, so init did not install (that would create one). Run your usual install.');
+      expect(existsSync(join(d, 'package-lock.json'))).toBe(false);
+    });
+
+    it('--no-install still writes the dependency and says what to run', async () => {
+      const d = fixture('next16-app');
+      writeFileSync(join(d, 'package-lock.json'), '{}');
+      const r = await run(d, ['--yes', '--no-install']);
+      expect(r.spawn).not.toHaveBeenCalled();
+      expect(JSON.parse(read(d, 'package.json')).dependencies['trail-analytics']).toBe('^0.3.0');
+      expect(r.text()).toContain('Not installing (--no-install). Run: npm install');
+    });
+
+    it('keeps tab indentation and the trailing newline, and edits devDependencies in place', async () => {
+      const d = fixture('next16-app');
+      writeFileSync(join(d, 'package.json'), '{\n\t"dependencies": {\n\t\t"next": "^16.0.0"\n\t},\n\t"devDependencies": {\n\t\t"trail-analytics": "^0.2.0"\n\t}\n}\n');
+      await run(d, ['--yes', '--no-install']);
+      const txt = read(d, 'package.json');
+      expect(txt).toBe('{\n\t"dependencies": {\n\t\t"next": "^16.0.0"\n\t},\n\t"devDependencies": {\n\t\t"trail-analytics": "^0.3.0"\n\t}\n}\n');
+    });
+
+    it('leaves workspace: and current ranges alone', async () => {
+      for (const range of ['workspace:*', '^0.3.1']) {
+        const d = fixture('next16-app');
+        writeFileSync(join(d, 'package.json'), JSON.stringify({ dependencies: { next: '^16.0.0', 'trail-analytics': range } }));
+        const before = read(d, 'package.json');
+        const r = await run(d, ['--yes']);
+        expect(read(d, 'package.json'), range).toBe(before);
+        expect(r.spawn).not.toHaveBeenCalled();
+      }
+    });
+
+    it('warns when the repo pins a different package manager version', async () => {
+      const d = fixture('report-crivello');
+      const r = await run(join(d, 'apps/web'), ['--yes'], io({ pmVersion: () => '8.0.0' }));
+      expect(r.text()).toContain('Your repo pins pnpm@9.15.9; you have 8.0.0. Init ran pnpm install anyway; if the lockfile changes more than the trail-analytics lines, run it with npx pnpm@9.15.9 install.');
+    });
+
+    it('a failed install exits 1 with the exact command and says the rest was written', async () => {
+      const d = fixture('next16-app');
+      writeFileSync(join(d, 'package-lock.json'), '{}');
+      const r = await run(d, ['--yes'], io({ spawn: vi.fn(async () => 1) }));
+      expect(r.code).toBe(1);
+      expect(r.text()).toContain('npm install');
+      expect(r.text()).toContain('All other changes were written.');
+      expect(existsSync(join(d, 'proxy.ts'))).toBe(true);
+      expect(JSON.parse(read(d, 'package.json')).dependencies['trail-analytics']).toBe('^0.3.0');
+    });
+
+    it('uses shell on win32', () => {
+      expect(spawnOptions('win32')).toEqual({ shell: true });
+      expect(spawnOptions('darwin')).toEqual({ shell: false });
+      expect(spawnOptions('linux')).toEqual({ shell: false });
+    });
+
+    it('reads the Next version from the lockfile at the workspace root', () => {
+      const d = fixture('report-crivello');
+      writeFileSync(join(d, 'apps/web/package.json'), JSON.stringify({ name: 'w', dependencies: { next: 'latest' } }));
+      expect(detect(join(d, 'apps/web')).nextMajor).toBe(16);
     });
   });
 });

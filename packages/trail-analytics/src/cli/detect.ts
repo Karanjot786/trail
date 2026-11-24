@@ -1,5 +1,6 @@
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
+import { dirsToRoot, findWorkspace, type PM, type Workspace } from './workspace';
 
 export interface Project {
   cwd: string;
@@ -9,7 +10,8 @@ export interface Project {
   srcDir: boolean;
   ext: 'ts' | 'js';
   astroOutput?: 'static' | 'server';
-  pm: 'pnpm' | 'npm' | 'yarn' | 'bun';
+  pm: PM;
+  ws: Workspace;
   /** An existing proxy/middleware file (relative path). */
   hookFile?: string;
   /** The trail-analytics range in package.json, if any. */
@@ -69,18 +71,13 @@ export function lockedNextMajor(dir: string): number | undefined {
 export function detect(cwd: string): Project {
   const pkg = readJson(join(cwd, 'package.json')) ?? {};
   const deps = { ...pkg.devDependencies, ...pkg.dependencies } as Record<string, string>;
-  const pm: Project['pm'] = existsSync(join(cwd, 'pnpm-lock.yaml'))
-    ? 'pnpm'
-    : existsSync(join(cwd, 'yarn.lock'))
-      ? 'yarn'
-      : existsSync(join(cwd, 'bun.lockb')) || existsSync(join(cwd, 'bun.lock'))
-        ? 'bun'
-        : 'npm';
+  const ws = findWorkspace(cwd);
+  const pm = ws.pm;
   const ext: Project['ext'] = existsSync(join(cwd, 'tsconfig.json')) ? 'ts' : 'js';
-  const base = { cwd, pm, ext, trailDep: deps['trail-analytics'] };
+  const base = { cwd, pm, ws, ext, trailDep: deps['trail-analytics'] };
 
   if (deps.next) {
-    const nextMajor = major(readJson(join(cwd, 'node_modules/next/package.json'))?.version) ?? lockedNextMajor(cwd) ?? major(deps.next);
+    const nextMajor = major(readJson(join(cwd, 'node_modules/next/package.json'))?.version) ?? dirsToRoot(cwd, ws.root).map(lockedNextMajor).find((m) => m !== undefined) ?? major(deps.next);
     const rootApp = isDir(join(cwd, 'app')) || isDir(join(cwd, 'pages'));
     const srcDir = !rootApp && (isDir(join(cwd, 'src/app')) || isDir(join(cwd, 'src/pages')));
     const at = srcDir ? 'src/' : '';
