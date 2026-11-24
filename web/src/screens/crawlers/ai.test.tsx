@@ -328,7 +328,7 @@ describe('Agents tab', () => {
     visit('/ai/agents?site=demo')
     render(<AIScreen />)
     const t = await screen.findByRole('table', { name: 'Latest agent sessions' })
-    const row = await within(t).findByRole('row', { name: /^Claude agent, .*Open the journey$/ })
+    const row = await within(t).findByRole('button', { description: /^Claude agent, .*Open the journey$/ })
     fireEvent.click(row)
     expect(current().sheet).toEqual({ kind: 'journey', person: 'pa1', session: 's-a1' })
     expect(decodeURIComponent(location.search)).toContain('v=pa1~s-a1')

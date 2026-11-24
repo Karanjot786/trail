@@ -89,15 +89,22 @@ describe('DataTable', () => {
     expect(heads()).toEqual(['Name'])
   })
 
-  it('Enter on a focusable row calls onRowOpen', () => {
+  it('each openable row has a button named by getRowLabel, and activating it calls onRowOpen once', () => {
     const onRowOpen = vi.fn()
-    setup({ onRowOpen })
-    const row = bodyRows()[0]
-    expect(row.getAttribute('tabindex')).toBe('0')
-    fireEvent.keyDown(row, { key: 'Enter' })
+    setup({ onRowOpen, getRowLabel: (p: (typeof people)[number]) => `Open ${p.name}` })
+    const first = within(bodyRows()[0]).getByRole('button', { name: people[0].name, description: `Open ${people[0].name}` })
+    expect(first.getAttribute('type')).toBe('button')
+    fireEvent.click(first)
+    expect(onRowOpen).toHaveBeenCalledTimes(1)
     expect(onRowOpen).toHaveBeenCalledWith(people[0])
     fireEvent.click(bodyRows()[1])
     expect(onRowOpen).toHaveBeenLastCalledWith(people[1])
+  })
+
+  it('rows themselves are not in the tab order', () => {
+    setup({ onRowOpen: vi.fn() })
+    expect(bodyRows()[0].getAttribute('tabindex')).toBeNull()
+    expect(bodyRows()[0].getAttribute('aria-label')).toBeNull()
   })
 
   it('rows are not focusable when nothing opens', () => {

@@ -54,8 +54,8 @@ describe('Activity', () => {
     await flush()
     expect(screen.getByTestId('dt-count').textContent).toBe('120 people · 50 loaded')
     expect(A.visitors.mock.calls[0][1]).toMatchObject({ limit: 50, sort: '-last' })
-    const row = screen.getByRole('row', { name: 'Open the journey of Visitor 3' })
-    fireEvent.keyDown(row, { key: 'Enter' })
+    const row = screen.getByRole('button', { description: 'Open the journey of Visitor 3' })
+    fireEvent.click(row)
     expect(location.search).toContain('v=p3')
     fireEvent.click(screen.getByRole('button', { name: 'Load 50 more' }))
     await flush()
@@ -90,7 +90,7 @@ describe('Activity', () => {
     fireEvent.click(within(screen.getByRole('columnheader', { name: /Duration/ })).getByRole('button'))
     await flush()
     expect(A.sessions.mock.calls.at(-1)![1]).toMatchObject({ sort: 'duration' })
-    fireEvent.click(screen.getAllByRole('row', { name: /Open this session/ })[0])
+    fireEvent.click(screen.getAllByRole('button', { description: /Open this session/ })[0])
     expect(decodeURIComponent(location.search)).toMatch(/v=p\d~s\d/)
   })
 
@@ -104,7 +104,7 @@ describe('Activity', () => {
     expect(within(table).getByText('Outbound link')).toBeTruthy()
     expect(within(table).getByText('plan')).toBeTruthy()
     expect(screen.getByTestId('events-n').textContent).toBe('2')
-    fireEvent.click(screen.getByRole('row', { name: /^Signup: 54 times/ }))
+    fireEvent.click(screen.getByRole('button', { description: /^Signup: 54 times/ }))
     expect(current().sheet).toEqual({ kind: 'event', name: 'Signup' })
   })
 
