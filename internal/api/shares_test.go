@@ -313,8 +313,20 @@ func TestShareForcesEnvAndActor(t *testing.T) {
 	if plain.Body.String() != forced.Body.String() {
 		t.Errorf("viewer overrode env/actor:\n%s\n%s", plain.Body, forced.Body)
 	}
-	_, loose := f.share(t, "", false, 0)
-	if f.get(loose, "stats?range=7d&env=all").Body.String() == f.get(loose, "stats?range=7d").Body.String() {
+	_, loose := f.share(t, "env=all&actor=all", false, 0)
+	if f.get(loose, "stats?range=7d").Body.String() == f.get(tok, "stats?range=7d").Body.String() {
 		t.Errorf("fixture cannot tell env apart; the test proves nothing")
+	}
+}
+
+func TestShareForcesRangeAndCmp(t *testing.T) {
+	f := newShareFixture(t)
+	_, tok := f.share(t, "range=30d&cmp=none", false, 0)
+	base := f.get(tok, "stats").Body.String()
+	for _, extra := range []string{"&env=all", "&actor=all", "&range=7d", "&cmp=prev", "&from=1&to=2"} {
+		w := f.get(tok, "stats?x=1"+extra)
+		if w.Code != 200 || w.Body.String() != base {
+			t.Errorf("viewer override %q changed the share: %d %s vs %s", extra, w.Code, w.Body, base)
+		}
 	}
 }

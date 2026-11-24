@@ -210,19 +210,23 @@ func inShare(ctx context.Context) bool { v, _ := ctx.Value(shareCtxKey{}).(bool)
 // use (search by id, exports), and turns opaque visitor ids back into person
 // ids. false means an id this link did not make.
 func (h *shareHandler) rewriteQuery(q url.Values, sh meta.Share, key []byte) bool {
-	for _, k := range []string{"f", "q", "format", "site"} {
+	for _, k := range []string{"f", "q", "format", "site", "env", "actor", "range", "cmp", "from", "to"} {
 		q.Del(k)
 	}
 	q.Set("site", sh.Site)
-	if state, err := url.ParseQuery(sh.State); err == nil {
-		for _, f := range state["f"] {
-			q.Add("f", f)
+	state, _ := url.ParseQuery(sh.State) // a bad state yields the defaults below
+	for _, f := range state["f"] {
+		q.Add("f", f)
+	}
+	// env, actor, range and cmp are the link's, never the viewer's (D1). Absent
+	// from the saved state they default to production, human and 30d. tz stays theirs.
+	for k, def := range map[string]string{"env": "production", "actor": "human", "range": "30d", "cmp": ""} {
+		v := state.Get(k)
+		if v == "" {
+			v = def
 		}
-		// env and actor are the link's too: a viewer cannot widen them. Range, cmp and tz stay theirs.
-		for _, k := range []string{"env", "actor"} {
-			if v := state.Get(k); v != "" {
-				q.Set(k, v)
-			}
+		if v != "" {
+			q.Set(k, v)
 		}
 	}
 	if opaque := q.Get("person"); opaque != "" {
