@@ -111,8 +111,12 @@ export function Shell() {
             />
           ) : (
             <>
-              <RangeNote invalid={invalidRange()} />
-              {s.screen !== 'settings' && <Freshness />}
+              {s.screen !== 'settings' && (
+                <>
+                  <RangeNote invalid={invalidRange()} />
+                  <Freshness />
+                </>
+              )}
               <Suspense fallback={<ScreenFallback />}>
                 <Screen />
               </Suspense>

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
-import { apiMock, mockState, site } from './testkit'
+import { apiMock, mockState, site, stats as baseStats } from './testkit'
 
 vi.mock('../api/client', async (orig) => {
   const real = await orig<typeof import('../api/client')>()
@@ -10,7 +10,7 @@ vi.mock('../api/client', async (orig) => {
 
 import { App } from '../App'
 import { startRouter, current } from './router'
-import { invalidate } from '../api/useQuery'
+import { invalidate, STALE_AFTER_MS } from '../api/useQuery'
 import { resetGone } from './Banners'
 import { resetUi } from './uiStore'
 import { Gone, api } from '../api/client'
@@ -157,5 +157,38 @@ describe('Shell', () => {
     expect(screen.queryByRole('button', { name: /date range/i })).toBeNull()
     expect(screen.queryByRole('button', { name: /compare/i })).toBeNull()
     expect(screen.getByLabelText(/Date range: /)).toBeTruthy()
+  })
+
+  it('Settings shows no range note and fetches no stats', async () => {
+    vi.mocked(api.stats).mockClear()
+    vi.mocked(api.stats).mockImplementation(async () => ({ ...baseStats(), window: { ...baseStats().window, clamped: true } }))
+    visit('/settings/sites?site=demo')
+    render(<App />)
+    await flush()
+    await screen.findByRole('navigation', { name: 'Main' })
+    expect(document.querySelector('[role=note]')).toBeNull()
+    expect(api.stats).not.toHaveBeenCalled()
+  })
+
+  it('the stale banner appears without a rerender after 10 minutes', async () => {
+    vi.mocked(api.stats).mockReset()
+    vi.mocked(api.stats).mockImplementationOnce(async () => baseStats())
+    vi.mocked(api.stats).mockImplementation(() => new Promise(() => {}))
+    // A hidden tab pauses the stats poll, so only the banner's own tick can bring the notice in.
+    const hidden = vi.spyOn(document, 'hidden', 'get').mockReturnValue(true)
+    vi.useFakeTimers({ toFake: ['Date', 'setInterval', 'clearInterval'] })
+    try {
+      visit('/?site=demo')
+      render(<App />)
+      await flush()
+      expect(screen.queryByText(/more than 10 minutes old/)).toBeNull()
+      act(() => {
+        vi.advanceTimersByTime(STALE_AFTER_MS + 31_000)
+      })
+      expect(screen.getByText(/more than 10 minutes old/)).toBeTruthy()
+    } finally {
+      hidden.mockRestore()
+      vi.useRealTimers()
+    }
   })
 })

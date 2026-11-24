@@ -1,6 +1,6 @@
 // State banners (plan F1-5, F1-8): offline, refresh failed (kept above the greyed last good data), stale,
 // the read-only share notice, an expired or revoked share link, and the fixtures preset fallback.
-import { useEffect, useSyncExternalStore } from 'react'
+import { useEffect, useState, useSyncExternalStore } from 'react'
 import { Clock, Eye, Info, TriangleAlert, WifiOff } from 'lucide-react'
 import { onGone } from '../api/useQuery'
 import { useUrlState } from '../state/useUrlState'
@@ -47,6 +47,15 @@ export function Banners() {
   useEffect(() => {
     document.documentElement.classList.toggle('is-offline', !online)
   }, [online])
+
+  // `stale` is computed from the clock at render time; tick so it flips without other activity.
+  const [, tick] = useState(0)
+  const hasData = stats.updatedAt != null
+  useEffect(() => {
+    if (!hasData) return
+    const id = window.setInterval(() => tick((n) => n + 1), 30_000)
+    return () => window.clearInterval(id)
+  }, [hasData])
 
   const failed = stats.error != null && stats.data != null && online
   const stale = stats.stale && !failed && online
