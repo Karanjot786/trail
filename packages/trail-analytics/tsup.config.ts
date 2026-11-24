@@ -1,4 +1,7 @@
+import { readFileSync } from 'node:fs';
 import { defineConfig } from 'tsup';
+
+const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8'));
 
 export default defineConfig([
   {
@@ -31,6 +34,8 @@ export default defineConfig([
     sourcemap: false,
     minify: false,
     banner: { js: '#!/usr/bin/env node' },
+    define: { __TRAIL_VERSION__: JSON.stringify(pkg.version) },
+    noExternal: ['@babel/parser'],
     outExtension: () => ({ js: '.js' }),
   },
 ]);

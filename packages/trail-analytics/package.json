@@ -1,6 +1,6 @@
 {
   "name": "trail-analytics",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Client SDK for Trail, self-hosted web analytics. Typed track/identify/reset/pageview plus React and Next.js components.",
   "keywords": [
     "analytics",
@@ -120,6 +120,7 @@
     }
   },
   "devDependencies": {
+    "@babel/parser": "^7.29.15",
     "@types/node": "^20.19.43",
     "@types/react": "^18.3.0",
     "@types/react-dom": "^18.3.0",

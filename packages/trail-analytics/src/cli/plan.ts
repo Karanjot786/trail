@@ -1,3 +1,4 @@
+import { installSpec, needsInstall, VERSION } from './version';
 import { readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Project } from './detect';
@@ -174,13 +175,6 @@ function planEnv(fs: PlanFs, p: Project, o: PlanOptions, out: Plan) {
   }
 }
 
-const needsInstall = (range: string | undefined) => {
-  if (!range) return true;
-  const m = /(\d+)\.(\d+)/.exec(range);
-  if (!m) return false; // workspace:, file:, link: … leave alone
-  return Number(m[1]) === 0 && Number(m[2]) < 3;
-};
-
 const INSTALL: Record<Project['pm'], string[]> = { pnpm: ['add'], npm: ['i'], yarn: ['add'], bun: ['add'] };
 
 /** Everything init would do, without touching the disk. */
@@ -193,6 +187,6 @@ export function plan(p: Project, o: PlanOptions, fs: PlanFs): Plan {
   if (p.framework === 'next') planNext(fs, p, o, out);
   else planAstro(fs, p, o, out);
   planEnv(fs, p, o, out);
-  if (needsInstall(p.trailDep)) out.install = { cmd: p.pm, args: [...INSTALL[p.pm], 'trail-analytics@^0.2.0'] };
+  if (needsInstall(p.trailDep, VERSION)) out.install = { cmd: p.pm, args: [...INSTALL[p.pm], installSpec()] };
   return out;
 }

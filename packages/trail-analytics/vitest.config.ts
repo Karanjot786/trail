@@ -1,3 +1,9 @@
+import { readFileSync } from 'node:fs';
 import { defineConfig } from 'vitest/config';
 
-export default defineConfig({ test: { environment: 'jsdom', globals: true } });
+const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8'));
+
+export default defineConfig({
+  define: { __TRAIL_VERSION__: JSON.stringify(pkg.version) },
+  test: { environment: 'jsdom', globals: true },
+});
