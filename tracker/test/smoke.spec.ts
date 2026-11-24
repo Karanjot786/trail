@@ -742,3 +742,36 @@ test('prerender: no pageview until activation, then exactly one', async ({ page 
   expect(c.of('pageview')[0].rt).toBeUndefined();
   expect(c.of('pageview')[0].r).toBe(await page.evaluate(() => document.referrer));
 });
+
+test.describe('data-hash (t.x.js)', () => {
+  test('hashchange and pushState hash navigations are pageviews', async ({ page }) => {
+    const c = await capture(page);
+    await page.goto('/hash.html');
+    await expect.poll(() => c.of('pageview').length).toBe(1);
+    await page.evaluate(() => (location.hash = '#/a'));
+    await expect.poll(() => c.of('pageview').length).toBe(2);
+    await page.evaluate(() => history.pushState(null, '', '#/b'));
+    await expect.poll(() => c.of('pageview').length).toBe(3);
+    await page.waitForTimeout(200);
+    expect(c.of('pageview')).toHaveLength(3);
+    expect(c.of('pageview')[2].u).toMatch(/#\/b$/);
+  });
+
+  test('in-page anchors are not pageviews', async ({ page }) => {
+    const c = await capture(page);
+    await page.goto('/hash.html');
+    await expect.poll(() => c.of('pageview').length).toBe(1);
+    await page.evaluate(() => (location.hash = '#section'));
+    await page.waitForTimeout(300);
+    expect(c.of('pageview')).toHaveLength(1);
+  });
+
+  test('without data-hash, hash routes are not pageviews', async ({ page }) => {
+    const c = await capture(page);
+    await page.goto('/full.html');
+    await expect.poll(() => c.of('pageview').length).toBe(1);
+    await page.evaluate(() => (location.hash = '#/a'));
+    await page.waitForTimeout(300);
+    expect(c.of('pageview')).toHaveLength(1);
+  });
+});

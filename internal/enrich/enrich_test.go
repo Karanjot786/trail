@@ -102,3 +102,20 @@ func TestNilGeoIsNoop(t *testing.T) {
 		t.Errorf("Close: %v", err)
 	}
 }
+
+func TestParseURLHashRoute(t *testing.T) {
+	tests := map[string]string{
+		"https://a.com/#/user/42?tab=1": "/#/user/42",
+		"https://a.com/app/#!/x":        "/app/#!/x",
+		"https://a.com/docs#install":    "/docs",
+		"https://a.com/#":               "/",
+	}
+	for in, want := range tests {
+		if _, got, _ := ParseURL(in); got != want {
+			t.Errorf("ParseURL(%q) path = %q, want %q", in, got, want)
+		}
+	}
+	if got := DeriveRoute("/#/user/42"); got != "/#/user/:id" {
+		t.Errorf("DeriveRoute hash = %q", got)
+	}
+}

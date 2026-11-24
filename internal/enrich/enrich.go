@@ -98,6 +98,10 @@ func ParseURL(u string) (host, path string, utm [5]string) {
 	if path == "" {
 		path = "/"
 	}
+	// Hash-router pages (#/x, #!/x) keep their route; plain anchors are ignored.
+	if strings.HasPrefix(p.Fragment, "/") || strings.HasPrefix(p.Fragment, "!/") {
+		path += "#" + strings.SplitN(p.Fragment, "?", 2)[0]
+	}
 	q := p.Query()
 	for i, k := range [5]string{"utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content"} {
 		utm[i] = q.Get(k)

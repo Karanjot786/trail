@@ -224,7 +224,7 @@ declare const MODE: string;
     true,
   );
   // opt-in extras live in t.x.js, next to this file; it reads data-vitals/-rage/-forms/-errors off this tag
-  if (/ data-(vitals|rage|forms|errors)\b/.test(s.outerHTML)) {
+  if (/ data-(vitals|rage|forms|errors|hash)/.test(s.outerHTML)) {
     const x = d.createElement('script');
     x.src = s.src.replace(/[^/]*$/, 't.x.js');
     d.head.append(x);
