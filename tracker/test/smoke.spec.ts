@@ -1,7 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 
 type Ev = Record<string, any>;
-const WIRE = new Set(['s', 't', 'a', 'ss', 'uid', 'u', 'r', 'rt', 'n', 'd', 'e', 'sc', 'env', 'w', 'm', 'rc']);
+const WIRE = new Set(['s', 't', 'a', 'ss', 'uid', 'u', 'r', 'rt', 'n', 'd', 'e', 'sc', 'env', 'w', 'm', 'rc', 'c']);
 
 // Intercept the ingest endpoint (fetch and sendBeacon): record every event of every body
 // (one object or a batch array) and every request; answer 204, or the next of `statuses`.
@@ -89,6 +89,31 @@ test('spa: pushState -> pageview, popstate -> pageview, hash-only -> none', asyn
   await page.evaluate(() => history.go(-3));
   await expect.poll(() => c.of('pageview').length).toBe(4);
   expect(c.of('pageview')[3].u).toMatch(/\/a$/);
+});
+
+test('event age: a track() call waiting for the leave beacon reports its age', async ({ page }) => {
+  await page.clock.install();
+  const c = await capture(page);
+  await page.goto('/index.html');
+  await expect.poll(() => c.of('pageview').length).toBe(1);
+  await page.evaluate(() => (window as any).trail.track('x'));
+  await page.clock.runFor(60000);
+  await hide(page);
+  await expect.poll(() => c.of('event').length).toBe(1);
+  const age = c.of('event')[0].c;
+  expect(age).toBeGreaterThanOrEqual(60000);
+  expect(age).toBeLessThan(61000);
+  expect(c.of('pageview')[0].c).toBeLessThan(1000);
+});
+
+test('user prop named c is not rewritten', async ({ page }) => {
+  const c = await capture(page);
+  await page.goto('/index.html');
+  await expect.poll(() => c.of('pageview').length).toBe(1);
+  await page.evaluate(() => (window as any).trail.track('x', { c: 5 }));
+  await hide(page);
+  await expect.poll(() => c.of('event').length).toBe(1);
+  expect(c.of('event')[0].d.c).toBe(5);
 });
 
 test('engage on hide sends e>0 and sc', async ({ page }) => {
@@ -370,6 +395,19 @@ test.describe('delivery: batching, beacon, retry', () => {
     expect(old?.u).toMatch(/index\.html$/);
     expect(c.of('pageview').filter((e) => !e.rc)).toHaveLength(1);
     expect(await page.evaluate(() => localStorage.getItem('_t_q'))).toBeNull();
+  });
+
+  test('full mode: resent _t_q events report their age', async ({ page }) => {
+    await page.clock.install();
+    await page.route('**/_t/e', (r) => r.abort());
+    await page.goto('/index.html');
+    await expect.poll(() => page.evaluate(() => localStorage.getItem('_t_q'))).toContain('pageview');
+    await page.unroute('**/_t/e');
+    const c = await capture(page);
+    await page.clock.fastForward('02:00:00');
+    await page.reload();
+    await expect.poll(() => c.of('pageview').length).toBe(2);
+    expect(c.of('pageview').find((e) => e.rc >= 1)?.c).toBeGreaterThanOrEqual(7200000);
   });
 
   test('consent(false) queued before load stops the persisted-queue resend', async ({ page }) => {
