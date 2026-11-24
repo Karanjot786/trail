@@ -24,6 +24,9 @@ export function RangePicker() {
     if (!wantCustom.current) return
     wantCustom.current = false
     e.preventDefault()
+    // Seed the inputs from the current view each time the popover opens, not once at mount.
+    setFrom(from0)
+    setTo(to0)
     setCustom(true)
   }
   useLayer(custom, () => setCustom(false))

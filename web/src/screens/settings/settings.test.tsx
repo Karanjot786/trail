@@ -39,7 +39,7 @@ vi.mock('./remote', () => ({ createShare: vi.fn(), testToken: vi.fn() }))
 import { api, HttpError } from '../../api/client'
 import { createShare, testToken } from './remote'
 import { invalidate } from '../../api/useQuery'
-import { startRouter, current } from '../../shell/router'
+import { startRouter, current, navigate } from '../../shell/router'
 import { getUi, resetUi } from '../../shell/uiStore'
 import SettingsScreen from './index'
 import { AddSiteDialog } from './AddSiteDialog'
@@ -282,6 +282,25 @@ describe('ShareDialog', () => {
     await flush()
     expect(api.deleteShare).toHaveBeenCalledWith('sh1abc')
     expect(dlg.textContent).not.toContain('expires in 30 days')
+  })
+})
+
+describe('ShareDialog state', () => {
+  it('Hide revenue is off again after switching site', async () => {
+    const rev = { revenue: true, crawlers: false, currency: 'USD' }
+    H.sites = [site('demo', { features: rev }), site('docs', { features: rev })]
+    visit('/?site=docs')
+    const { rerender } = render(<ShareDialog open onOpenChange={() => {}} />)
+    await flush()
+    let dlg = screen.getByRole('dialog', { name: /share/i })
+    fireEvent.click(within(dlg).getByRole('switch', { name: 'Hide revenue' }))
+    expect(within(dlg).getByRole('switch', { name: 'Hide revenue' }).getAttribute('aria-checked')).toBe('true')
+    rerender(<ShareDialog open={false} onOpenChange={() => {}} />)
+    act(() => navigate({ site: 'demo' }))
+    rerender(<ShareDialog open onOpenChange={() => {}} />)
+    await flush()
+    dlg = screen.getByRole('dialog', { name: /share/i })
+    expect(within(dlg).getByRole('switch', { name: 'Hide revenue' }).getAttribute('aria-checked')).toBe('false')
   })
 })
 
