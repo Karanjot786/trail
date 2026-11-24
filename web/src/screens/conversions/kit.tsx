@@ -8,7 +8,6 @@ import { bar } from '../../lib/bar'
 import { apiQuery, type UrlState } from '../../state/url'
 import { useUrlState, type Patch } from '../../state/useUrlState'
 import { RouteLink } from '../../shell/RouteLink'
-import { viewerTz } from '../../shell/labels'
 import { EmptyState } from '../../ui/states'
 import './kit.css'
 
@@ -19,7 +18,7 @@ export function useReport<T>(
   opts: { enabled?: boolean; dropGoal?: boolean } = {},
 ): QueryResult<T> & { q: URLSearchParams; s: UrlState } {
   const s = useUrlState()
-  const q = opts.dropGoal ? dropGoalFilter(apiQuery(s, viewerTz())) : apiQuery(s, viewerTz())
+  const q = opts.dropGoal ? dropGoalFilter(apiQuery(s)) : apiQuery(s)
   const r = useQuery<T>(`f4|${name}|${q.toString()}|${s.prefix}`, (sig) => fn(q, sig), { enabled: (opts.enabled ?? true) && !!s.site })
   return { ...r, q, s }
 }

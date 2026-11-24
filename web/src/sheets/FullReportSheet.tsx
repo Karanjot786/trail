@@ -6,7 +6,6 @@ import type { TableColumn } from '../data/DataTable'
 import { cellText, MONO_DIMS, PANEL_TITLES, panelTabs, rowLabel, toRows } from '../data/columns'
 import { curlFor } from '../data/Panel'
 import LazyTable from '../screens/activity/LazyTable'
-import { viewerTz } from '../shell/labels'
 import { useSite } from '../shell/useSite'
 import { useStats } from '../shell/useStats'
 import { apiQuery } from '../state/url'
@@ -35,7 +34,7 @@ function FullReport({ panel, tab: tabId }: { panel: string; tab: string }) {
   const ctx = { goalName: stats.data?.conv?.name ?? null, currency: site?.features.currency || 'USD' }
   const tabs = panelTabs(panel, ctx)
   const tab = tabs.find((t) => t.value === tabId) ?? tabs[0]
-  const q = apiQuery(s, viewerTz())
+  const q = apiQuery(s)
   const r = useQuery(`breakdown-all|${tab?.dim}|${q}|${s.prefix}`, async (sig) => api.breakdown(q, tab.dim, { limit: 1000 }, sig), { enabled: !!tab })
   if (!tab) return null
   const rows = toRows(r.data?.rows ?? [], tab.dim, tab.columns[0], stats.data?.visitors ?? null)

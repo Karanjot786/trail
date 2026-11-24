@@ -13,7 +13,7 @@ import { startRouter, current } from './router'
 import { invalidate } from '../api/useQuery'
 import { resetGone } from './Banners'
 import { resetUi } from './uiStore'
-import { Gone } from '../api/client'
+import { Gone, api } from '../api/client'
 
 void apiMock
 
@@ -110,5 +110,16 @@ describe('Shell', () => {
     expect(f.textContent).toContain('India time')
     expect(f.textContent).toContain('8,006 bot requests left out')
     expect(f.textContent).toContain('Changes are vs Sep 22 – Oct 21')
+  })
+
+  it('formats the freshness zone from the server, not the browser, and sends no tz', async () => {
+    visit('/?site=demo')
+    render(<App />)
+    await flush()
+    const f = await screen.findByTestId('freshness')
+    expect(f.textContent).toContain('India time')
+    const calls = vi.mocked(api.stats).mock.calls as unknown[][]
+    expect(calls.length).toBeGreaterThan(0)
+    for (const c of calls) expect((c[0] as URLSearchParams).has('tz')).toBe(false)
   })
 })

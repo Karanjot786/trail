@@ -279,9 +279,9 @@ export function viewState(s: UrlState): string {
   return viewParams(s).toString()
 }
 
-/** site, range, cmp, env, tz, actor (only when all), f… for /api calls. */
-export function apiQuery(s: UrlState, tz: string): URLSearchParams {
-  const q = new URLSearchParams({ site: s.site, range: s.range, cmp: s.cmp, env: s.env, tz })
+/** site, range, cmp, env, actor (only when all), f… for /api calls. No `tz`: the server reports in its own zone and names it in `window.tz`. */
+export function apiQuery(s: UrlState): URLSearchParams {
+  const q = new URLSearchParams({ site: s.site, range: s.range, cmp: s.cmp, env: s.env })
   if (s.actor === 'all') q.set('actor', 'all')
   for (const f of s.filters) q.append('f', `${f.dim}:${f.value}`)
   return q

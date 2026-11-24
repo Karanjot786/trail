@@ -10,7 +10,7 @@ import { columnCatalog, toRows } from '../data/columns'
 import { toggleFilter } from '../data/Panel'
 import { fmtDur, fmtInt, fmtPct } from '../lib/format'
 import { visitsText } from '../lib/journey'
-import { DIM_LABEL, valueLabel, viewerTz } from '../shell/labels'
+import { DIM_LABEL, valueLabel } from '../shell/labels'
 import { useSite } from '../shell/useSite'
 import { apiQuery } from '../state/url'
 import { navigate, useUrlState } from '../state/useUrlState'
@@ -64,7 +64,7 @@ function RowReport({ dim, rowKey }: { dim: Dim; rowKey: string }) {
   const s = useUrlState()
   const { share } = useSite()
   const filters = toggleFilter(s.filters.filter((f) => !(f.dim === dim && f.value === rowKey)), dim, rowKey)
-  const rq = apiQuery({ ...s, filters }, viewerTz())
+  const rq = apiQuery({ ...s, filters })
   const key = `${rq}|${s.prefix}`
   const stats = useQuery<Stats>(`stats|${key}`, async (sig) => api.stats(rq, sig), { keepPrevious: false })
   const series = useQuery<Series>(`series|visitors|${key}`, async (sig) => api.series(rq, 'visitors', true, sig), { keepPrevious: false })

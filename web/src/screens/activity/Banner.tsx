@@ -15,9 +15,9 @@ export function bannerText(count: number, all: number | null, noun: string): str
 }
 
 export function Banner({ count, filtered, loading, noun, of = 'visitors' }: { count: number; filtered: boolean; loading?: boolean; noun: string; of?: 'visitors' | 'sessions' }) {
-  const { s, tz } = useAq()
+  const { s } = useAq()
   const stats = useStats()
-  const q = apiQuery({ ...s, filters: [] }, tz)
+  const q = apiQuery({ ...s, filters: [] })
   const all = useQuery<Stats>(`stats|${q.toString()}|${s.prefix}`, async (sig) => api.stats(q, sig), { enabled: filtered && !!s.site })
   const w = stats.data?.window
   if (loading) return <p className="act-callout" aria-hidden="true">&nbsp;</p>

@@ -1,7 +1,9 @@
 // The seven Overview metrics: label, how a value reads, which way is good, and the base `n` behind a
 // rate or average (compare() says "too little data" under 5). Colour follows the entity.
 import type { Metric, Stats, Totals } from '../../api/types'
-import { fmtDur, fmtInt, fmtMoney, fmtPct } from '../../lib/format'
+import { dayIso, fmtDur, fmtInt, fmtMoney, fmtPct } from '../../lib/format'
+
+export { dayIso }
 import type { DeltaKind } from '../../lib/compare'
 
 export interface MetricDef {
@@ -54,13 +56,4 @@ export function fmtMetric(def: MetricDef, v: number | null, currency = 'USD'): s
 /** The chart line kind for a metric. */
 export function chartKind(m: Metric): 'count' | 'rate' | 'duration' {
   return m === 'bounce' || m === 'conversion' ? 'rate' : m === 'duration' ? 'duration' : 'count'
-}
-
-/** "2026-11-12" for a timestamp in the viewer's zone. */
-export function dayIso(ms: number, tz: string): string {
-  try {
-    return new Intl.DateTimeFormat('en-CA', { year: 'numeric', month: '2-digit', day: '2-digit', timeZone: tz }).format(ms)
-  } catch {
-    return new Date(ms).toISOString().slice(0, 10)
-  }
 }

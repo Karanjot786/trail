@@ -4,10 +4,9 @@ import type { Stats } from '../api/types'
 import { useQuery } from '../api/useQuery'
 import { apiQuery } from '../state/url'
 import { useUrlState } from '../state/useUrlState'
-import { viewerTz } from './labels'
 
 export function useStats(enabled = true) {
   const s = useUrlState()
-  const q = apiQuery(s, viewerTz())
+  const q = apiQuery(s)
   return useQuery<Stats>(`stats|${q.toString()}|${s.prefix}`, (sig) => api.stats(q, sig), { enabled: enabled && !!s.site, pollMs: 60_000 })
 }

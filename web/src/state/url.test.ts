@@ -66,7 +66,8 @@ describe('url state', () => {
 
   it('builds the api query', () => {
     const { state } = parseUrl('/', '?site=demo&f=country:IN')
-    expect(apiQuery(state, 'Asia/Kolkata').toString()).toBe('site=demo&range=30d&cmp=prev&env=production&tz=Asia%2FKolkata&f=country%3AIN')
+    expect(apiQuery(state).toString()).toBe('site=demo&range=30d&cmp=prev&env=production&f=country%3AIN')
+    expect(apiQuery(state).has('tz')).toBe(false)
   })
 
   it('accepts day and custom ranges and custom comparisons', () => {
@@ -122,8 +123,8 @@ describe('AI visibility screen and actor (AI agents plan §0.6)', () => {
   })
   it('apiQuery and viewState carry actor only when all', () => {
     const s = parseUrl('/', '?site=demo').state
-    expect(apiQuery({ ...s, actor: 'all' }, 'UTC').get('actor')).toBe('all')
-    expect(apiQuery(s, 'UTC').has('actor')).toBe(false)
+    expect(apiQuery({ ...s, actor: 'all' }).get('actor')).toBe('all')
+    expect(apiQuery(s).has('actor')).toBe(false)
     expect(viewState({ ...s, actor: 'all' })).toBe('site=demo&actor=all')
   })
 })

@@ -2,14 +2,14 @@
 import { api } from '../../api/client'
 import type { Metric, Note, Series } from '../../api/types'
 import { useQuery } from '../../api/useQuery'
-import { viewerTz } from '../../shell/labels'
+import { useReportTz } from '../../shell/useReportTz'
 import { apiQuery } from '../../state/url'
 import { useUrlState } from '../../state/useUrlState'
 
 export function useApiQuery() {
   const s = useUrlState()
-  const tz = viewerTz()
-  const q = apiQuery(s, tz)
+  const tz = useReportTz()
+  const q = apiQuery(s)
   return { s, tz, q, key: `${q.toString()}|${s.prefix}` }
 }
 

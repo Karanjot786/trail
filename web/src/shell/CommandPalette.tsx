@@ -16,7 +16,7 @@ import { Kbd } from '../ui/small'
 import { useLayer } from '../ui/layers'
 import { fmtInt } from '../lib/format'
 import { visitsText } from '../lib/journey'
-import { DIM_LABEL, MONO_DIMS, RANGE_GROUPS, rangeLabel, valueLabel, viewerTz } from './labels'
+import { DIM_LABEL, MONO_DIMS, RANGE_GROUPS, rangeLabel, valueLabel } from './labels'
 import { NAV_ICON, NAV_KEY, useNavScreens } from './Sidebar'
 import { useSite } from './useSite'
 import { setUi, useUi } from './uiStore'
@@ -86,7 +86,7 @@ function Palette({ scope, instant, close }: { scope: '' | 'filter'; instant: boo
   const [sel, setSel] = useState(0)
   const listRef = useRef<HTMLDivElement>(null)
   const share = s.prefix.startsWith('/share/')
-  const aq = apiQuery(s, viewerTz())
+  const aq = apiQuery(s)
   const qs = aq.toString()
   const canBreak = !!s.site
 
