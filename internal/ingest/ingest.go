@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log"
 	"net"
 	"net/http"
 	"net/url"
@@ -109,6 +110,7 @@ type handler struct {
 	ips   *netx.Resolver
 	rv    *edgegeo.Resolver // nil: no edge geo; the client IP comes from ips
 	cls   Classifier        // nil: no AI agent classification
+	log   *sampler          // rate-limited refusal log
 }
 
 // Classifier recognises AI browsing agents (agents.Directory).
@@ -159,6 +161,9 @@ func New(st *store.Store, geo *enrich.Geo, reg *sites.Registry, opts ...Option) 
 	for _, o := range opts {
 		o(h)
 	}
+	if h.log == nil {
+		h.log = newSampler(time.Minute, time.Now, log.Printf)
+	}
 	if h.priv == nil {
 		h.priv = NewPrivate(time.UTC, time.Now)
 	}
@@ -169,6 +174,30 @@ func New(st *store.Store, geo *enrich.Geo, reg *sites.Registry, opts ...Option) 
 		h.rv.Net = h.ips
 	}
 	return h
+}
+
+// refuse answers an error and logs it once a minute per reason. The line has
+// the reason and the site id, never an IP, a user agent or a signature.
+func (h *handler) refuse(w http.ResponseWriter, code int, msg, site string) {
+	if code == http.StatusForbidden {
+		w.WriteHeader(code) // no detail: don't help probe the list
+	} else {
+		http.Error(w, msg, code)
+	}
+	switch code {
+	case http.StatusBadRequest:
+		if site == "" {
+			h.log.Log("400:"+msg, "ingest: 400 %s", msg)
+		} else {
+			h.log.Log("400:"+msg, "ingest: 400 %s site=%q", msg, short(site))
+		}
+	case http.StatusForbidden:
+		h.log.Log("403", "ingest: 403 origin not allowed for site=%q", short(site))
+	case http.StatusTooManyRequests:
+		h.log.Log("429", "ingest: 429 rate limited")
+	case http.StatusServiceUnavailable:
+		h.log.Log("503", "ingest: 503 queue full, events refused")
+	}
 }
 
 func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -212,32 +241,40 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		claimed = ps[0].S
 	}
 	res := h.resolve(r, claimed, body)
+	// Tell the first-party proxy whether its signature verified; no header
+	// from the proxy means no status (the caller reads that as "unknown").
+	if res.Proxied {
+		w.Header().Set("X-Trail-Proxy-Status", "ok")
+	} else if r.Header.Get("X-Trail-Proxy") != "" {
+		w.Header().Set("X-Trail-Proxy-Status", "invalid")
+		h.log.Log("proxy", "ingest: proxy signature not verified site=%q (check TRAIL_CRAWL_TOKEN and clock)", short(claimed))
+	}
 	// Per visitor: behind a verified proxy that is the forwarded IP, or every
 	// proxied visitor would share the site server's bucket.
 	if h.limit != nil && !h.limit.allow(res.IP) {
 		w.Header().Set("Retry-After", "1")
-		http.Error(w, "too many requests", http.StatusTooManyRequests)
+		h.refuse(w, http.StatusTooManyRequests, "too many requests", "")
 		return
 	}
 	if msg != "" {
-		http.Error(w, msg, http.StatusBadRequest)
+		h.refuse(w, http.StatusBadRequest, msg, "")
 		return
 	}
 	// Whole-batch failures: mixed sites and unknown site.
 	for i := range ps {
 		if ps[i].S != ps[0].S {
-			http.Error(w, "mixed sites in batch", http.StatusBadRequest)
+			h.refuse(w, http.StatusBadRequest, "mixed sites in batch", "")
 			return
 		}
 	}
 	site, ok := h.sites.Get(ps[0].S)
 	if !ok {
-		http.Error(w, "unknown site", http.StatusBadRequest)
+		h.refuse(w, http.StatusBadRequest, "unknown site", ps[0].S)
 		return
 	}
 	if src := sourceHost(r); !h.sites.Allowed(site.ID, src) {
 		h.sites.RejectFrom(site.ID, src)
-		w.WriteHeader(http.StatusForbidden) // no detail: don't help probe the list
+		h.refuse(w, http.StatusForbidden, "", site.ID)
 		return
 	}
 	domain := site.Domain
@@ -265,7 +302,7 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		evs = append(evs, h.event(r, p, domain, props, res))
 	}
 	if len(evs) == 0 {
-		http.Error(w, firstErr, http.StatusBadRequest)
+		h.refuse(w, http.StatusBadRequest, firstErr, site.ID)
 		return
 	}
 	rejected := bad + len(ps) - len(evs)
@@ -290,7 +327,7 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if !h.st.EnqueueBatch(evs) {
 		w.Header().Set("Retry-After", "5")
-		http.Error(w, "busy", http.StatusServiceUnavailable)
+		h.refuse(w, http.StatusServiceUnavailable, "busy", "")
 		return
 	}
 	w.Header().Set("X-Trail-Accepted", strconv.Itoa(len(evs)))
