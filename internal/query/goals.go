@@ -177,7 +177,7 @@ func allVisitors(db *sql.DB, p Params) (int, error) {
 		return 0, err
 	}
 	var total int
-	if err := db.QueryRow(cte+`SELECT count(DISTINCT person) FROM ev`, args...).Scan(&total); err != nil {
+	if err := db.QueryRow(cte+`SELECT count(DISTINCT CASE WHEN type='pageview' THEN person END) FROM ev`, args...).Scan(&total); err != nil {
 		return 0, fmt.Errorf("goal visitors: %w", err)
 	}
 	return total, nil

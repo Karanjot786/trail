@@ -490,7 +490,7 @@ func seriesPoints(db *sql.DB, p Params, metric string, b buckets, goal *Goal) ([
 		if berr != nil {
 			return nil, berr
 		}
-		baseSets, err1 := distinct(bcte+`SELECT ts, person FROM ev`, bargs)
+		baseSets, err1 := distinct(bcte+`SELECT ts, person FROM ev WHERE type='pageview'`, bargs)
 		if err1 != nil {
 			err = err1
 			break
