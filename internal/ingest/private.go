@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"sync"
 	"time"
+
+	"trail/internal/netx"
 )
 
 const (
@@ -118,7 +120,7 @@ func (p *Private) live(s *session, t time.Time) bool {
 
 func anonID(salt *[32]byte, site, ip, ua string) string {
 	m := hmac.New(sha256.New, salt[:])
-	m.Write([]byte(site + "|" + ip + "|" + ua))
+	m.Write([]byte(site + "|" + netx.Bucket(ip) + "|" + ua))
 	return "p_" + hex.EncodeToString(m.Sum(nil))[:22]
 }
 

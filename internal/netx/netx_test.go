@@ -180,3 +180,24 @@ func FuzzClientIP(f *testing.F) {
 		}
 	})
 }
+
+func TestBucket(t *testing.T) {
+	cases := map[string]string{
+		"203.0.113.7":          "203.0.113.7",
+		"::ffff:203.0.113.7":   "203.0.113.7",
+		"2001:db8:1:2:aaaa::1": Bucket("2001:db8:1:2:bbbb::9"),
+		"":                     "",
+		"not an ip":            "not an ip",
+	}
+	for in, want := range cases {
+		if got := Bucket(in); got != want {
+			t.Errorf("Bucket(%q) = %q, want %q", in, got, want)
+		}
+	}
+	if Bucket("2001:db8:1:3::1") == Bucket("2001:db8:1:2::1") {
+		t.Error("different /64 must differ")
+	}
+	if got := Bucket("2001:db8:1:2::1"); got != "2001:db8:1:2::/64" {
+		t.Errorf("got %q", got)
+	}
+}
