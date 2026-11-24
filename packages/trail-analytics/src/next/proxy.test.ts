@@ -89,8 +89,36 @@ describe('next/proxy', () => {
 
   it('withTrail forwards /t/e when the user handler continues', async () => {
     const h = withTrail(() => undefined);
-    const res = await h(rq('/t/e', CHROME, { method: 'POST', body: '[]' }) as any, event as any);
-    expect(res?.status).toBe(202);
+    const res = (await h(rq('/t/e', CHROME, { method: 'POST', body: '[]' }) as any, event as any)) as unknown as Response;
+    expect(res.status).toBe(202);
+  });
+
+  it('withTrail serves /t/t.js even when the handler rewrites every path (next-intl)', async () => {
+    const handler = vi.fn(() => new Response(null, { headers: { 'x-middleware-rewrite': 'https://shop.example/en/t/t.js' } }));
+    const h = withTrail(handler);
+    await h(rq('/t/t.js', CHROME) as any, event as any);
+    expect(fetchMock.mock.calls[0][0]).toBe('https://trail.example/_t/t.js');
+    expect(handler).not.toHaveBeenCalled();
+  });
+
+  it('withTrail serves /t/e even when the handler redirects (auth)', async () => {
+    const handler = vi.fn(() => new Response(null, { status: 307, headers: { location: '/login' } }));
+    const h = withTrail(handler);
+    const res = (await h(rq('/t/e', CHROME, { method: 'POST', body: '[]' }) as any, event as any)) as Response;
+    expect(res.status).toBe(202);
+    expect(handler).not.toHaveBeenCalled();
+  });
+
+  it("withTrail returns a sync handler's value synchronously for normal paths", () => {
+    const mine = new Response('x');
+    const res = withTrail(() => mine)(rq('/', CHROME) as any, event as any);
+    expect(res).toBe(mine);
+    expect(res).not.toBeInstanceOf(Promise);
+  });
+
+  it('withTrail works without an event', async () => {
+    const mine = new Response('x');
+    expect(withTrail(() => mine)(rq('/', GPT) as any)).toBe(mine);
   });
 
   it('imports no node: modules (runs on Edge and Node)', () => {

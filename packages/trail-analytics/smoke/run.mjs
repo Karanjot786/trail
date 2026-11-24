@@ -97,7 +97,7 @@ async function target(name, tarball, mock) {
     check(js.status === 200 && (await js.text()) === STUB_JS, 'GET /t/t.js is served from Trail');
     // 5. a beacon, signed
     const body = JSON.stringify([{ s: SITE, n: 'pageview', u: base + '/' }]);
-    const b = await fetch(base + '/t/e', { method: 'POST', body, headers: { 'content-type': 'text/plain;charset=UTF-8', 'user-agent': CHROME, origin: base, 'x-real-ip': '203.0.113.7' } });
+    const b = await fetch(base + '/t/e', { method: 'POST', body, headers: { 'content-type': 'text/plain;charset=UTF-8', 'user-agent': CHROME, origin: base, 'x-vercel-id': 'smoke::1', 'x-real-ip': '203.0.113.7' } });
     await until(() => mock.state.beacons.length >= 1);
     const got = mock.state.beacons[0];
     check(b.status === 202 && got?.verdict === '' && got.body === body, `POST /t/e reaches Trail signed, body intact (status ${b.status}, verdict "${got?.verdict}")`);
