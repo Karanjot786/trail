@@ -179,6 +179,15 @@ describe('forward', () => {
     expect(fetchMock.mock.calls[0][0]).toBe('https://trail.example/_t/e');
   });
 
+  it('signs the Cloudflare client IP and geo when Cloudflare fronts Vercel', async () => {
+    const res = await forward(beacon({ 'x-vercel-id': 'a', 'x-real-ip': '172.70.1.1', 'x-vercel-ip-country': 'US', 'cf-connecting-ip': '49.36.1.2', 'cf-ipcountry': 'IN', 'cf-region-code': 'MH', 'cf-ipcity': 'Mumbai' }), opts);
+    const h = new Headers(fetchMock.mock.calls[0][1].headers);
+    expect(h.get('x-trail-ip')).toBe('49.36.1.2');
+    expect(h.get('x-trail-geo')).toBe('IN|MH|Mumbai');
+    expect(h.get('x-trail-geo-src')).toBe('cloudflare');
+    expect(res.headers.get('x-trail-ip-via')).toBe('cloudflare');
+  });
+
   it('proxies /t/t.js with its cache headers', async () => {
     fetchMock.mockResolvedValue(new Response('/*tracker*/', { status: 200, headers: { 'content-type': 'text/javascript', 'cache-control': 'public, max-age=300', etag: '"v1"', 'set-cookie': 'x=1' } }));
     const res = await forward(new Request('https://shop.example/t/t.js'), opts);

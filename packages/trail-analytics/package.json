@@ -105,6 +105,7 @@
     "test": "vitest run",
     "build": "tsup",
     "typecheck": "tsc --noEmit",
+    "gen:cf": "node scripts/gen-cloudflare.mjs",
     "smoke": "node smoke/run.mjs"
   },
   "peerDependencies": {

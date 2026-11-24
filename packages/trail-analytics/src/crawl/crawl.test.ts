@@ -39,10 +39,11 @@ describe('shouldReport', () => {
 });
 
 describe('toLine', () => {
-  it('takes cf-connecting-ip first, then x-real-ip, then the first x-forwarded-for', () => {
+  it('ignores an unproven cf-connecting-ip, then takes the first x-forwarded-for, then x-real-ip', () => {
     const all = { 'cf-connecting-ip': '1.1.1.1', 'x-real-ip': '2.2.2.2', 'x-forwarded-for': '3.3.3.3, 4.4.4.4' };
-    expect(toLine(rq('/', GPT, { headers: all })).ip).toBe('1.1.1.1');
-    expect(toLine(rq('/', GPT, { headers: { 'x-real-ip': '2.2.2.2', 'x-forwarded-for': '3.3.3.3' } })).ip).toBe('2.2.2.2');
+    expect(toLine(rq('/', GPT, { headers: all })).ip).toBe('3.3.3.3');
+    expect(toLine(rq('/', GPT, { headers: { 'cf-connecting-ip': '1.1.1.1', 'x-forwarded-for': '3.3.3.3, 173.245.48.1' } })).ip).toBe('1.1.1.1');
+    expect(toLine(rq('/', GPT, { headers: { 'x-real-ip': '2.2.2.2' } })).ip).toBe('2.2.2.2');
     expect(toLine(rq('/', GPT, { headers: { 'x-forwarded-for': ' 3.3.3.3 , 4.4.4.4' } })).ip).toBe('3.3.3.3');
     expect(toLine(rq('/', GPT)).ip).toBeUndefined();
   });

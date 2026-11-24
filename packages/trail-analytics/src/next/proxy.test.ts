@@ -96,6 +96,6 @@ describe('next/proxy', () => {
   it('imports no node: modules (runs on Edge and Node)', () => {
     const src = readFileSync(resolve(__dirname, 'proxy.ts'), 'utf8');
     expect(src).not.toMatch(/from ['"]node:/);
-    for (const f of ['filter', 'forward', 'send', 'env']) expect(readFileSync(resolve(__dirname, `../crawl/${f}.ts`), 'utf8')).not.toMatch(/from ['"]node:/);
+    for (const f of ['filter', 'forward', 'send', 'env', 'ip', 'cloudflare.gen']) expect(readFileSync(resolve(__dirname, `../crawl/${f}.ts`), 'utf8')).not.toMatch(/from ['"]node:/);
   });
 });
