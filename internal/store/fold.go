@@ -7,9 +7,6 @@ import (
 	"os"
 )
 
-// schemaVersion is the PRAGMA user_version this binary migrates to.
-const schemaVersion = 2
-
 type execer interface {
 	Exec(string, ...any) (sql.Result, error)
 }

@@ -72,3 +72,47 @@ func TestOldBinaryReopenRecreatesIndexes(t *testing.T) {
 		t.Errorf("%d indexes after the old schema ran, want %d", n, len(wantIndexes)+2)
 	}
 }
+
+// A downgraded binary recreates the two trimmed indexes on a database whose user_version is already
+// 2; the next open of the new binary must drop them again.
+func TestMigrateV2RerunsAfterDowngrade(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "a.db")
+	s, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.db.Exec(oldIndexSQL); err != nil {
+		t.Fatal(err)
+	}
+	want := userVersion(t, s)
+	_ = s.Close()
+	if s, err = Open(path); err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	if got := eventIndexes(t, s); !reflect.DeepEqual(got, wantIndexes) {
+		t.Errorf("indexes %v, want %v", got, wantIndexes)
+	}
+	if got := userVersion(t, s); got != want {
+		t.Errorf("user_version %d after re-run, want %d (a re-run must not move it)", got, want)
+	}
+}
+
+// Each step sets user_version from its own number: a fresh and a v1 database both end at the latest.
+func TestMigrateSetsLatestVersion(t *testing.T) {
+	s := openTest(t)
+	if got := userVersion(t, s); got != schemaVersion {
+		t.Errorf("fresh user_version %d, want %d", got, schemaVersion)
+	}
+}
+
+// A second opener that lost the race to add a column sees "duplicate column name": that is success.
+func TestAddColumnToleratesDuplicate(t *testing.T) {
+	s := openTest(t)
+	if err := addColumn(s.db, "events", "retry", "retry INTEGER NOT NULL DEFAULT 0"); err != nil {
+		t.Errorf("duplicate column: %v", err)
+	}
+	if err := addColumn(s.db, "events", "nope", "nope BOGUS SYNTAX ("); err == nil {
+		t.Error("a real ALTER error was swallowed")
+	}
+}

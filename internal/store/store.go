@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log"
 	"net/url"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -106,8 +107,8 @@ func migrate(db *sql.DB) error {
 		if ok {
 			continue
 		}
-		if _, err := db.Exec(`ALTER TABLE events ADD COLUMN ` + c.def); err != nil {
-			return fmt.Errorf("add %s column: %w", c.name, err)
+		if err := addColumn(db, "events", c.name, c.def); err != nil {
+			return err
 		}
 	}
 	// After the ALTERs: on old databases schema.sql runs before the agent column exists.
@@ -120,42 +121,97 @@ func migrate(db *sql.DB) error {
 	return migrateVersioned(db)
 }
 
+// Versioned migration steps: each step's number is the user_version it leaves behind.
+const (
+	verDwell   = 1 // events.dwell_ms
+	verIndexes = 2 // trimmed index set
+	// schemaVersion is the PRAGMA user_version this binary migrates to: the newest step.
+	schemaVersion = verIndexes
+)
+
+// trimmedIndexes are the v1 index names the v2 step drops. A downgraded binary recreates them.
+var trimmedIndexes = []string{"events_site_type_name_ts", "events_site_user_ts"}
+
+// addColumn adds a column. "duplicate column name" means another opener added it first: success.
+func addColumn(db *sql.DB, table, name, def string) error {
+	if _, err := db.Exec(`ALTER TABLE ` + table + ` ADD COLUMN ` + def); err != nil {
+		if strings.Contains(err.Error(), "duplicate column name") {
+			return nil
+		}
+		return fmt.Errorf("add %s column: %w", name, err)
+	}
+	return nil
+}
+
 // migrateVersioned runs the numbered steps above PRAGMA user_version. Each step is idempotent.
 func migrateVersioned(db *sql.DB) error {
 	var v int
 	if err := db.QueryRow(`PRAGMA user_version`).Scan(&v); err != nil {
 		return fmt.Errorf("read user_version: %w", err)
 	}
-	if v < 1 {
+	// done records a finished step; user_version only ever moves up.
+	done := func(step int) error {
+		if v >= step {
+			return nil
+		}
+		if _, err := db.Exec(fmt.Sprintf(`PRAGMA user_version=%d`, step)); err != nil {
+			return fmt.Errorf("set user_version: %w", err)
+		}
+		v = step
+		return nil
+	}
+	if v < verDwell {
 		// Constant default: SQLite rewrites no rows, so this is instant on any size of database.
 		ok, err := hasColumn(db, "events", "dwell_ms")
 		if err != nil {
 			return err
 		}
 		if !ok {
-			if _, err := db.Exec(`ALTER TABLE events ADD COLUMN dwell_ms INTEGER NOT NULL DEFAULT 0`); err != nil {
-				return fmt.Errorf("add dwell_ms column: %w", err)
+			if err := addColumn(db, "events", "dwell_ms", "dwell_ms INTEGER NOT NULL DEFAULT 0"); err != nil {
+				return err
 			}
 		}
-		if _, err := db.Exec(fmt.Sprintf(`PRAGMA user_version=%d`, 1)); err != nil {
-			return fmt.Errorf("set user_version: %w", err)
+		if err := done(verDwell); err != nil {
+			return err
 		}
 	}
-	if v < 2 {
+	// Also when user_version is already 2: a downgraded binary recreates the old indexes without
+	// touching it.
+	old, err := hasIndex(db, trimmedIndexes...)
+	if err != nil {
+		return err
+	}
+	if v < verIndexes || old {
 		// New names, not reused ones, so a downgraded binary recreates its own full indexes. Create
 		// before drop. Runs at Open, before ingest listens, so the index build blocks no writer.
-		for _, q := range []string{
-			`CREATE INDEX IF NOT EXISTS events_site_name_ts ON events(site_id, type, name, ts) WHERE name<>''`,
-			`DROP INDEX IF EXISTS events_site_type_name_ts`,
-			`DROP INDEX IF EXISTS events_site_user_ts`,
-			`PRAGMA user_version=2`,
-		} {
+		qs := []string{`CREATE INDEX IF NOT EXISTS events_site_name_ts ON events(site_id, type, name, ts) WHERE name<>''`}
+		for _, n := range trimmedIndexes {
+			qs = append(qs, `DROP INDEX IF EXISTS `+n)
+		}
+		for _, q := range qs {
 			if _, err := db.Exec(q); err != nil {
 				return fmt.Errorf("migrate to v2: %w", err)
 			}
 		}
+		if err := done(verIndexes); err != nil {
+			return err
+		}
 	}
 	return nil
+}
+
+// hasIndex reports whether any of the named indexes exists.
+func hasIndex(db *sql.DB, names ...string) (bool, error) {
+	for _, n := range names {
+		var c int
+		if err := db.QueryRow(`SELECT count(*) FROM sqlite_master WHERE type='index' AND name=?`, n).Scan(&c); err != nil {
+			return false, fmt.Errorf("inspect index %s: %w", n, err)
+		}
+		if c > 0 {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // hasColumn reports whether table has the named column.
