@@ -24,16 +24,29 @@ func Check(ctx context.Context, db *sql.DB, reg *sites.Registry, site sites.Site
 	}
 	out.LastEventAt = last
 	page, err := fetch.Fetch(ctx, site.Domain)
-	if err == nil && page.Status >= 400 {
+	vendor, walled := "", false
+	if err == nil {
+		vendor, walled = botWall(page)
+	}
+	if walled {
+		out.Checks = append(out.Checks,
+			item("page", "Your home page loads", "warn", CodeBotProtection,
+				fmt.Sprintf("%s bot protection answered %d instead of the page, so the script and security-policy checks could not run.", vendor, page.Status),
+				fmt.Sprintf("This does not block real visitors. To run these checks, allow the user agent \"TrailInstallCheck\" in your %s firewall, or confirm with a test visit.", vendor)),
+			item("script", "The Trail script is on the page", "pending", CodeBotProtection, "Needs the page to load first.", ""),
+			item("csp", "Your security policy allows Trail", "pending", CodeBotProtection, "Needs the page to load first.", ""))
+	} else if err == nil && page.Status >= 400 {
 		err = fmt.Errorf("https://%s/ answered %d", site.Domain, page.Status)
 	}
-	if err != nil {
+	switch {
+	case walled:
+	case err != nil:
 		out.Checks = append(out.Checks,
 			item("page", "Your home page loads", "fail", CodeFetchFailed, "Could not load https://"+site.Domain+"/: "+short(err.Error()),
 				"Check that the site is public and serves HTTPS. If it is not live yet, send a test visit instead."),
 			item("script", "The Trail script is on the page", "pending", CodeFetchFailed, "Needs the page to load first.", ""),
 			item("csp", "Your security policy allows Trail", "pending", CodeFetchFailed, "Needs the page to load first.", ""))
-	} else {
+	default:
 		tag := findTracker(string(page.Body))
 		out.Checks = append(out.Checks, item("page", "Your home page loads", "pass", CodeOK, fmt.Sprintf("https://%s/ answered %d.", site.Domain, page.Status), ""))
 		out.Checks = append(out.Checks, scriptCheck(tag, site, trailHost, last != nil), cspCheck(page.Header.Values("Content-Security-Policy"), tag, site, trailHost))
@@ -155,4 +168,23 @@ func delivery(db *sql.DB, site string, since int64) (CheckItem, error) {
 		return item("delivery", label, "pending", CodeOK, "Nothing delivered in the last 24 hours.", ""), nil
 	}
 	return item("delivery", label, "pass", CodeOK, fmt.Sprintf("%d events in the last 24 hours.", n), ""), nil
+}
+
+// botWall recognises a bot-protection challenge or block in place of the page.
+// Cloudflare sets cf-mitigated: challenge on every challenge; Vercel's firewall
+// sets x-vercel-mitigated.
+func botWall(p Page) (vendor string, ok bool) {
+	if p.Status != 403 && p.Status != 429 && p.Status != 503 {
+		return "", false
+	}
+	if strings.EqualFold(p.Header.Get("Cf-Mitigated"), "challenge") {
+		return "Cloudflare", true
+	}
+	if v := strings.ToLower(p.Header.Get("X-Vercel-Mitigated")); v == "challenge" || v == "deny" {
+		return "Vercel", true
+	}
+	if (p.Status == 403 || p.Status == 503) && strings.EqualFold(p.Header.Get("Server"), "cloudflare") {
+		return "Cloudflare", true
+	}
+	return "", false
 }

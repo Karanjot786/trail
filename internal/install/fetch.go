@@ -30,7 +30,7 @@ const (
 	fetchTimeout  = 5 * time.Second
 	fetchMaxBody  = 512 << 10
 	fetchMaxHops  = 3
-	fetchAgent    = "Trail-install-check/1"
+	fetchAgent    = "Mozilla/5.0 (compatible; TrailInstallCheck/1.0; +https://trail.karanjot.co.in/docs)"
 	errPrivateMsg = "refusing to connect to a private or local address"
 )
 
@@ -136,7 +136,8 @@ func (f *SafeFetcher) Fetch(ctx context.Context, host string) (Page, error) {
 		return Page{}, err
 	}
 	req.Header.Set("User-Agent", fetchAgent)
-	req.Header.Set("Accept", "text/html")
+	req.Header.Set("Accept", "text/html,application/xhtml+xml;q=0.9,*/*;q=0.8")
+	req.Header.Set("Accept-Language", "en")
 	c := f.client(host)
 	defer c.CloseIdleConnections()
 	resp, err := c.Do(req)

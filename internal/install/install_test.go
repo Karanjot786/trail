@@ -163,8 +163,11 @@ func TestSafeFetcherNoCrossHostRedirect(t *testing.T) {
 			http.Redirect(w, r, "/home", http.StatusFound)
 			return
 		}
-		if r.Header.Get("User-Agent") != "Trail-install-check/1" {
-			t.Errorf("UA %q", r.Header.Get("User-Agent"))
+		if ua := r.Header.Get("User-Agent"); !strings.Contains(ua, "TrailInstallCheck/1.0") || !strings.HasPrefix(ua, "Mozilla/5.0") {
+			t.Errorf("UA %q", ua)
+		}
+		if !strings.Contains(r.Header.Get("Accept"), "application/xhtml+xml") || r.Header.Get("Accept-Language") != "en" {
+			t.Errorf("headers %q %q", r.Header.Get("Accept"), r.Header.Get("Accept-Language"))
 		}
 		_, _ = w.Write([]byte(strings.Repeat("x", fetchMaxBody+100)))
 	}))
@@ -328,6 +331,71 @@ func TestCSPCheck(t *testing.T) {
 			}
 			if c.want == "fail" && (got.Code != CodeCSPBlocked || got.Fix == "") {
 				t.Errorf("code %s fix %q", got.Code, got.Fix)
+			}
+		})
+	}
+}
+
+func TestBotWall(t *testing.T) {
+	h := func(k, v string) http.Header { x := http.Header{}; x.Set(k, v); return x }
+	for _, c := range []struct {
+		p      Page
+		vendor string
+		ok     bool
+	}{
+		{Page{Status: 403, Header: h("Cf-Mitigated", "challenge")}, "Cloudflare", true},
+		{Page{Status: 429, Header: h("X-Vercel-Mitigated", "challenge")}, "Vercel", true},
+		{Page{Status: 403, Header: h("X-Vercel-Mitigated", "deny")}, "Vercel", true},
+		{Page{Status: 503, Header: h("Server", "cloudflare")}, "Cloudflare", true},
+		{Page{Status: 404, Header: h("Server", "cloudflare")}, "", false},
+		{Page{Status: 403, Header: http.Header{}}, "", false},
+	} {
+		if v, ok := botWall(c.p); v != c.vendor || ok != c.ok {
+			t.Errorf("%d %v: got %q %v", c.p.Status, c.p.Header, v, ok)
+		}
+	}
+}
+
+func TestCheckBotProtection(t *testing.T) {
+	hdr := http.Header{}
+	hdr.Set("Cf-Mitigated", "challenge")
+	wall := fakeFetch{page: Page{Status: 403, Header: hdr}}
+	for _, c := range []struct {
+		name   string
+		events bool
+		state  string
+	}{{"receiving", true, "receiving"}, {"no events", false, "waiting"}} {
+		t.Run(c.name, func(t *testing.T) {
+			st, err := store.Open(filepath.Join(t.TempDir(), "i.db"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer st.Close()
+			if c.events {
+				st.Enqueue(store.Event{SiteID: "s", Type: "pageview", AnonID: "a", SessionID: "x", Path: "/", TS: time.Now().UnixMilli() - 1000, Env: "production"})
+				if err := st.Flush(); err != nil {
+					t.Fatal(err)
+				}
+			}
+			reg, _ := sites.Open(st.DB())
+			site, _ := reg.Add(sites.Site{ID: "s", Domain: "example.com"})
+			got, err := Check(context.Background(), st.DB(), reg, site, "trail.example.net", wall)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got.State != c.state {
+				t.Errorf("state %s, want %s", got.State, c.state)
+			}
+			for _, it := range got.Checks[:3] {
+				if it.Code != CodeBotProtection {
+					t.Errorf("%s code %s", it.ID, it.Code)
+				}
+			}
+			if p := got.Checks[0]; p.Status != "warn" || !strings.Contains(p.Detail, "Cloudflare bot protection answered 403") {
+				t.Errorf("page %+v", p)
+			}
+			if got.Checks[1].Status != "pending" || got.Checks[2].Status != "pending" {
+				t.Errorf("script/csp %+v %+v", got.Checks[1], got.Checks[2])
 			}
 		})
 	}
