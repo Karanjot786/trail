@@ -137,6 +137,7 @@ func seedPair(t *testing.T) (a, b *sql.DB, now time.Time) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = st.Close() })
+	st.SetFold(false)
 	now = time.Date(2026, 11, 20, 10, 5, 0, 0, ist)
 	sites := []seed.SiteSpec{{ID: "demo", Revenue: true, Crawlers: true}}
 	if err := seed.Seed(st, sites, 14, 400, now, rand.New(rand.NewPCG(7, 7))); err != nil {

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -134,5 +135,111 @@ func TestBackupSurvivesInterruptedCopy(t *testing.T) {
 	defer b.Close()
 	if n := count(t, b, "SELECT count(*) FROM events"); n != 1 {
 		t.Errorf("backup rows %d, want 1", n)
+	}
+}
+
+func pv(path string, ts int64) Event {
+	return Event{SiteID: "s1", Type: "pageview", AnonID: "a1", SessionID: "x1", Path: path, TS: ts}
+}
+
+func eng(path string, ts int64, em, sc int) Event {
+	return Event{SiteID: "s1", Type: "engage", AnonID: "a1", SessionID: "x1", Path: path, TS: ts, EngagedMs: em, ScrollPct: sc}
+}
+
+func TestEngageFoldsIntoPageview(t *testing.T) {
+	s := openTest(t)
+	s.EnqueueBatch([]Event{pv("/", 1000), eng("/", 6000, 4000, 40), eng("/", 13000, 9000, 30)})
+	if err := s.Flush(); err != nil {
+		t.Fatal(err)
+	}
+	if n := count(t, s, "SELECT count(*) FROM events"); n != 1 {
+		t.Fatalf("rows %d, want 1", n)
+	}
+	if n := count(t, s, "SELECT count(*) FROM events WHERE engaged_ms=9000 AND scroll_pct=40 AND dwell_ms=12000"); n != 1 {
+		t.Error("pageview did not take max engaged, max scroll and last-engage dwell")
+	}
+}
+
+func TestEngageFoldsAcrossFlushes(t *testing.T) {
+	s := openTest(t)
+	for _, e := range []Event{pv("/", 1000), eng("/", 6000, 4000, 40), eng("/", 13000, 9000, 30)} {
+		s.Enqueue(e)
+		if err := s.Flush(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if n := count(t, s, "SELECT count(*) FROM events WHERE type='pageview' AND engaged_ms=9000 AND scroll_pct=40 AND dwell_ms=12000"); n != 1 {
+		t.Error("not folded across flushes")
+	}
+	if n := count(t, s, "SELECT count(*) FROM events"); n != 1 {
+		t.Errorf("rows %d, want 1", n)
+	}
+}
+
+func TestEngageFoldsByPathNotToken(t *testing.T) {
+	s := openTest(t)
+	s.EnqueueBatch([]Event{pv("/a", 1000), pv("/b", 2000), eng("/a", 3000, 700, 10)})
+	if err := s.Flush(); err != nil {
+		t.Fatal(err)
+	}
+	if n := count(t, s, "SELECT count(*) FROM events WHERE path='/a' AND engaged_ms=700 AND dwell_ms=2000"); n != 1 {
+		t.Error("/a did not take the engage")
+	}
+	if n := count(t, s, "SELECT count(*) FROM events WHERE path='/b' AND engaged_ms=0 AND dwell_ms=0"); n != 1 {
+		t.Error("/b was touched")
+	}
+}
+
+func TestFoldFallsBackWhenPageviewMissing(t *testing.T) {
+	s := openTest(t)
+	noSess := eng("/", 5000, 100, 1)
+	noSess.SessionID = ""
+	s.EnqueueBatch([]Event{eng("/", 5000, 100, 1), noSess})
+	if err := s.Flush(); err != nil {
+		t.Fatal(err)
+	}
+	if n := count(t, s, "SELECT count(*) FROM events WHERE type='engage'"); n != 2 {
+		t.Errorf("engage rows %d, want 2", n)
+	}
+	// An engage older than the only pageview has nothing to fold into either.
+	s.EnqueueBatch([]Event{pv("/late", 9000), eng("/late", 8000, 100, 1)})
+	if err := s.Flush(); err != nil {
+		t.Fatal(err)
+	}
+	if n := count(t, s, "SELECT count(*) FROM events WHERE type='engage'"); n != 3 {
+		t.Errorf("engage rows %d, want 3", n)
+	}
+}
+
+func TestFoldOff(t *testing.T) {
+	s := openTest(t)
+	s.SetFold(false)
+	s.EnqueueBatch([]Event{pv("/", 1000), eng("/", 6000, 4000, 40)})
+	if err := s.Flush(); err != nil {
+		t.Fatal(err)
+	}
+	if n := count(t, s, "SELECT count(*) FROM events"); n != 2 {
+		t.Errorf("rows %d, want 2", n)
+	}
+}
+
+func TestFoldUsesSessionIndex(t *testing.T) {
+	s := openTest(t)
+	rows, err := s.DB().Query("EXPLAIN QUERY PLAN "+foldTargetSQL, "s1", "x1", "/", int64(1))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	var all string
+	for rows.Next() {
+		var a, b, c int
+		var d string
+		if err := rows.Scan(&a, &b, &c, &d); err != nil {
+			t.Fatal(err)
+		}
+		all += d + "\n"
+	}
+	if !strings.Contains(all, "events_site_session_ts (site_id=? AND session_id=?") {
+		t.Errorf("plan does not use the session index:\n%s", all)
 	}
 }

@@ -20,6 +20,7 @@ func seeded(t *testing.T, sites []SiteSpec, days, persons int) *sql.DB {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = st.Close() })
+	st.SetFold(false) // the pinned counts below include the engage rows
 	if err := Seed(st, sites, days, persons, seedNow, rand.New(rand.NewPCG(1, 2))); err != nil {
 		t.Fatal(err)
 	}

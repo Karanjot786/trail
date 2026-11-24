@@ -70,3 +70,29 @@ func (s *Store) EngageKey() []byte {
 	}
 	return k
 }
+
+// foldTargetSQL picks the pageview an engage belongs to: the latest one of its session and
+// path at or before it. It runs through events_site_session_ts.
+const foldTargetSQL = `SELECT id FROM events WHERE site_id=? AND session_id=? AND type='pageview' AND path=? AND ts<=?
+	ORDER BY ts DESC, id DESC LIMIT 1`
+
+const foldUpdateSQL = `UPDATE events SET engaged_ms=max(engaged_ms,?), scroll_pct=max(scroll_pct,?), dwell_ms=max(dwell_ms, ?-ts)
+	WHERE id=(` + foldTargetSQL + `)`
+
+// foldEngage merges e into its pageview row and reports whether one absorbed it. An engage with
+// no session, or no matching pageview, is left for the caller to store as a row.
+func foldEngage(upd *sql.Stmt, e Event) (bool, error) {
+	// An agent's engage can upgrade how the session was verified, which only its own row carries.
+	if e.SessionID == "" || e.Agent != "" {
+		return false, nil
+	}
+	res, err := upd.Exec(e.EngagedMs, e.ScrollPct, e.TS, e.SiteID, e.SessionID, e.Path, e.TS)
+	if err != nil {
+		return false, err
+	}
+	n, err := res.RowsAffected()
+	return n > 0, err
+}
+
+// SetFold turns folding engage events into their pageview on (the default) or off.
+func (s *Store) SetFold(on bool) { s.noFold.Store(!on) }

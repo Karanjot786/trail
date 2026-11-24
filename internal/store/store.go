@@ -43,18 +43,20 @@ type Event struct {
 
 // Store owns the database and the in-memory write queue.
 type Store struct {
-	db      *sql.DB
-	path    string
-	queue   chan Event
-	kick    chan struct{}
-	mu      sync.Mutex // serialises Flush and guards closed
-	qmu     sync.Mutex // serialises producers so a batch is admitted whole
-	closed  bool
-	dropped atomic.Int64
-	failed  atomic.Int64
-	pending []Event       // drained from the queue, not yet committed; guarded by mu
-	pendCap int           // most events pending may hold (queueCap; tests lower it)
-	every   time.Duration // the timer flush interval (flushEvery; tests raise it)
+	db                                  *sql.DB
+	path                                string
+	queue                               chan Event
+	kick                                chan struct{}
+	mu                                  sync.Mutex // serialises Flush and guards closed
+	qmu                                 sync.Mutex // serialises producers so a batch is admitted whole
+	closed                              bool
+	dropped                             atomic.Int64
+	failed                              atomic.Int64
+	pending                             []Event       // drained from the queue, not yet committed; guarded by mu
+	pendCap                             int           // most events pending may hold (queueCap; tests lower it)
+	every                               time.Duration // the timer flush interval (flushEvery; tests raise it)
+	foldReady, foldFinished, foldWarned bool          // history fold state; only the writer goroutine touches them
+	noFold                              atomic.Bool   // true: engage events are stored as rows (tests write unfolded history)
 }
 
 // Open opens (or creates) the database at path, enabling WAL and a 5 s busy timeout.
@@ -357,8 +359,22 @@ func (s *Store) write(batch []Event) error {
 		return fmt.Errorf("prepare identity: %w", err)
 	}
 	defer idm.Close()
+	var fold *sql.Stmt
+	if !s.noFold.Load() {
+		if fold, err = tx.Prepare(foldUpdateSQL); err != nil {
+			return fmt.Errorf("prepare fold: %w", err)
+		}
+		defer fold.Close()
+	}
 
 	for _, e := range batch {
+		if fold != nil && e.Type == "engage" {
+			if ok, err := foldEngage(fold, e); err != nil {
+				return fmt.Errorf("fold engage: %w", err)
+			} else if ok {
+				continue
+			}
+		}
 		if _, err := ins.Exec(e.SiteID, e.TS, e.Type, e.AnonID, e.SessionID, e.UserID,
 			e.Host, e.Path, e.Route, e.UTMSource, e.UTMMedium, e.UTMCampaign, e.UTMTerm, e.UTMContent,
 			e.RefHost, e.RefURL, e.Name, e.Props, e.EngagedMs, e.ScrollPct,
