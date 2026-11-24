@@ -107,11 +107,20 @@ func TestPlanGuard(t *testing.T) {
 	if len(plans) < 50 {
 		t.Fatalf("captured only %d statements", len(plans))
 	}
-	named := 0
+	named, lookback := 0, 0
 	for q, lines := range plans {
 		plan := strings.Join(lines, "\n")
+		// The fold lookback reads ev from a two-part subquery aliased e: its "SCAN e" walks that
+		// subquery's rows, and each part must plan on an index.
+		if strings.Contains(q, "INDEXED BY events_site_end") {
+			lookback++
+			if !strings.Contains(plan, "SEARCH events USING INDEX events_site_ts (site_id=? AND ts>? AND ts<?)") ||
+				!strings.Contains(plan, "SEARCH events USING INDEX events_site_end (site_id=? AND <expr>>?") {
+				t.Errorf("lookback source is not two index searches\n%s\n%s", plan, q)
+			}
+		}
 		for _, l := range lines {
-			bare := strings.HasPrefix(l, "SCAN e") && !strings.Contains(l, "USING")
+			bare := strings.HasPrefix(l, "SCAN e") && !strings.Contains(l, "USING") && !strings.Contains(q, "INDEXED BY events_site_end")
 			if bare && !strings.Contains(q, "ORDER BY id") { // ExportEvents reads by id on purpose
 				t.Errorf("full scan of events: %q\n%s", l, q)
 			}
@@ -127,6 +136,9 @@ func TestPlanGuard(t *testing.T) {
 		if nameLookup.MatchString(q) && strings.Contains(plan, "events_site_name_ts") {
 			named++
 		}
+	}
+	if lookback < 3 {
+		t.Errorf("only %d lookback statements were checked (Live and activeNow)", lookback)
 	}
 	if named < 10 {
 		t.Errorf("only %d name lookups were checked, the classifier lost its statements", named)

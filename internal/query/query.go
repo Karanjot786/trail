@@ -83,6 +83,8 @@ type Params struct {
 	Limit, Offset int
 	Sort          string
 	Actor         string // "" or "human": people only; "all": people and AI agents
+	matEv         bool   // base: build ev as a MATERIALIZED CTE
+	lookback      int64  // ms: also read folded pageviews that started up to this long before From and are still in dwell at From
 }
 
 // Prev returns the comparison window as Params; false when Win.PrevFrom is nil.
@@ -115,12 +117,30 @@ func base(p Params) (string, []any, error) {
 	if err != nil {
 		return "", nil, err
 	}
-	args := append([]any{p.Site, p.Site}, evA...)
+	src, srcA, args := "events e", []any(nil), []any{p.Site, p.Site}
+	if p.lookback > 0 {
+		// The window, plus the folded pageviews that started up to lookback before it and are still in
+		// dwell at its start. Two reads, not an OR: the second walks events_site_end (ts is its third
+		// column, so the rows already in the window are dropped before the table is touched), and
+		// costs the pageviews in dwell, not the lookback day. INDEXED BY pins it; left to itself the
+		// planner scans events_site_ts over the whole lookback.
+		src = `(SELECT * FROM events WHERE site_id=? AND ts BETWEEN ? AND ?
+    UNION ALL SELECT * FROM events INDEXED BY events_site_end WHERE site_id=? AND type='pageview' AND dwell_ms>0 AND ` +
+			activeEnd + `>=? AND ts>=? AND ts<?) e`
+		srcA = []any{p.Site, p.From, p.To, p.Site, p.From, p.From - p.lookback, p.From}
+	}
+	args = append(append(args, srcA...), evA...)
+	// With a lookback, ev is small but its OR defeats the planner once it is flattened into a
+	// DISTINCT or an IN: it then scans the whole site. MATERIALIZED keeps the window read as written.
+	mat := ""
+	if p.lookback > 0 {
+		mat = ""
+	}
 	var sb strings.Builder
 	sb.WriteString(`WITH idm AS (SELECT anon_id, user_id FROM identity_map WHERE site_id=? AND rowid IN
   (SELECT min(rowid) FROM identity_map WHERE site_id=? GROUP BY anon_id)),
-ev AS (SELECT e.*, COALESCE(idm.user_id, e.anon_id) AS person, idm.user_id IS NOT NULL AS ident
-  FROM events e LEFT JOIN idm USING(anon_id)
+ev AS ` + mat + `(SELECT e.*, COALESCE(idm.user_id, e.anon_id) AS person, idm.user_id IS NOT NULL AS ident
+  FROM ` + src + ` LEFT JOIN idm USING(anon_id)
   WHERE ` + evW + `),
 `)
 	hasPage := false
@@ -138,18 +158,26 @@ ev AS (SELECT e.*, COALESCE(idm.user_id, e.anon_id) AS person, idm.user_id IS NO
 		return "", nil, err
 	}
 	sb.WriteString(`sev AS (SELECT e.*, COALESCE(idm.user_id, e.anon_id) AS person, idm.user_id IS NOT NULL AS ident
-  FROM events e LEFT JOIN idm USING(anon_id)
+  FROM ` + src + ` LEFT JOIN idm USING(anon_id)
   WHERE ` + sevW + `)
 `)
-	return sb.String(), append(args, sevA...), nil
+	return sb.String(), append(append(args, srcA...), sevA...), nil
 }
 
 // evWhere is the WHERE clause (on alias e) for p's window, actor, env and filters. With
 // skipPage, path, route and host become "sessions that viewed a matching page".
 func evWhere(p Params, skipPage bool) (string, []any, error) {
 	var sb strings.Builder
-	sb.WriteString("e.site_id=? AND e.ts BETWEEN ? AND ? AND " + actorCond(p, "e"))
-	args := []any{p.Site, p.From, p.To}
+	lo := p.From // earliest ts a session subquery reads
+	args := []any{p.Site}
+	if p.lookback > 0 {
+		// base reads the window and the folded pageviews still in dwell from its own source.
+		lo = p.From - p.lookback
+		sb.WriteString("e.site_id=? AND " + actorCond(p, "e"))
+	} else {
+		sb.WriteString("e.site_id=? AND e.ts BETWEEN ? AND ? AND " + actorCond(p, "e"))
+		args = append(args, p.From, p.To)
+	}
 	if p.Env != "" && p.Env != "all" {
 		sb.WriteString(" AND e.env=?")
 		args = append(args, p.Env)
@@ -169,7 +197,7 @@ func evWhere(p Params, skipPage bool) (string, []any, error) {
 		case dimRow:
 			if skipPage && pageDims[k] {
 				sb.WriteString(" AND e.session_id IN (SELECT session_id FROM events WHERE site_id=? AND type='pageview' AND ts BETWEEN ? AND ? AND " + d.expr + "=?)")
-				args = append(args, p.Site, p.From, p.To, v)
+				args = append(args, p.Site, lo, p.To, v)
 				continue
 			}
 			sb.WriteString(" AND e." + d.expr + "=?") // expr comes from the dims allowlist
@@ -186,16 +214,16 @@ func evWhere(p Params, skipPage bool) (string, []any, error) {
 			// landing pageview matches; a row filter would make every session a bounce.
 			sb.WriteString(" AND e.session_id IN (SELECT session_id FROM (SELECT session_id, min(ts), " + d.expr +
 				" AS v FROM events WHERE site_id=? AND type='pageview' AND ts BETWEEN ? AND ? GROUP BY session_id) WHERE v=?)")
-			args = append(args, p.Site, p.From, p.To, v)
+			args = append(args, p.Site, lo, p.To, v)
 		case dimExit:
 			sb.WriteString(" AND e.session_id IN (SELECT session_id FROM (SELECT session_id, max(ts), path" +
 				" AS v FROM events WHERE site_id=? AND type='pageview' AND ts BETWEEN ? AND ? GROUP BY session_id) WHERE v=?)")
-			args = append(args, p.Site, p.From, p.To, v)
+			args = append(args, p.Site, lo, p.To, v)
 		case dimEvent:
 			// An event filter keeps whole sessions that fired the event.
 			if v == outboundKey {
 				sb.WriteString(" AND e.session_id IN (SELECT session_id FROM events WHERE site_id=? AND type='outbound' AND ts BETWEEN ? AND ?)")
-				args = append(args, p.Site, p.From, p.To)
+				args = append(args, p.Site, lo, p.To)
 				continue
 			}
 			sb.WriteString(" AND e.session_id IN (SELECT session_id FROM events WHERE site_id=? AND type='event' AND name<>'' AND name=?)")
@@ -204,7 +232,7 @@ func evWhere(p Params, skipPage bool) (string, []any, error) {
 			// A goal filter keeps whole sessions that hit the goal (any kind of goal).
 			sb.WriteString(" AND e.session_id IN (SELECT x.session_id FROM events x JOIN goals g ON g.id=? AND g.site_id=x.site_id" +
 				" WHERE x.site_id=? AND x.ts BETWEEN ? AND ? AND " + goalHitCond + ")")
-			args = append(args, v, p.Site, p.From, p.To)
+			args = append(args, v, p.Site, lo, p.To)
 		}
 	}
 	return sb.String(), args, nil
@@ -275,7 +303,7 @@ func activeNow(db *sql.DB, p Params) (int, error) {
 	lp.Actor = ""
 	from := nowMs - onlineWindow.Milliseconds()
 	// A pageview with engage folded into it is active until ts+dwell_ms, so look back a day for those.
-	lp.From, lp.To = from-foldLookback, nowMs
+	lp.From, lp.To, lp.lookback = from, nowMs, foldLookback
 	cte, args, err := base(lp)
 	if err != nil {
 		return 0, err

@@ -15,11 +15,8 @@ FROM sev GROUP BY session_id HAVING pv>0`
 
 // activeEnd is a row's last moment of activity: a pageview whose engage events were folded
 // into it ends dwell_ms after it started; every other row ends at its own ts.
+// It must match the events_site_end index expression (store.migrateVersioned, v3).
 const activeEnd = "(ts+dwell_ms)"
-
-// pvPerson keeps the people with a pageview in the window; rows of anyone else (for example an
-// engage that arrived in a new session) never make a visitor.
-const pvPerson = "person IN (SELECT person FROM ev WHERE type='pageview')"
 
 // engagedExpr is 1 when a sessionAgg row is an engaged session (GA4 rule).
 const engagedExpr = `(pv>=2 OR em>=10000 OR ce)`
@@ -96,31 +93,31 @@ func Visitors(db *sql.DB, p Params, q string) ([]Person, int, error) {
 	if q != "" {
 		where, qargs = " WHERE instr(lower(person), lower(?))>0", []any{q}
 	}
-	// evp is ev without engage rows that belong to no pageview session, for people with a pageview.
-	cte += `, evp AS (SELECT * FROM ev WHERE ` + pvPerson + ` AND (type<>'engage' OR session_id IN (SELECT session_id FROM ev WHERE type='pageview')))
+	// evp is ev without engage rows that belong to no pageview session, cut to the columns Visitors
+	// reads (it is built once and read three times). People without a pageview are dropped by px.
+	evpCols := "person, ident, ts, dwell_ms, session_id, type, country, region, city, device, browser, os"
+	cte += `, evp AS (SELECT ` + evpCols + ` FROM ev WHERE (type<>'engage' OR session_id IN (SELECT session_id FROM ev WHERE type='pageview')))
 `
-	var total int
-	if err := db.QueryRow(cte+`SELECT count(DISTINCT person) FROM evp`+where, append(append([]any{}, args...), qargs...)...).
-		Scan(&total); err != nil {
-		return nil, 0, fmt.Errorf("visitors total: %w", err)
-	}
+	// total is the people count before LIMIT: one window count, so ev is read once. A page past
+	// the end returns no rows to carry it; that case counts on its own.
 	sqlText := cte + `, px AS (SELECT person, max(ident) AS ident, min(ts) AS first, max(` + activeEnd + `) AS last,
     count(DISTINCT CASE WHEN session_id IN (SELECT session_id FROM ev WHERE type='pageview') THEN session_id END) AS visits,
-    sum(type='pageview') AS pages FROM evp` + where + ` GROUP BY person),
+    sum(type='pageview') AS pages FROM evp` + where + ` GROUP BY person HAVING pages>0),
   pd AS (SELECT person, sum(d) AS dur FROM (SELECT person, max(` + activeEnd + `)-min(ts) AS d FROM evp GROUP BY session_id
     HAVING sum(type='pageview')>0) GROUP BY person),
   pl AS (SELECT person, max(ts), country, region, city, device, browser, os FROM evp GROUP BY person),
   ps AS (SELECT person, min(ts), ` + sourceNameExpr + ` AS source FROM ev WHERE type='pageview' GROUP BY person)
 SELECT px.person, px.ident, px.first, px.last, px.visits, px.pages, coalesce(pd.dur,0), pl.country, pl.region, pl.city,
-  pl.device, pl.browser, pl.os, coalesce(ps.source,'Direct')
+  pl.device, pl.browser, pl.os, coalesce(ps.source,'Direct'), count(*) OVER ()
 FROM px JOIN pl USING(person) LEFT JOIN pd USING(person) LEFT JOIN ps USING(person)
 ORDER BY ` + order + `, px.person LIMIT ? OFFSET ?`
 	qa := append(append(append([]any{}, args...), qargs...), clampLimit(p.Limit), offsetOf(p))
 	out := []Person{}
+	total := 0
 	err = forRows(db, sqlText, qa, func(r *sql.Rows) error {
 		var v Person
 		if err := r.Scan(&v.Person, &v.Identified, &v.FirstSeen, &v.LastSeen, &v.Visits, &v.Pages, &v.DurationMs,
-			&v.Country, &v.Region, &v.City, &v.Device, &v.Browser, &v.OS, &v.Source); err != nil {
+			&v.Country, &v.Region, &v.City, &v.Device, &v.Browser, &v.OS, &v.Source, &total); err != nil {
 			return err
 		}
 		v.Label = personLabel(v.Person, v.Identified)
@@ -129,6 +126,12 @@ ORDER BY ` + order + `, px.person LIMIT ? OFFSET ?`
 	})
 	if err != nil {
 		return nil, 0, fmt.Errorf("visitors: %w", err)
+	}
+	if len(out) == 0 && offsetOf(p) > 0 {
+		if err := db.QueryRow(cte+`SELECT count(*) FROM (SELECT person FROM evp`+where+` GROUP BY person HAVING sum(type='pageview')>0)`, append(append([]any{}, args...), qargs...)...).
+			Scan(&total); err != nil {
+			return nil, 0, fmt.Errorf("visitors total: %w", err)
+		}
 	}
 	if err := addVisitsTotal(db, p.Site, out); err != nil {
 		return nil, 0, err

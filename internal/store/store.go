@@ -125,8 +125,9 @@ func migrate(db *sql.DB) error {
 const (
 	verDwell   = 1 // events.dwell_ms
 	verIndexes = 2 // trimmed index set
+	verEndIdx  = 3 // events_site_end, for the live reports' fold lookback
 	// schemaVersion is the PRAGMA user_version this binary migrates to: the newest step.
-	schemaVersion = verIndexes
+	schemaVersion = verEndIdx
 )
 
 // trimmedIndexes are the v1 index names the v2 step drops. A downgraded binary recreates them.
@@ -194,6 +195,18 @@ func migrateVersioned(db *sql.DB) error {
 			}
 		}
 		if err := done(verIndexes); err != nil {
+			return err
+		}
+	}
+	if v < verEndIdx {
+		// Where a folded pageview's dwell ends. The live reports ask for the pageviews still in dwell
+		// at the start of their window; this index answers that with a range seek, not a day scan.
+		// ts is the third column so a query can drop rows by ts without reading the table. The expression
+		// must match query.activeEnd.
+		if _, err := db.Exec(`CREATE INDEX IF NOT EXISTS events_site_end ON events(site_id, (ts+dwell_ms), ts) WHERE dwell_ms>0`); err != nil {
+			return fmt.Errorf("migrate to v3: %w", err)
+		}
+		if err := done(verEndIdx); err != nil {
 			return err
 		}
 	}

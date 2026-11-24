@@ -18,14 +18,14 @@ func Live(db *sql.DB, p Params) (LiveResult, error) {
 	lp := p
 	lp.Actor = "" // Live is people only, whatever actor says
 	from := now - onlineWindow.Milliseconds()
-	lp.From, lp.To = from-foldLookback, now
+	lp.From, lp.To, lp.lookback, lp.matEv = from, now, foldLookback, true
 	cte, args, err := base(lp)
 	if err != nil {
 		return res, err
 	}
 	// Active is what happened in the last five minutes: a row at ts, or a pageview whose folded
 	// engage reaches ts+dwell_ms. ev reaches a day further back to find those pageviews.
-	cte += `, ap AS (SELECT * FROM ev WHERE ` + activeEnd + `>=?)
+	cte += `, ap AS MATERIALIZED (SELECT * FROM ev WHERE ` + activeEnd + `>=?)
 `
 	args = append(args, from)
 	// The landing source of each active session, read from the session's whole history.
