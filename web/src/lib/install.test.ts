@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { CheckItem, InstallCheck } from '../api/types'
-import { FRAMEWORKS, installStatus, normalizeDomain, parseOrigins, snippet, suggestId, testVisitArrived } from './install'
+import { FRAMEWORKS, REASON, installStatus, normalizeDomain, parseOrigins, snippet, suggestId, testVisitArrived } from './install'
 
 const HOST = 'https://stats.example.com'
 
@@ -39,6 +39,21 @@ describe('installStatus', () => {
     expect(b.title).toBe('Blocked: your Content Security Policy blocks Trail')
     expect(b.code).toBe('csp_blocked')
     expect(b.tone).toBe('bad')
+  })
+  it('receiving with warnings is a warn tone, never Blocked', () => {
+    const one = installStatus(chk('receiving', [item('page', 'pass'), item('origin', 'warn', 'origin_not_allowed')], 5))
+    expect(one).toEqual({ tone: 'warn', title: 'Receiving data, with a warning: this origin is not allowed', code: 'origin_not_allowed' })
+    const two = installStatus(chk('receiving', [item('origin', 'warn', 'origin_not_allowed'), item('robots', 'warn', 'robots_blocks_ai')], 5))
+    expect(two.title).toBe('Receiving data, with 2 warnings')
+    expect(two.code).toBe('origin_not_allowed')
+    expect(installStatus(chk('receiving', [item('page', 'pass')], 5)).tone).toBe('ok')
+  })
+  it('waiting with warnings keeps the waiting line and no code', () => {
+    expect(installStatus(chk('waiting', [item('script', 'warn', 'script_missing')]))).toEqual({ tone: 'wait', title: 'Waiting for first event', code: null })
+  })
+  it('has copy for every reason code', () => {
+    for (const c of ['api_missing', 'bot_protection', 'robots_blocks_ai', 'proxy_unsigned', 'proxy_bad_signature'] as const) expect(REASON[c].length).toBeGreaterThan(5)
+    expect(REASON.script_missing).toBe('no Trail script in the server HTML')
   })
   it('has no state before the first check arrives', () => {
     expect(installStatus(undefined).title).toBe('Checking the install')

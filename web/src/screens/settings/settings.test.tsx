@@ -49,7 +49,7 @@ import { FRAMEWORKS, snippet } from '../../lib/install'
 const site = (id: string, extra: Partial<Site> = {}): Site => ({
   id, domain: `${id}.trail.dev`, origins: [], created: 0, lastEventAt: 1, events24h: 3, features: { revenue: false, crawlers: false, currency: 'USD' }, ...extra,
 })
-const ck = (id: InstallCheck['checks'][number]['id'], status: 'pass' | 'fail' | 'pending', code: InstallCheck['checks'][number]['code'] = 'ok', fix = '') =>
+const ck = (id: InstallCheck['checks'][number]['id'], status: 'pass' | 'fail' | 'warn' | 'pending', code: InstallCheck['checks'][number]['code'] = 'ok', fix = '') =>
   ({ id, label: `${id} check`, status, code, detail: `${id} detail`, fix })
 function visit(url: string) {
   history.replaceState(null, '', url)
@@ -170,6 +170,22 @@ describe('Install', () => {
     await flush()
     expect(screen.getByTestId('install-state').textContent).toContain('Receiving data')
     expect(screen.getByRole('link', { name: /watch it live/i }).getAttribute('href')).toContain('/live?site=docs')
+  })
+})
+
+describe('Install with warnings', () => {
+  it('receiving with a warning shows it and still offers Watch it live', async () => {
+    H.check = { state: 'receiving', checkedAt: 1, lastEventAt: 5, checks: [ck('page', 'pass'), ck('origin', 'warn', 'origin_not_allowed', 'Add *-acme.vercel.app to the allowed origins')] }
+    visit('/settings/install?site=docs')
+    render(<SettingsScreen />)
+    await flush()
+    const st = screen.getByTestId('install-state')
+    expect(st.getAttribute('data-tone')).toBe('warn')
+    expect(st.textContent).toContain('with a warning')
+    expect(st.textContent).toContain('one thing to look at')
+    expect(st.textContent).not.toContain('Blocked')
+    expect(screen.getByRole('link', { name: /watch it live/i })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Copy the fix for origin check' })).toBeTruthy()
   })
 })
 

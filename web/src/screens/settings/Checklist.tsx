@@ -1,4 +1,4 @@
-// Debug my install (plan F5-2): the six checks from /api/sites/{id}/check, each with status, reason code, detail and fix.
+// Debug my install (plan F5-2): the checks from /api/sites/{id}/check, each with status, reason code, detail and fix.
 import { Check, Clock, RefreshCw, TriangleAlert, X, ListChecks } from 'lucide-react'
 import type { CheckItem, InstallCheck } from '../../api/types'
 import { Button } from '../../ui/button'
@@ -18,7 +18,7 @@ export function Checklist({ check, busy, onRerun, note }: { check: InstallCheck 
     <Card
       icon={ListChecks}
       title="Debug my install"
-      sub="Six checks, run from this server against your live site. Nothing is stored."
+      sub="Run from this server against your live site. Nothing is stored."
       actions={
         <Button size="sm" onClick={onRerun} disabled={busy}>
           <RefreshCw size={14} aria-hidden="true" />
@@ -53,7 +53,7 @@ export function Checklist({ check, busy, onRerun, note }: { check: InstallCheck 
                       {c.detail && <p>{c.detail}</p>}
                       {c.fix && c.status !== 'pass' && <p className="fix">{c.fix}</p>}
                     </div>
-                    {c.fix && c.status === 'fail' ? <CopyButton text={c.fix} label={`Copy the fix for ${c.label}`} /> : <span />}
+                    {c.fix && (c.status === 'fail' || c.status === 'warn') ? <CopyButton text={c.fix} label={`Copy the fix for ${c.label}`} /> : <span />}
                   </li>
                 )
               })}
