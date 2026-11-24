@@ -637,3 +637,29 @@ func TestQueueFull503(t *testing.T) {
 		t.Fatalf("rows=%d, want 10000", n)
 	}
 }
+
+func TestBatchWrongTypeElement(t *testing.T) {
+	st, h := setup(t)
+	bad := `{"s":"s1","t":"pageview","a":"a","uid":123,"u":"https://example.com/"}`
+	w := post(h, "["+pageview+","+bad+","+pageview+"]")
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("status %d, want 204", w.Code)
+	}
+	if got := w.Header().Get("X-Trail-Accepted"); got != "2" {
+		t.Errorf("accepted %q, want 2", got)
+	}
+	if got := w.Header().Get("X-Trail-Rejected"); got != "1" {
+		t.Errorf("rejected %q, want 1", got)
+	}
+	if n := rows(t, st); n != 2 {
+		t.Fatalf("rows=%d, want 2", n)
+	}
+}
+
+func TestBatchAllWrongType400(t *testing.T) {
+	_, h := setup(t)
+	bad := `{"s":"s1","t":"pageview","a":"a","e":"x","u":"https://example.com/"}`
+	if w := post(h, "["+bad+","+bad+"]"); w.Code != http.StatusBadRequest {
+		t.Fatalf("status %d, want 400", w.Code)
+	}
+}

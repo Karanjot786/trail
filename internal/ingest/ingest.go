@@ -202,7 +202,7 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "read error", http.StatusBadRequest)
 		return
 	}
-	ps, msg := decode(body)
+	ps, bad, msg := decode(body)
 	// Who the client is, decided once. The site id is the one the proxy's
 	// HMAC covers; a forward for an unknown site simply fails to verify.
 	var claimed string
@@ -266,7 +266,7 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, firstErr, http.StatusBadRequest)
 		return
 	}
-	rejected := len(ps) - len(evs)
+	rejected := bad + len(ps) - len(evs)
 	ps = valid
 
 	// Private events get a server-side identity. One request has one IP and
@@ -318,26 +318,40 @@ func sourceHost(r *http.Request) string {
 	return u.Hostname()
 }
 
-// decode parses a single event object or an array of 1 to 50 of them.
-func decode(body []byte) ([]payload, string) {
+// decode parses a single event object or an array of 1 to 50 of them. Array
+// elements decode one by one: bad counts the ones that did not, so a wrong-typed
+// field rejects its own event and not the batch. msg is set when nothing decoded.
+func decode(body []byte) (ps []payload, bad int, msg string) {
 	if t := bytes.TrimSpace(body); len(t) > 0 && t[0] == '[' {
-		var ps []payload
-		if err := json.Unmarshal(t, &ps); err != nil {
-			return nil, "malformed json"
+		var raws []json.RawMessage
+		if err := json.Unmarshal(t, &raws); err != nil {
+			return nil, 0, "malformed json"
 		}
 		switch {
-		case len(ps) == 0:
-			return nil, "empty batch"
-		case len(ps) > maxBatch:
-			return nil, "batch too large"
+		case len(raws) == 0:
+			return nil, 0, "empty batch"
+		case len(raws) > maxBatch:
+			return nil, 0, "batch too large"
 		}
-		return ps, ""
+		ps = make([]payload, 0, len(raws))
+		for _, raw := range raws {
+			var p payload
+			if err := json.Unmarshal(raw, &p); err != nil {
+				bad++
+				continue
+			}
+			ps = append(ps, p)
+		}
+		if len(ps) == 0 {
+			return nil, bad, "malformed json"
+		}
+		return ps, bad, ""
 	}
 	var p payload
 	if err := json.Unmarshal(body, &p); err != nil {
-		return nil, "malformed json"
+		return nil, 1, "malformed json"
 	}
-	return []payload{p}, ""
+	return []payload{p}, 0, ""
 }
 
 func validate(p *payload, knownSite bool) string {
