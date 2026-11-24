@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS events (
   props TEXT NOT NULL DEFAULT '',
   engaged_ms INTEGER NOT NULL DEFAULT 0,
   scroll_pct INTEGER NOT NULL DEFAULT 0,
+  dwell_ms INTEGER NOT NULL DEFAULT 0,
   country TEXT NOT NULL DEFAULT '',
   region TEXT NOT NULL DEFAULT '',
   city TEXT NOT NULL DEFAULT '',
@@ -42,7 +43,6 @@ CREATE TABLE IF NOT EXISTS identity_map (
 
 CREATE INDEX IF NOT EXISTS events_site_ts ON events(site_id, ts);
 CREATE INDEX IF NOT EXISTS events_site_anon_ts ON events(site_id, anon_id, ts);
-CREATE INDEX IF NOT EXISTS events_site_user_ts ON events(site_id, user_id, ts);
 
 CREATE TABLE IF NOT EXISTS goals(
   id INTEGER PRIMARY KEY,
@@ -63,7 +63,7 @@ CREATE TABLE IF NOT EXISTS sites(
 );
 
 -- Dashboard v3 additions (plan §0.7). Report indexes, then the small metadata tables.
-CREATE INDEX IF NOT EXISTS events_site_type_name_ts ON events(site_id, type, name, ts);
+-- events_site_name_ts (partial, named events only) replaces events_site_type_name_ts and events_site_user_ts: store.migrateVersioned, step 2.
 -- events_site_session_ts replaces events_site_session(site_id, session_id); store.migrate drops the old one.
 CREATE INDEX IF NOT EXISTS events_site_session_ts ON events(site_id, session_id, ts);
 

@@ -224,6 +224,16 @@ describe('report sheets', () => {
     expect(dialog.textContent).toContain('/api/v1/breakdown?')
   })
 
+  it('full report under share has no export link and no API section', async () => {
+    history.replaceState(null, '', '/share/shr_abc/?site=demo&range=7d&rep=sources:sources')
+    const r = render(<FullReportSheet />)
+    const dialog = await r.findByRole('dialog', { name: 'Sources' })
+    await waitFor(() => expect(within(dialog).getAllByRole('row').length).toBeGreaterThanOrEqual(11))
+    expect(within(dialog).queryByText(/Export CSV/)).toBeNull()
+    expect(dialog.textContent).not.toContain('Same query over the API')
+    expect(dialog.textContent).not.toContain('/api/v1/breakdown?')
+  })
+
   it('the dr= sheet shows the row numbers and filters the dashboard', async () => {
     history.replaceState(null, '', '/?site=demo&range=7d&dr=source|Google')
     const r = render(<RowReportSheet />)

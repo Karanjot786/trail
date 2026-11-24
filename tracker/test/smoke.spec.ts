@@ -1,11 +1,11 @@
 import { test, expect, type Page } from '@playwright/test';
 
 type Ev = Record<string, any>;
-const WIRE = new Set(['s', 't', 'a', 'ss', 'uid', 'u', 'r', 'rt', 'n', 'd', 'e', 'sc', 'env', 'w', 'm', 'rc']);
+const WIRE = new Set(['s', 't', 'a', 'ss', 'uid', 'u', 'r', 'rt', 'n', 'd', 'e', 'sc', 'env', 'w', 'm', 'rc', 'c', 'k']);
 
 // Intercept the ingest endpoint (fetch and sendBeacon): record every event of every body
 // (one object or a batch array) and every request; answer 204, or the next of `statuses`.
-async function capture(page: Page, statuses: number[] = []) {
+async function capture(page: Page, statuses: number[] = [], headers: Record<string, string> = {}, delay = 0) {
   const events: Ev[] = [];
   const reqs: Ev[][] = [];
   const types: string[] = [];
@@ -16,7 +16,8 @@ async function capture(page: Page, statuses: number[] = []) {
     const batch = Array.isArray(body) ? body : [body];
     reqs.push(batch);
     events.push(...batch);
-    await route.fulfill({ status: statuses.shift() ?? 204 });
+    if (delay && !reqs.slice(1).length) await new Promise((r) => setTimeout(r, delay)); // first request only
+    await route.fulfill({ status: statuses.shift() ?? 204, headers });
   });
   return { events, reqs, types, of: (t: string) => events.filter((e) => e.t === t) };
 }
@@ -44,8 +45,8 @@ test('pageview on load: wire contract, text/plain, keepalive transport', async (
   expect(Object.keys(pv).every((k) => WIRE.has(k))).toBe(true);
   expect(pv).toMatchObject({ s: 'demo', t: 'pageview', env: 'production', w: 1 });
   expect(pv.u).toBe('http://127.0.0.1:4173/index.html?utm_source=tw');
-  expect(pv.a).toMatch(/^[0-9a-f-]{36}$/);
-  expect(pv.ss).toMatch(/^[0-9a-f-]{36}$/);
+  expect(pv.a).toMatch(/^[0-9a-f]{14,41}$/);
+  expect(pv.ss).toMatch(/^[0-9a-f]{14,41}$/);
   expect(c.types[0]).toContain('text/plain');
   const cookie = await page.evaluate(() => document.cookie);
   expect(cookie).toContain('_t_id=' + pv.a);
@@ -89,6 +90,31 @@ test('spa: pushState -> pageview, popstate -> pageview, hash-only -> none', asyn
   await page.evaluate(() => history.go(-3));
   await expect.poll(() => c.of('pageview').length).toBe(4);
   expect(c.of('pageview')[3].u).toMatch(/\/a$/);
+});
+
+test('event age: a track() call waiting for the leave beacon reports its age', async ({ page }) => {
+  await page.clock.install();
+  const c = await capture(page);
+  await page.goto('/index.html');
+  await expect.poll(() => c.of('pageview').length).toBe(1);
+  await page.evaluate(() => (window as any).trail.track('x'));
+  await page.clock.runFor(60000);
+  await hide(page);
+  await expect.poll(() => c.of('event').length).toBe(1);
+  const age = c.of('event')[0].c;
+  expect(age).toBeGreaterThanOrEqual(60000);
+  expect(age).toBeLessThan(61000);
+  expect(c.of('pageview')[0].c).toBeLessThan(1000);
+});
+
+test('user prop named c is not rewritten', async ({ page }) => {
+  const c = await capture(page);
+  await page.goto('/index.html');
+  await expect.poll(() => c.of('pageview').length).toBe(1);
+  await page.evaluate(() => (window as any).trail.track('x', { c: 5 }));
+  await hide(page);
+  await expect.poll(() => c.of('event').length).toBe(1);
+  expect(c.of('event')[0].d.c).toBe(5);
 });
 
 test('engage on hide sends e>0 and sc', async ({ page }) => {
@@ -372,6 +398,19 @@ test.describe('delivery: batching, beacon, retry', () => {
     expect(await page.evaluate(() => localStorage.getItem('_t_q'))).toBeNull();
   });
 
+  test('full mode: resent _t_q events report their age', async ({ page }) => {
+    await page.clock.install();
+    await page.route('**/_t/e', (r) => r.abort());
+    await page.goto('/index.html');
+    await expect.poll(() => page.evaluate(() => localStorage.getItem('_t_q'))).toContain('pageview');
+    await page.unroute('**/_t/e');
+    const c = await capture(page);
+    await page.clock.fastForward('02:00:00');
+    await page.reload();
+    await expect.poll(() => c.of('pageview').length).toBe(2);
+    expect(c.of('pageview').find((e) => e.rc >= 1)?.c).toBeGreaterThanOrEqual(7200000);
+  });
+
   test('consent(false) queued before load stops the persisted-queue resend', async ({ page }) => {
     await page.route('**/_t/e', (r) => r.abort());
     await page.goto('/full.html');
@@ -518,7 +557,7 @@ test.describe('modes and consent', () => {
     await trail(page, 'track', 'x');
     await hide(page);
     await expect.poll(() => c.of('event').length).toBe(1);
-    expect(c.of('event')[0]).toMatchObject({ m: 'f', a: expect.stringMatching(/^[0-9a-f-]{36}$/) });
+    expect(c.of('event')[0]).toMatchObject({ m: 'f', a: expect.stringMatching(/^[0-9a-f]{14,41}$/) });
     await page.reload();
     await expect.poll(() => c.of('pageview').length).toBe(2);
     expect(c.of('pageview')[1]).toMatchObject({ m: 'f', a: c.of('event')[0].a });
@@ -542,7 +581,7 @@ test.describe('modes and consent', () => {
     await trail(page, 'identify', 'u1');
     await hide(page);
     await expect.poll(() => c.of('identify').length).toBe(1);
-    expect(c.of('identify')[0]).toMatchObject({ m: 'f', uid: 'u1', a: expect.stringMatching(/^[0-9a-f-]{36}$/) });
+    expect(c.of('identify')[0]).toMatchObject({ m: 'f', uid: 'u1', a: expect.stringMatching(/^[0-9a-f]{14,41}$/) });
     expect(await page.evaluate(() => localStorage.getItem('_t_c'))).toBe('1');
   });
 
@@ -600,7 +639,7 @@ test.describe('modes and consent', () => {
     const c = await capture(page);
     await page.goto('/full.html');
     await expect.poll(() => c.of('pageview').length).toBe(1);
-    expect(c.of('pageview')[0]).toMatchObject({ m: 'f', a: expect.stringMatching(/^[0-9a-f-]{36}$/) });
+    expect(c.of('pageview')[0]).toMatchObject({ m: 'f', a: expect.stringMatching(/^[0-9a-f]{14,41}$/) });
     expect(await writes(page)).toEqual(expect.arrayContaining([expect.stringMatching(/^cookie:_t_id=/), 'ls.setItem:_t_id', 'ls.setItem:_t_s']));
   });
 
@@ -686,5 +725,82 @@ test.describe('modes and consent', () => {
     expect(c.reqs[1].map((e) => e.t).sort()).toEqual(['engage', 'error', 'outbound']);
     expect(c.events.every((e) => e.m === 'p' && e.a === '')).toBe(true);
     expect(await writes(page)).toEqual([]);
+  });
+});
+
+test('prerender: no pageview until activation, then exactly one', async ({ page }) => {
+  const c = await capture(page);
+  await page.goto('/prerender.html');
+  await page.waitForTimeout(300);
+  expect(c.of('pageview')).toHaveLength(0);
+  await page.evaluate(() => {
+    (window as any).__pr = false;
+    document.dispatchEvent(new Event('prerenderingchange'));
+  });
+  await expect.poll(() => c.of('pageview').length).toBe(1);
+  await page.waitForTimeout(200);
+  expect(c.of('pageview')).toHaveLength(1);
+  expect(c.of('pageview')[0].rt).toBeUndefined();
+  expect(c.of('pageview')[0].r).toBe(await page.evaluate(() => document.referrer));
+});
+
+test.describe('data-hash (t.x.js)', () => {
+  test('hashchange and pushState hash navigations are pageviews', async ({ page }) => {
+    const c = await capture(page);
+    await page.goto('/hash.html');
+    await expect.poll(() => c.of('pageview').length).toBe(1);
+    await page.evaluate(() => (location.hash = '#/a'));
+    await expect.poll(() => c.of('pageview').length).toBe(2);
+    await page.evaluate(() => history.pushState(null, '', '#/b'));
+    await expect.poll(() => c.of('pageview').length).toBe(3);
+    await page.waitForTimeout(200);
+    expect(c.of('pageview')).toHaveLength(3);
+    expect(c.of('pageview')[2].u).toMatch(/#\/b$/);
+  });
+
+  test('in-page anchors are not pageviews', async ({ page }) => {
+    const c = await capture(page);
+    await page.goto('/hash.html');
+    await expect.poll(() => c.of('pageview').length).toBe(1);
+    await page.evaluate(() => (location.hash = '#section'));
+    await page.waitForTimeout(300);
+    expect(c.of('pageview')).toHaveLength(1);
+  });
+
+  test('without data-hash, hash routes are not pageviews', async ({ page }) => {
+    const c = await capture(page);
+    await page.goto('/full.html');
+    await expect.poll(() => c.of('pageview').length).toBe(1);
+    await page.evaluate(() => (location.hash = '#/a'));
+    await page.waitForTimeout(300);
+    expect(c.of('pageview')).toHaveLength(1);
+  });
+});
+
+test.describe('visit token', () => {
+  test('private: pageview response x-trail-k is echoed as k on later events', async ({ page }) => {
+    const c = await capture(page, [], { 'x-trail-k': 'TOK', 'access-control-expose-headers': 'x-trail-k' });
+    await page.goto('/private.html');
+    await expect.poll(() => c.of('pageview').length).toBe(1);
+    expect(c.of('pageview')[0]).not.toHaveProperty('k'); // no k before a token arrives
+    await expect.poll(() => page.evaluate(() => 1)).toBe(1);
+    await page.waitForTimeout(200);
+    await page.evaluate(() => (window as any).trail.track('x'));
+    await hide(page);
+    await expect.poll(() => c.of('event').length).toBe(1);
+    expect(c.of('event')[0].k).toBe('TOK');
+    expect(c.of('engage').every((e) => e.k === 'TOK')).toBe(true);
+  });
+
+  test('k from a late pageview response is still echoed', async ({ page }) => {
+    const c = await capture(page, [], { 'x-trail-k': 'LATE' }, 500);
+    await page.goto('/private.html');
+    await expect.poll(() => c.of('pageview').length).toBe(1);
+    await page.evaluate(() => history.pushState({}, '', '/index.html?p=2')); // before the response arrives
+    await page.waitForTimeout(900);
+    await page.evaluate(() => (window as any).trail.track('later'));
+    await hide(page);
+    await expect.poll(() => c.of('event').length).toBe(1);
+    expect(c.of('event')[0].k).toBe('LATE');
   });
 });

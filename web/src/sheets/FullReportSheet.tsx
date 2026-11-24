@@ -6,7 +6,6 @@ import type { TableColumn } from '../data/DataTable'
 import { cellText, MONO_DIMS, PANEL_TITLES, panelTabs, rowLabel, toRows } from '../data/columns'
 import { curlFor } from '../data/Panel'
 import LazyTable from '../screens/activity/LazyTable'
-import { viewerTz } from '../shell/labels'
 import { useSite } from '../shell/useSite'
 import { useStats } from '../shell/useStats'
 import { apiQuery } from '../state/url'
@@ -35,7 +34,8 @@ function FullReport({ panel, tab: tabId }: { panel: string; tab: string }) {
   const ctx = { goalName: stats.data?.conv?.name ?? null, currency: site?.features.currency || 'USD' }
   const tabs = panelTabs(panel, ctx)
   const tab = tabs.find((t) => t.value === tabId) ?? tabs[0]
-  const q = apiQuery(s, viewerTz())
+  const isShare = s.prefix.startsWith('/share/')
+  const q = apiQuery(s)
   const r = useQuery(`breakdown-all|${tab?.dim}|${q}|${s.prefix}`, async (sig) => api.breakdown(q, tab.dim, { limit: 1000 }, sig), { enabled: !!tab })
   if (!tab) return null
   const rows = toRows(r.data?.rows ?? [], tab.dim, tab.columns[0], stats.data?.visitors ?? null)
@@ -78,16 +78,18 @@ function FullReport({ panel, tab: tabId }: { panel: string; tab: string }) {
         onRetry={r.refetch}
         getSearchText={(row) => row.label}
         initialSort={{ id: tab.columns[0]?.id ?? 'name', desc: true }}
-        exportHref={api.exportUrl('/breakdown', xq, 'csv')}
+        exportHref={isShare ? undefined : api.exportUrl('/breakdown', xq, 'csv')}
         onRowOpen={(row) => navigate({ sheet: { kind: 'row', dim: row.dim, key: row.key } })}
         noun={tab.label.toLowerCase()}
         caption={tab.label}
         emptyState={<EmptyState title="Nothing in this range" body="Try a longer range or remove a filter." />}
       />
-      <section className="rep-api" aria-labelledby="rep-api-h">
-        <h3 id="rep-api-h">Same query over the API</h3>
-        <CodeBlock code={curlFor(q, tab.dim, location.origin)} lang="bash" />
-      </section>
+      {!isShare && (
+        <section className="rep-api" aria-labelledby="rep-api-h">
+          <h3 id="rep-api-h">Same query over the API</h3>
+          <CodeBlock code={curlFor(q, tab.dim, location.origin)} lang="bash" />
+        </section>
+      )}
     </div>
   )
 }

@@ -1,0 +1,5 @@
+{
+  "name": "www",
+  "private": true,
+  "dependencies": { "next": "16.2.9", "@vercel/analytics": "^1.0.0", "react": "^19.0.0", "react-dom": "^19.0.0" }
+}

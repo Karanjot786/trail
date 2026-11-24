@@ -66,10 +66,12 @@ export function inject(o: InjectProps): void {
   if (w.__trail || w.document.querySelector(`script[${MARK}]`)) return;
   const s: HTMLScriptElement = w.document.createElement('script');
   s.defer = true;
-  s.src = o.src || (o.mode === 'private' ? '/_t/t.p.js' : '/_t/t.js');
+  const src = o.src || (o.mode === 'private' ? '/_t/t.p.js' : '/_t/t.js');
+  s.src = src;
   s.setAttribute(MARK, '');
   s.dataset.site = o.site;
-  if (o.api) s.dataset.api = o.api;
+  // data-api follows src: /t/t.js posts to /t/e, https://x/_t/t.p.js to https://x/_t/e.
+  s.dataset.api = o.api || src.replace(/[^/]*$/, 'e');
   if (o.env) s.dataset.env = o.env;
   if (o.route) s.dataset.route = o.route;
   if (o.dev) s.dataset.dev = '';

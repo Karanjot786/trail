@@ -1,4 +1,4 @@
-// Trail opt-in extras, loaded by t.js / t.p.js only when data-vitals, -rage, -forms or -errors is set.
+// Trail opt-in extras, loaded by t.js / t.p.js only when data-vitals, -rage, -forms, -errors or -hash is set.
 // Reports through the core's window.__trail(type, extra); does nothing without it.
 ((w: any, d: Document) => {
   const D = (d.querySelector('script[data-site]') as HTMLScriptElement).dataset; // the core's tag
@@ -29,6 +29,24 @@
     const err = (m: string) => c < 5 && !seen[m] && ((seen[m] = 1), c++, send('error', { d: { message: m.slice(0, 200) } }));
     addEventListener('error', (e) => err(e.message));
     addEventListener('unhandledrejection', (e) => err('' + (e.reason?.message || e.reason)));
+  }
+  if (D.hash != null) {
+    // hash routers (#/x, #!/x): a hash change on an unchanged path is a pageview; the core counts path changes
+    let k = location.hash, P = location.pathname + location.search;
+    const c = () => {
+      const h = location.hash, p = location.pathname + location.search;
+      h != k && /^#!?\//.test(h) && p == P && w.trail.pageview();
+      k = h;
+      P = p;
+    };
+    addEventListener('hashchange', c);
+    for (const m of ['pushState', 'replaceState'] as const) {
+      const o = history[m];
+      history[m] = function () {
+        o.apply(this, arguments as any);
+        c();
+      };
+    }
   }
   if (D.forms != null)
     d.addEventListener('submit', (e: any) => send('form', { n: e.target.getAttribute('id') || e.target.getAttribute('name') }), true); // never field values; getAttribute because <input name="id"> shadows form.id

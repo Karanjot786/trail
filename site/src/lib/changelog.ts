@@ -1,6 +1,13 @@
 // Single source for the changelog page and the RSS feed.
 export const changes = [
   {
+    id: 'unreleased',
+    title: 'Unreleased',
+    date: '2026-11-24',
+    summary:
+      'Bug-fix pass. Everyone signed in is signed out once, the server no longer sets the _t_id cookie, the tracker sends each event’s age so delayed events keep their real time, and trail-analytics 0.3.0 adds a verify command. The first start folds history in the background after copying the database to <db>.pre-fold (about 1.2x free disk; trail compact and trail unfold exist for big files and rollback) and builds new indexes before accepting events. trail-analytics 0.3 proxies answer 503 when TRAIL_SITE or TRAIL_CRAWL_TOKEN is missing.',
+  },
+  {
     id: 'ai-visibility',
     title: 'AI visibility',
     date: '2026-11-21',

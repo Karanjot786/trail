@@ -3,11 +3,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import trail from './index';
 import { onRequest } from './middleware';
 
-function setup(output: 'static' | 'server', opts?: Parameters<typeof trail>[0], extra: Record<string, unknown> = {}) {
+function setup(output: 'static' | 'server', opts?: Parameters<typeof trail>[0], extra: Record<string, unknown> = {}, command: 'dev' | 'build' = 'build', root?: URL) {
   const calls = { mw: [] as any[], scripts: [] as [string, string][], warn: [] as string[], updates: [] as any[] };
   const integ = trail(opts);
   integ.hooks['astro:config:setup']!({
-    config: { output, ...extra },
+    command,
+    config: { output, ...(root ? { root } : {}), ...extra },
     updateConfig: (c: any) => calls.updates.push(c),
     addMiddleware: (m: any) => calls.mw.push(m),
     injectScript: (stage: string, code: string) => calls.scripts.push([stage, code]),
@@ -93,6 +94,15 @@ describe('astro middleware', () => {
     expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toMatchObject({ path: '/gone', status: 404 });
   });
 
+  it('middleware serves the stub without TRAIL_URL', async () => {
+    vi.stubEnv('TRAIL_URL', '');
+    const next = vi.fn();
+    const res = await onRequest(ctx('/t/t.js', 'Mozilla/5.0 Chrome/131') as any, next);
+    expect(res.status).toBe(200);
+    expect(res.headers.get('x-trail-error')).toBe('no-url');
+    expect(next).not.toHaveBeenCalled();
+  });
+
   it('uses the Cloudflare waitUntil and env when present', async () => {
     const waitUntil = vi.fn();
     vi.stubEnv('TRAIL_URL', '');
@@ -136,6 +146,43 @@ describe('astro dev env', () => {
     expect(process.env.TRAIL_SITE).toBe('shell');
     expect(process.env.OTHER).toBeUndefined();
     vi.unstubAllEnvs();
+    rmSync(d, { recursive: true });
+  });
+});
+
+describe('astro build env', () => {
+  afterEach(() => vi.unstubAllEnvs());
+  it('astro static build reads TRAIL_URL from .env', async () => {
+    const { mkdtempSync, writeFileSync, rmSync } = await import('node:fs');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const { pathToFileURL } = await import('node:url');
+    const d = mkdtempSync(join(tmpdir(), 'astro-build-env-'));
+    writeFileSync(join(d, '.env'), 'TRAIL_URL=https://from.env\nTRAIL_SITE=envsite\n');
+    writeFileSync(join(d, '.env.development'), 'TRAIL_URL=https://dev.only\n');
+    vi.stubEnv('TRAIL_URL', '');
+    vi.stubEnv('TRAIL_SITE', '');
+    const calls = setup('static', undefined, {}, 'build', pathToFileURL(d + '/'));
+    expect(calls.scripts[0][1]).toContain('s.src="https://from.env/_t/t.js"');
+    expect(calls.scripts[0][1]).toContain('s.dataset.site="envsite"');
+    rmSync(d, { recursive: true });
+  });
+
+  it('build prefers .env.production over .env and never overrides process.env', async () => {
+    const { mkdtempSync, writeFileSync, rmSync } = await import('node:fs');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const { pathToFileURL } = await import('node:url');
+    const { loadDevEnv } = await import('./index');
+    const d = mkdtempSync(join(tmpdir(), 'astro-build-env2-'));
+    writeFileSync(join(d, '.env'), 'TRAIL_URL=https://base\nTRAIL_SITE=base\n');
+    writeFileSync(join(d, '.env.production'), 'TRAIL_URL=https://prod\n');
+    writeFileSync(join(d, '.env.production.local'), 'TRAIL_SITE=local\n');
+    vi.stubEnv('TRAIL_URL', '');
+    vi.stubEnv('TRAIL_SITE', 'shell');
+    loadDevEnv(pathToFileURL(d + '/'), 'production');
+    expect(process.env.TRAIL_URL).toBe('https://prod');
+    expect(process.env.TRAIL_SITE).toBe('shell');
     rmSync(d, { recursive: true });
   });
 });

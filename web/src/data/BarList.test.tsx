@@ -156,6 +156,16 @@ describe('Panel', () => {
     expect(queryAllByRole('button', { name: /^Filter by/ })).toHaveLength(0)
   })
 
+  it('share hides export and API menu items', async () => {
+    siteCtx.share = { site: { id: 'demo' } as ShareMeta['site'], state: '', hideRevenue: false, expires: null }
+    const { findByRole, queryByRole, getByRole } = render(<Panel id="sources" title="Sources" tabs={panelTabs('sources')} />)
+    await findByRole('button', { name: 'src0' })
+    expect(queryByRole('menuitem', { name: 'Export CSV' })).toBeNull()
+    expect(queryByRole('menuitem', { name: 'Export JSON' })).toBeNull()
+    expect(queryByRole('menuitem', { name: 'Copy as API call' })).toBeNull()
+    expect(getByRole('menuitem', { name: 'Open full report' })).toBeTruthy()
+  })
+
   it('keeps all rows when the exit tab sorts by "Loses people most"', async () => {
     history.replaceState(null, '', '/?site=demo&p.pages=exit')
     apiMock.breakdown.mockResolvedValue({ rows: Array.from({ length: 12 }, (_, i) => row(`/p${i}`, 10, { views: 30, exits: 3, exitRate: i / 12 })), total: 12 })

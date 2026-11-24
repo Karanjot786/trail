@@ -61,6 +61,7 @@ export default function Install() {
     check.refetch()
     toast(`Opened ${site.domain} in a new tab. Waiting for the visit…`)
   }
+  const warnCount = check.data?.checks.filter((x) => x.status === 'warn' || x.status === 'fail').length ?? 0
   const ok = test && 'result' in test && test.result === 'ok'
   const title = ok ? 'Test visit received' : st.title
   const body = !live
@@ -73,6 +74,8 @@ export default function Install() {
           ? 'No visit arrived in 60 seconds. The checks below say why.'
           : st.tone === 'ok'
             ? 'Everything looks healthy.'
+            : st.tone === 'warn'
+              ? `Events arrive. The checklist below has ${warnCount === 1 ? 'one thing' : `${warnCount} things`} to look at.`
             : st.tone === 'bad'
               ? `${check.data?.lastEventAt == null ? 'Not receiving events yet. ' : ''}The fix is in the checklist below.`
               : `This updates by itself once the snippet is live. Load any page of ${site.domain}, or send a test visit.`
@@ -125,7 +128,7 @@ export default function Install() {
               </p>
             </div>
             {live &&
-              (ok || (st.tone === 'ok' && !testing) ? (
+              (ok || ((st.tone === 'ok' || st.tone === 'warn') && !testing) ? (
                 <RouteLink className="btn btn-sm" patch={{ screen: 'live', tab: '', site: site.id, filters: [], sheet: null }}>
                   <Activity size={14} aria-hidden="true" />
                   Watch it live

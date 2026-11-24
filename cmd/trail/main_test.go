@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -193,6 +195,19 @@ func TestV1ReadAPI(t *testing.T) {
 	// Bearer tokens don't open the cookie API.
 	if w := do(h, "GET", "/api/stats?site=s", testWrite, ""); w.Code != http.StatusUnauthorized {
 		t.Errorf("cookie route with token: %d", w.Code)
+	}
+}
+
+func TestSiteAllRefusedForTokens(t *testing.T) {
+	h := testRoutes(t)
+	for _, path := range []string{"/api/v1/stats?site=all", "/api/v1/series?site=all&metric=visitors", "/api/v1/breakdown?site=all&dim=path"} {
+		w := do(h, "GET", path, testRead, "")
+		if w.Code != http.StatusBadRequest || !strings.Contains(w.Body.String(), "pick a site") {
+			t.Errorf("%s: %d %s", path, w.Code, w.Body)
+		}
+	}
+	if w := do(h, "GET", "/api/v1/sites/summary?site=all", testRead, ""); w.Code != 200 {
+		t.Errorf("sites/summary site=all: %d %s", w.Code, w.Body)
 	}
 }
 
@@ -410,7 +425,7 @@ func TestRoutesWireProxy(t *testing.T) {
 	if w.Code != http.StatusNoContent {
 		t.Fatalf("status %d", w.Code)
 	}
-	if got := storedRow(t, st, `country || '|' || region || '|' || city || '|' || geo_src`); got != "IN|MH|Mumbai|vercel" {
+	if got := storedRow(t, st, `country || '|' || region || '|' || city || '|' || geo_src`); got != "IN|Maharashtra|Mumbai|vercel" {
 		t.Fatalf("stored %q", got)
 	}
 }
@@ -440,5 +455,60 @@ func TestAgentListsEnv(t *testing.T) {
 		if _, err := parseAgentLists(v); err == nil || !strings.Contains(err.Error(), "TRAIL_AGENT_LISTS") {
 			t.Errorf("%q: err %v, want one naming TRAIL_AGENT_LISTS", v, err)
 		}
+	}
+}
+
+func TestLoginUsesForwardedClient(t *testing.T) {
+	h := testRoutes(t)
+	for i := range 6 {
+		r := httptest.NewRequest(http.MethodPost, "/api/login", strings.NewReader(`{"password":"nope"}`))
+		r.RemoteAddr = "10.0.0.2:5555" // a private proxy, trusted by default
+		r.Header.Set("X-Forwarded-For", fmt.Sprintf("203.0.113.%d", i%5+1))
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, r)
+		if w.Code != http.StatusUnauthorized {
+			t.Fatalf("login %d: %d, want 401 (keyed by the forwarded client, not the proxy)", i+1, w.Code)
+		}
+	}
+}
+
+func TestServerTZDefault(t *testing.T) {
+	t.Setenv("TRAIL_TZ", "")
+	if loc, err := serverTZ(); err != nil || loc.String() != "UTC" {
+		t.Fatalf("default: %v %v", loc, err)
+	}
+	t.Setenv("TRAIL_TZ", "Europe/Berlin")
+	if loc, err := serverTZ(); err != nil || loc.String() != "Europe/Berlin" {
+		t.Fatalf("berlin: %v %v", loc, err)
+	}
+	t.Setenv("TRAIL_TZ", "Nope/Zone")
+	if _, err := serverTZ(); err == nil || !strings.Contains(err.Error(), "TRAIL_TZ") {
+		t.Fatalf("bad zone: %v", err)
+	}
+}
+
+func TestCompactAndUnfoldSubcommands(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "t.db")
+	st, err := store.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	st.EnqueueBatch([]store.Event{
+		{SiteID: "s", Type: "pageview", AnonID: "a", SessionID: "x", Path: "/", TS: 1000},
+		{SiteID: "s", Type: "engage", AnonID: "a", SessionID: "x", Path: "/", TS: 6000, EngagedMs: 4000},
+	})
+	if err := st.Close(); err != nil {
+		t.Fatal(err)
+	}
+	var out bytes.Buffer
+	if err := runUnfold(path, &out); err != nil || !strings.Contains(out.String(), "Unfolded 1 engage rows") {
+		t.Fatalf("unfold: %v %q", err, out.String())
+	}
+	out.Reset()
+	if err := runCompact(path, &out); err != nil || !strings.Contains(out.String(), "Compacted") {
+		t.Fatalf("compact: %v %q", err, out.String())
+	}
+	if err := runUnfold(filepath.Join(t.TempDir(), "none.db"), &out); err == nil {
+		t.Error("unfold of a missing database succeeded")
 	}
 }

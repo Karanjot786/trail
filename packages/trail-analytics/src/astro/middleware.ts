@@ -1,4 +1,3 @@
-import { env } from '../crawl/env';
 import { isTrailPath, shouldReport } from '../crawl/filter';
 import { forward } from '../crawl/forward';
 import { report } from '../crawl/send';
@@ -13,7 +12,7 @@ export const onRequest = async (ctx: Ctx, next: () => Promise<Response>): Promis
   const rt = ctx.locals?.runtime;
   const e = rt?.env;
   const req = ctx.request;
-  if (isTrailPath(req) && env('TRAIL_URL', e)) {
+  if (isTrailPath(req)) {
     const cf = rt?.cf;
     const r = cf && !(req as { cf?: unknown }).cf ? Object.assign(req, { cf }) : req;
     return forward(r, { env: e });

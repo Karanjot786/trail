@@ -26,7 +26,19 @@ Work down the list. Most problems turn up in the first four steps.
 6. **Countries empty, or all the same?** Make sure your proxy forwards the client IP in `X-Forwarded-For` and is trusted by `TRAIL_TRUSTED_PROXIES` (see [Client IP and proxies](/operations/configuration#client-ip)); otherwise every visit looks like it comes from the proxy. Settings → Config shows which geo database is in use. Region and city need `TRAIL_GEO_DB`.
 7. **Signed out after every restart?** `TRAIL_SECRET` is set to a value that changes on each start. Unset it (Trail then keeps its own key in the database) or fix it to one value of 32 or more characters. Lost the generated password? Run `trail reset-password` and restart; see [Self-hosting](/install/#first-login).
 8. **Some visits are missing?** Requests that look automated are stored with a bot flag and left out of every report. That includes browsers driven by Playwright, Puppeteer or Selenium, which set `navigator.webdriver`. Visitors who send Do Not Track or Global Privacy Control are not tracked unless you set `data-dnt="off"`.
-9. **Still stuck?** Run the server in the foreground, watch its log while you load the page, and [open an issue](https://github.com/karanjot786/trail/issues) with what you saw.
+9. **Cloudflare Rocket Loader on?** It defers and rewrites scripts, which can delay or interfere with the tracker. Add `data-cfasync="false"` to the script tag. See [Cloudflare Rocket Loader](/add/script-tag#cloudflare-rocket-loader).
+10. **Hash-router site with one pageview?** Add `data-hash`; see [Hash routers](/add/script-tag#hash-routers).
+11. **Still stuck?** Run the server in the foreground, watch its log while you load the page, and [open an issue](https://github.com/karanjot786/trail/issues) with what you saw.
+
+## The install check
+
+**Settings → Install** runs checks from your server against your live site: the home page loads, the script is on it, the security policy allows Trail, events come from an allowed address, the first visit arrived, delivery in the last 24 hours, and robots.txt. Each line shows a reason and a fix.
+
+The overall state reads **Waiting** (no real visit yet, nothing failed), **Blocked** (no real visit yet and at least one check failed) or **Receiving** (a visit has arrived). Once a site is receiving, a failing check is shown as a warning, since events are getting through.
+
+- **Bot protection.** If Cloudflare or Vercel challenges the check's request (`403`, `429` or `503`), the home page line is a warning with the code `bot_protection`, and the script and security-policy checks wait. This does not block real visitors. To run them, allow the user agent `TrailInstallCheck` in your firewall, or open the page yourself and confirm with a test visit.
+- **robots.txt.** Trail reads `/robots.txt` and warns, never fails, when it disallows AI crawlers (`robots_blocks_ai`). Cloudflare's managed robots.txt adds such rules under Security, Bots. Crawler tracking then shows little for those crawlers; your page views are not affected.
+- **Preview hosts.** A refused `*.vercel.app` host gets a suggested pattern such as `*-acme.vercel.app`. See [Allowed origins](/operations/configuration#allowed-origins).
 
 ## Next
 

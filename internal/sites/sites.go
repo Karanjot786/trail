@@ -26,7 +26,7 @@ var (
 )
 
 // Site is one tracked site. Origins are hosts (or *.suffix patterns) allowed
-// besides Domain and its subdomains. Created is unix ms.
+// besides Domain and its subdomains (*.suffix or *-suffix patterns). Created is unix ms.
 type Site struct {
 	ID      string   `json:"id"`
 	Domain  string   `json:"domain"`
@@ -46,6 +46,7 @@ type Registry struct {
 	rmu     sync.Mutex
 	rej     map[string]*[24]bucket // site -> hourly rejected-origin counts, ring by hour
 	lastRej map[string]string      // site -> host of the most recent refused event, for the install check
+	badSig  map[string]*[24]bucket // site -> hourly counts of proxy forwards whose signature failed
 }
 
 type bucket struct {
@@ -55,7 +56,7 @@ type bucket struct {
 
 // Open loads the registry from db, which must have the store schema applied.
 func Open(db *sql.DB) (*Registry, error) {
-	r := &Registry{db: db, now: time.Now, rej: map[string]*[24]bucket{}, lastRej: map[string]string{}}
+	r := &Registry{db: db, now: time.Now, rej: map[string]*[24]bucket{}, lastRej: map[string]string{}, badSig: map[string]*[24]bucket{}}
 	return r, r.load()
 }
 
@@ -184,6 +185,7 @@ func (r *Registry) Remove(id string, purge bool) error {
 	}
 	r.rmu.Lock()
 	delete(r.rej, id)
+	delete(r.badSig, id)
 	r.rmu.Unlock()
 	return r.load()
 }
@@ -220,17 +222,23 @@ func (r *Registry) Allowed(id, host string) bool {
 
 // Reject counts one event refused for coming from an origin not allowed for
 // site id. Unknown ids are not counted, so memory stays bounded by real sites.
-func (r *Registry) Reject(id string) {
+func (r *Registry) Reject(id string) { r.bump(r.rej, id) }
+
+// NoteBadProxy counts one request that carried an X-Trail-Proxy signature this
+// server could not verify. Unknown ids are not counted.
+func (r *Registry) NoteBadProxy(id string) { r.bump(r.badSig, id) }
+
+func (r *Registry) bump(rings map[string]*[24]bucket, id string) {
 	if _, ok := r.Get(id); !ok {
 		return
 	}
 	h := r.now().Unix() / 3600
 	r.rmu.Lock()
 	defer r.rmu.Unlock()
-	ring := r.rej[id]
+	ring := rings[id]
 	if ring == nil {
 		ring = new([24]bucket)
-		r.rej[id] = ring
+		rings[id] = ring
 	}
 	b := &ring[h%24]
 	if b.hour != h {
@@ -262,12 +270,18 @@ func (r *Registry) LastRejectedHost(id string) string {
 
 // Rejected24h is how many events Reject counted for id in about the last day
 // (this hour and the 23 before it). It resets on restart.
-func (r *Registry) Rejected24h(id string) int {
+func (r *Registry) Rejected24h(id string) int { return r.sum(r.rej, id) }
+
+// BadProxy24h is how many unverifiable proxy signatures NoteBadProxy counted
+// for id in about the last day. It resets on restart.
+func (r *Registry) BadProxy24h(id string) int { return r.sum(r.badSig, id) }
+
+func (r *Registry) sum(rings map[string]*[24]bucket, id string) int {
 	h := r.now().Unix() / 3600
 	r.rmu.Lock()
 	defer r.rmu.Unlock()
 	n := 0
-	if ring := r.rej[id]; ring != nil {
+	if ring := rings[id]; ring != nil {
 		for _, b := range ring {
 			if h-b.hour < 24 {
 				n += b.n
@@ -292,9 +306,8 @@ func normalize(s Site) (Site, error) {
 		if o == "" || slices.Contains(origins, o) {
 			continue
 		}
-		host, wild := strings.CutPrefix(o, "*.")
-		if !isHost(host) || (wild && !strings.Contains(host, ".")) {
-			return s, fmt.Errorf("%w: origin %q must be a hostname or *.example.com", ErrInvalid, o)
+		if !validOrigin(o) {
+			return s, fmt.Errorf("%w: origin %q must be a hostname, *.example.com or *-team.vercel.app", ErrInvalid, o)
 		}
 		origins = append(origins, o)
 	}
@@ -303,6 +316,18 @@ func normalize(s Site) (Site, error) {
 	}
 	s.Origins = origins
 	return s, nil
+}
+
+// validOrigin accepts a bare host, *.host (host has a dot), or *-suffix where
+// suffix (leading hyphens trimmed) is a host of at least 3 labels, so a
+// pattern can never cover a whole registrable domain.
+func validOrigin(o string) bool {
+	if rest, ok := strings.CutPrefix(o, "*-"); ok {
+		rest = strings.TrimLeft(rest, "-")
+		return isHost(rest) && strings.Count(rest, ".") >= 2
+	}
+	host, wild := strings.CutPrefix(o, "*.")
+	return isHost(host) && (!wild || strings.Contains(host, "."))
 }
 
 func isHost(h string) bool { return len(h) <= 253 && reHost.MatchString(h) }

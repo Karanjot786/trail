@@ -28,7 +28,7 @@ func (s *server) activity(id string) (activity, error) {
 		a.LastEventAt = &last.Int64
 	}
 	since := time.Now().Add(-24 * time.Hour).UnixMilli()
-	err := s.db.QueryRow(`SELECT count(*) FROM events WHERE site_id=? AND ts>=?`, id, since).Scan(&a.Events24h)
+	err := s.db.QueryRow(`SELECT count(*) FROM events WHERE site_id=? AND ts>=? AND type<>'engage'`, id, since).Scan(&a.Events24h)
 	return a, err
 }
 

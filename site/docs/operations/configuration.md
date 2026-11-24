@@ -13,7 +13,7 @@ Trail reads its settings from the environment at startup. Nothing is stored in a
 | `TRAIL_SITES` | empty | Optional comma list of `id=domain`, e.g. `blog=example.com,docs=docs.example.com`. Each entry is added at startup if the database lacks it; sites you edited in the dashboard keep their edits. You can add sites in Settings instead. Events for ids that are not registered are rejected. The domain decides the environment tag (below) |
 | `TRAIL_DB` | `trail.db` (`/data/trail.db` in the Docker image) | Path of the SQLite file |
 | `TRAIL_ADDR` | `:8080` | Listen address. Use `127.0.0.1:8080` behind a local proxy |
-| `TRAIL_TZ` | `Asia/Kolkata` | IANA timezone for daily buckets and the private-mode key rotation |
+| `TRAIL_TZ` | `UTC` | IANA timezone for daily buckets and the private-mode key rotation. The dashboard shows days in this zone. install.sh writes the server's own zone. A name Trail does not know stops the server at start |
 | `TRAIL_SECRET` | stored in the database | Signs dashboard session cookies. At least 32 characters. When unset, a random key is created on first start and kept in the database, so logins survive restarts with no setup. Set it only to share one key between databases or to rotate it |
 | `TRAIL_GEO_DB` | unset | Path to your own City `.mmdb`, such as GeoLite2 City, for region and city. Without it, the built-in database gives country only. See [Geo database](/operations/geo) |
 | `TRAIL_API_TOKENS` | unset | Comma list of `name:token:scope` for the [read API and MCP](/api/tokens). Scope is `read` or `write`; tokens shorter than 24 characters stop the server at startup |
@@ -27,8 +27,17 @@ Trail reads its settings from the environment at startup. Nothing is stored in a
 The ingest endpoint `/_t/e` accepts events for a site only from a browser page on an allowed host. Trail reads the `Origin` header, or the host of the `Referer` when there is no `Origin`, and allows:
 
 - the site's domain and any subdomain of it: `example.com` and `www.example.com`, but not `evil-example.com`;
-- each entry in the site's allowed origins: an exact host such as `staging.example.org`, or a wildcard such as `*.vercel.app` for every subdomain of `vercel.app`. A site can have up to 20;
+- each entry in the site's allowed origins: an exact host such as `staging.example.org`, `*.example.org` for every subdomain, or a suffix pattern for preview deployments (below). A site can have up to 20;
 - `localhost`, `127.0.0.1` and `[::1]`, so local development works.
+
+Preview deployments get a new host per branch or commit, so allow them with a pattern:
+
+| Host | Pattern |
+|---|---|
+| Vercel previews (`myapp-git-fix-acme.vercel.app`) | `*-acme.vercel.app`, where `acme` is your team's slug |
+| Netlify deploy previews (`deploy-preview-12--mysite.netlify.app`) | `*--mysite.netlify.app` |
+
+A `*-` pattern must end in a host of at least three labels, so it can never cover a whole registrable domain. The Install panel suggests the Vercel pattern when it sees a refused `*.vercel.app` host.
 
 Anything else gets an empty `403`. A request with neither `Origin` nor `Referer` is refused too, so a bare `curl` needs an `Origin` header to get through. The tracker does not retry a `403`; it drops the events.
 
@@ -113,7 +122,7 @@ With the lists off, agents are still recognised, but by user agent only, and the
 `/_t/e` is open to the internet, so Trail limits each client IP to `TRAIL_INGEST_RPS` requests per second (default 50), with a burst of twice that. A request over the limit gets `429` with `Retry-After: 1`, and the tracker retries it with backoff. Set `0` to turn the limit off.
 
 - The client IP comes from [Client IP and proxies](#client-ip): forwarding headers count only from a trusted proxy, so a client cannot dodge its bucket by sending a new `X-Forwarded-For` each time. Behind a proxy, make sure it forwards the visitor's address and is trusted. If not, every visitor looks like one IP and shares one bucket.
-- Trail keeps one bucket per IP, keyed by a hash under a random per-process key, so it never holds a raw IP. It tracks up to 100,000 IPs at once and forgets buckets that have refilled.
+- Trail keeps one bucket per IP, keyed by a hash under a random per-process key, so it never holds a raw IP. An IPv6 visitor is keyed by its /64 network, because one device can use any address in it; all of a household's addresses share one bucket. It tracks up to 100,000 IPs at once and forgets buckets that have refilled.
 - When the table is full of busy clients, any new IP shares one overflow bucket with 20 times the rate of a single IP. A flood of fresh addresses stays capped instead of getting through unlimited.
 
 The default suits most sites: one visitor sends a few requests per page. Raise it only if a shared office or proxy address sends more than 50 requests a second.
@@ -126,7 +135,10 @@ Every event carries an environment. If the script sets `data-env`, that value is
 |---|---|
 | `localhost`, `*.localhost`, `*.local`, a private or loopback IP | `development` |
 | The domain of the site (a leading `www.` is ignored) | `production` |
+| A subdomain of the site's domain, such as `app.example.com` | `production`, unless a label in front of the domain looks like staging |
 | Anything else, such as a preview deployment URL | `preview` |
+
+The staging labels are `staging`, `stage`, `preview`, `dev`, `test`, `qa`, `uat` and `sandbox`, and any label starting with `pr-`, `preview-` or `staging-`. So `staging.example.com` and `pr-42.app.example.com` are `preview`, while `app.example.com` and `eu.example.com` are `production`. If the site's domain is empty, everything that is not local is `preview`. Set `data-env` on the tag to override any of it.
 
 The dashboard and the API show `production` unless you choose another environment.
 

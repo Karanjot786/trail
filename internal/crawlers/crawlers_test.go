@@ -291,3 +291,22 @@ func TestIngestVerifiedSplit(t *testing.T) {
 		t.Errorf("rows by verified %v", got)
 	}
 }
+
+func TestScanSkipsOverlongLine(t *testing.T) {
+	ok1 := `1.1.1.1 - - [20/Nov/2026:04:00:00 +0000] "GET /a HTTP/1.1" 200 1 "-" "GPTBot"`
+	ok2 := `1.1.1.1 - - [20/Nov/2026:05:00:00 +0000] "GET /b HTTP/1.1" 200 1 "-" "GPTBot"`
+	log := ok1 + "\n" + strings.Repeat("x", 70000) + "\n" + ok2 // no trailing newline
+	var got []Record
+	lines, kept, err := Scan(strings.NewReader(log), "combined", 0, 10, func(r []Record) error {
+		got = append(got, r...)
+		return nil
+	})
+	if err != nil || lines != 3 || kept != 2 || len(got) != 2 {
+		t.Fatalf("lines=%d kept=%d err=%v got=%d", lines, kept, err, len(got))
+	}
+	// An over-long last line without a newline is skipped too.
+	lines, kept, err = Scan(strings.NewReader(ok1+"\n"+strings.Repeat("x", 70000)), "combined", 0, 10, func([]Record) error { return nil })
+	if err != nil || lines != 2 || kept != 1 {
+		t.Fatalf("tail: lines=%d kept=%d err=%v", lines, kept, err)
+	}
+}

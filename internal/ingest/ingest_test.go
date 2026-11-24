@@ -103,8 +103,8 @@ func TestValidPageview(t *testing.T) {
 	if got := w.Header().Get("X-Trail-Accepted"); got != "1" {
 		t.Errorf("X-Trail-Accepted = %q, want 1", got)
 	}
-	if c := w.Header().Get("Set-Cookie"); !strings.Contains(c, "_t_id=anon-1") || !strings.Contains(c, "Max-Age=31536000") || !strings.Contains(c, "SameSite=Lax") {
-		t.Errorf("Set-Cookie = %q", c)
+	if c := w.Header().Get("Set-Cookie"); c != "" {
+		t.Errorf("Set-Cookie = %q, want none", c)
 	}
 	if got := w.Header().Get("Access-Control-Allow-Origin"); got != "https://example.com" {
 		t.Errorf("ACAO = %q, want the request origin", got)
@@ -513,7 +513,7 @@ func TestFullModeUnchanged(t *testing.T) {
 	st, h := setup(t)
 	full := strings.Replace(pageview, `{`, `{"m":"f",`, 1)
 	w := post(h, full)
-	if w.Code != http.StatusNoContent || !strings.Contains(w.Header().Get("Set-Cookie"), "_t_id=anon-1") {
+	if w.Code != http.StatusNoContent || w.Header().Get("Set-Cookie") != "" {
 		t.Errorf("full: %d, Set-Cookie %q", w.Code, w.Header().Get("Set-Cookie"))
 	}
 	if w := post(h, strings.Replace(full, `"anon-1"`, `""`, 1)); w.Code != http.StatusBadRequest {
@@ -544,10 +544,10 @@ func TestModeRejects(t *testing.T) {
 	}
 }
 
-func TestMixedModeBatchCookieFromFullEvent(t *testing.T) {
+func TestMixedModeBatchSetsNoCookie(t *testing.T) {
 	_, h := setup(t)
 	w := post(h, "["+privatePV+","+pageview+"]")
-	if w.Code != http.StatusNoContent || !strings.Contains(w.Header().Get("Set-Cookie"), "_t_id=anon-1") {
+	if w.Code != http.StatusNoContent || w.Header().Get("Set-Cookie") != "" {
 		t.Errorf("%d, Set-Cookie %q", w.Code, w.Header().Get("Set-Cookie"))
 	}
 }
@@ -615,5 +615,105 @@ func TestGeoIgnoresSpoofedXFF(t *testing.T) {
 	}
 	if len(got) != 2 || got[0] != "" || got[1] != "IN" {
 		t.Errorf("countries = %q, want [\"\" \"IN\"] (spoofed, then via proxy)", got)
+	}
+}
+
+func TestQueueFull503(t *testing.T) {
+	st, h := setup(t)
+	for range 10000 {
+		st.Enqueue(store.Event{SiteID: "s1", Type: "pageview", AnonID: "a", SessionID: "s", Path: "/"})
+	}
+	w := post(h, pageview)
+	if w.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status %d, want 503", w.Code)
+	}
+	if w.Header().Get("Retry-After") == "" {
+		t.Error("missing Retry-After")
+	}
+	if got := w.Header().Get("Access-Control-Allow-Origin"); got != "https://example.com" {
+		t.Errorf("ACAO %q, want the request origin", got)
+	}
+	if n := rows(t, st); n != 10000 {
+		t.Fatalf("rows=%d, want 10000", n)
+	}
+}
+
+func TestBatchWrongTypeElement(t *testing.T) {
+	st, h := setup(t)
+	bad := `{"s":"s1","t":"pageview","a":"a","uid":123,"u":"https://example.com/"}`
+	w := post(h, "["+pageview+","+bad+","+pageview+"]")
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("status %d, want 204", w.Code)
+	}
+	if got := w.Header().Get("X-Trail-Accepted"); got != "2" {
+		t.Errorf("accepted %q, want 2", got)
+	}
+	if got := w.Header().Get("X-Trail-Rejected"); got != "1" {
+		t.Errorf("rejected %q, want 1", got)
+	}
+	if n := rows(t, st); n != 2 {
+		t.Fatalf("rows=%d, want 2", n)
+	}
+}
+
+func TestBatchAllWrongType400(t *testing.T) {
+	_, h := setup(t)
+	bad := `{"s":"s1","t":"pageview","a":"a","e":"x","u":"https://example.com/"}`
+	if w := post(h, "["+bad+","+bad+"]"); w.Code != http.StatusBadRequest {
+		t.Fatalf("status %d, want 400", w.Code)
+	}
+}
+
+// An in-flight response must not restore an id after reset() or consent(false).
+func TestNoCookieAfterReset(t *testing.T) {
+	_, h := setup(t)
+	w := post(h, strings.Replace(pageview, `"anon-1"`, `"anon-old"`, 1))
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("status %d", w.Code)
+	}
+	if c := w.Header().Get("Set-Cookie"); c != "" {
+		t.Errorf("Set-Cookie = %q, want none", c)
+	}
+}
+
+func withNow(f func() time.Time) Option { return func(h *handler) { h.now = f } }
+
+func TestEventAgeBackdates(t *testing.T) {
+	now := time.UnixMilli(1_700_000_000_000)
+	const week = 604800000
+	cases := []struct {
+		name, c  string
+		wantCode int
+		wantTS   int64
+	}{
+		{"absent", ``, 204, now.UnixMilli()},
+		{"age", `,"c":5000`, 204, now.UnixMilli() - 5000},
+		{"negative", `,"c":-50`, 204, now.UnixMilli()},
+		{"null", `,"c":null`, 204, now.UnixMilli()},
+		{"string", `,"c":"x"`, 400, 0},
+		{"seven days", `,"c":604800000`, 204, now.UnixMilli() - week},
+		{"too old", `,"c":604800001`, 400, 0},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			st, h := newHandler(t, map[string]string{"s1": "example.com"}, withNow(func() time.Time { return now }))
+			body := `{"s":"s1","t":"pageview","a":"anon-1","ss":"sess-1","u":"https://example.com/"` + tc.c + `}`
+			if w := post(h, body); w.Code != tc.wantCode {
+				t.Fatalf("code %d, want %d", w.Code, tc.wantCode)
+			}
+			if tc.wantCode != 204 {
+				return
+			}
+			if err := st.Flush(); err != nil {
+				t.Fatal(err)
+			}
+			var ts int64
+			if err := st.DB().QueryRow("SELECT ts FROM events").Scan(&ts); err != nil {
+				t.Fatal(err)
+			}
+			if ts != tc.wantTS {
+				t.Errorf("ts %d, want %d", ts, tc.wantTS)
+			}
+		})
 	}
 }

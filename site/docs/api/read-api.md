@@ -20,9 +20,10 @@ curl -H "Authorization: Bearer $TOKEN" "$TRAIL/api/v1/stats?site=mysite&env=all"
 
 | Parameter | Default | Meaning |
 |---|---|---|
-| `site` | required | A site id from Settings (or `TRAIL_SITES`) |
+| `site` | required | A site id from Settings (or `TRAIL_SITES`). `site=all` is accepted only by `/api/v1/sites/summary` |
 | `from`, `to` | the last 24 hours | Unix time in milliseconds. At most 400 days apart |
 | `env` | `production` | `production`, `preview`, `development` or `all` |
+| `tz` | the server's `TRAIL_TZ` | IANA zone for day boundaries, such as `Europe/Berlin`. An unknown name is a `400` |
 | `f` | none | Filter as `dim:value`, repeatable: `f=country:IN&f=device:mobile` |
 
 Filter and breakdown dimensions: `path`, `route`, `host`, `referrer`, `utm_source`, `utm_medium`, `utm_campaign`, `country`, `device`, `browser`, `os`, `event`.

@@ -65,11 +65,30 @@ func DeriveEnv(host, configuredDomain, given string) string {
 		return "development"
 	case isLoopbackOrPrivate(h):
 		return "development"
-	case h == bareHost(configuredDomain):
-		return "production"
-	default:
-		return "preview"
 	}
+	d := bareHost(configuredDomain)
+	switch {
+	case d == "":
+		return "preview"
+	case h == d:
+		return "production"
+	case strings.HasSuffix(h, "."+d):
+		for _, l := range strings.Split(strings.TrimSuffix(h, "."+d), ".") {
+			if stagingLabel(l) {
+				return "preview"
+			}
+		}
+		return "production"
+	}
+	return "preview"
+}
+
+func stagingLabel(l string) bool {
+	switch l {
+	case "staging", "stage", "preview", "dev", "test", "qa", "uat", "sandbox":
+		return true
+	}
+	return strings.HasPrefix(l, "pr-") || strings.HasPrefix(l, "preview-") || strings.HasPrefix(l, "staging-")
 }
 
 func isLoopbackOrPrivate(h string) bool {
@@ -97,6 +116,10 @@ func ParseURL(u string) (host, path string, utm [5]string) {
 	path = p.Path
 	if path == "" {
 		path = "/"
+	}
+	// Hash-router pages (#/x, #!/x) keep their route; plain anchors are ignored.
+	if strings.HasPrefix(p.Fragment, "/") || strings.HasPrefix(p.Fragment, "!/") {
+		path += "#" + strings.SplitN(p.Fragment, "?", 2)[0]
 	}
 	q := p.Query()
 	for i, k := range [5]string{"utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content"} {

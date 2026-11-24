@@ -114,10 +114,83 @@ describe('forward', () => {
     expect(h.get('signature-agent')).toBe('"https://chatgpt.com"');
   });
 
-  it('answers 204 when Trail is down', async () => {
+  it('answers 502 when Trail is down', async () => {
     fetchMock.mockRejectedValue(new Error('down'));
     const res = await forward(beacon(), opts);
+    expect(res.status).toBe(502);
+  });
+
+  it('answers 504 on timeout', async () => {
+    fetchMock.mockRejectedValue(new DOMException('t', 'TimeoutError'));
+    const res = await forward(beacon(), opts);
+    expect(res.status).toBe(504);
+  });
+
+  it('serves a no-op t.js with 200 when TRAIL_URL is unset', async () => {
+    vi.stubEnv('TRAIL_URL', '');
+    const res = await forward(new Request('https://shop.example/t/t.js'), {});
+    expect(res.status).toBe(200);
+    expect(res.headers.get('x-trail-error')).toBe('no-url');
+    expect(res.headers.get('content-type')).toContain('javascript');
+    expect(await res.text()).toContain('TRAIL_URL is not set');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('answers 503 for /t/e when TRAIL_URL is unset', async () => {
+    vi.stubEnv('TRAIL_URL', '');
+    const res = await forward(beacon(), {});
+    expect(res.status).toBe(503);
+    expect(res.headers.get('x-trail-error')).toBe('no-url');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('answers 503 unsigned and does not forward when the token or site is missing', async () => {
+    vi.stubEnv('TRAIL_SITE', '');
+    vi.stubEnv('TRAIL_CRAWL_TOKEN', '');
+    const res = await forward(beacon(), { url: 'https://trail.example' });
+    expect(res.status).toBe(503);
+    expect(res.headers.get('x-trail-error')).toBe('unsigned');
+    expect(fetchMock).not.toHaveBeenCalled();
+    fetchMock.mockResolvedValue(new Response('/*t*/', { status: 200 }));
+    expect((await forward(new Request('https://shop.example/t/t.js'), { url: 'https://trail.example' })).status).toBe(200);
+  });
+
+  it('proxies /t/t.x.js and /t/t.p.js to /_t/t.x.js and /_t/t.p.js', async () => {
+    for (const f of ['t.x.js', 't.p.js']) {
+      fetchMock.mockResolvedValue(new Response('/*' + f + '*/', { status: 200, headers: { 'content-type': 'text/javascript' } }));
+      const res = await forward(new Request('https://shop.example/t/' + f), opts);
+      expect(fetchMock.mock.calls.at(-1)![0]).toBe('https://trail.example/_t/' + f);
+      expect(await res.text()).toBe('/*' + f + '*/');
+    }
+  });
+
+  it('passes X-Trail-Accepted, X-Trail-Rejected and X-Trail-Proxy-Status back', async () => {
+    fetchMock.mockResolvedValue(new Response(null, { status: 204, headers: { 'x-trail-accepted': '1', 'x-trail-rejected': '2', 'x-trail-proxy-status': 'ok' } }));
+    const res = await forward(beacon(), opts);
     expect(res.status).toBe(204);
+    expect(res.headers.get('x-trail-accepted')).toBe('1');
+    expect(res.headers.get('x-trail-rejected')).toBe('2');
+    expect(res.headers.get('x-trail-proxy-status')).toBe('ok');
+  });
+
+  it('passes the visit token X-Trail-K back to the browser', async () => {
+    fetchMock.mockResolvedValue(new Response(null, { status: 204, headers: { 'x-trail-k': 'TOK' } }));
+    expect((await forward(beacon(), opts)).headers.get('x-trail-k')).toBe('TOK');
+  });
+
+  it('accepts /t/e/ (trailingSlash)', async () => {
+    const res = await forward(Object.assign(new Request('https://shop.example/t/e/', { method: 'POST', body: '[]', headers: { host: 'shop.example' } })), opts);
+    expect(res.status).toBe(202);
+    expect(fetchMock.mock.calls[0][0]).toBe('https://trail.example/_t/e');
+  });
+
+  it('signs the Cloudflare client IP and geo when Cloudflare fronts Vercel', async () => {
+    const res = await forward(beacon({ 'x-vercel-id': 'a', 'x-real-ip': '172.70.1.1', 'x-vercel-ip-country': 'US', 'cf-connecting-ip': '49.36.1.2', 'cf-ipcountry': 'IN', 'cf-region-code': 'MH', 'cf-ipcity': 'Mumbai' }), opts);
+    const h = new Headers(fetchMock.mock.calls[0][1].headers);
+    expect(h.get('x-trail-ip')).toBe('49.36.1.2');
+    expect(h.get('x-trail-geo')).toBe('IN|MH|Mumbai');
+    expect(h.get('x-trail-geo-src')).toBe('cloudflare');
+    expect(res.headers.get('x-trail-ip-via')).toBe('cloudflare');
   });
 
   it('proxies /t/t.js with its cache headers', async () => {
@@ -136,12 +209,6 @@ describe('forward', () => {
     expect((await forward(new Request('https://shop.example/t/other'), opts)).status).toBe(404);
     expect((await forward(new Request('https://shop.example/t/e'), opts)).status).toBe(405);
     expect(fetchMock).not.toHaveBeenCalled();
-  });
-
-  it('forwards unsigned when the token or site is missing', async () => {
-    await forward(beacon(), { url: 'https://trail.example' });
-    const h = new Headers(fetchMock.mock.calls[0][1].headers);
-    expect(h.get('x-trail-proxy')).toBeNull();
   });
 
   it('matches the Go vector when G-1 has committed it', async () => {

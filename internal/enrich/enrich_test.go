@@ -56,6 +56,19 @@ func TestDeriveEnv(t *testing.T) {
 		{"x-git.vercel.app", "example.com", "", "preview"},
 		{"localhost:3000", "example.com", "", "development"},
 		{"127.0.0.1:8080", "example.com", "", "development"},
+		{"blog.example.com", "example.com", "", "production"},
+		{"app.eu.example.com", "example.com", "", "production"},
+		{"www.blog.example.com", "example.com", "", "production"},
+		{"staging.example.com", "example.com", "", "preview"},
+		{"pr-12.example.com", "example.com", "", "preview"},
+		{"preview-x.example.com", "example.com", "", "preview"},
+		{"staging-eu.example.com", "example.com", "", "preview"},
+		{"api.dev.example.com", "example.com", "", "preview"},
+		{"notexample.com", "example.com", "", "preview"},
+		{"example.com.evil.io", "example.com", "", "preview"},
+		{"example.com", "", "", "preview"},
+		{"blog.example.com", "", "", "preview"},
+		{"", "", "", "preview"},
 	}
 	for _, tt := range tests {
 		if got := DeriveEnv(tt.host, tt.domain, tt.given); got != tt.want {
@@ -100,5 +113,22 @@ func TestNilGeoIsNoop(t *testing.T) {
 	}
 	if err := g.Close(); err != nil {
 		t.Errorf("Close: %v", err)
+	}
+}
+
+func TestParseURLHashRoute(t *testing.T) {
+	tests := map[string]string{
+		"https://a.com/#/user/42?tab=1": "/#/user/42",
+		"https://a.com/app/#!/x":        "/app/#!/x",
+		"https://a.com/docs#install":    "/docs",
+		"https://a.com/#":               "/",
+	}
+	for in, want := range tests {
+		if _, got, _ := ParseURL(in); got != want {
+			t.Errorf("ParseURL(%q) path = %q, want %q", in, got, want)
+		}
+	}
+	if got := DeriveRoute("/#/user/42"); got != "/#/user/:id" {
+		t.Errorf("DeriveRoute hash = %q", got)
 	}
 }

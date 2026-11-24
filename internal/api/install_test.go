@@ -39,7 +39,7 @@ func TestSiteCheckRouteCached(t *testing.T) {
 	var res install.InstallCheck
 	w := get(h, "/api/sites/s/check")
 	decodeStrict(t, w.Body.Bytes(), &res)
-	if res.State != "waiting" || len(res.Checks) != 6 {
+	if res.State != "waiting" || len(res.Checks) != 8 {
 		t.Fatalf("check %s", w.Body)
 	}
 	get(h, "/api/sites/s/check")

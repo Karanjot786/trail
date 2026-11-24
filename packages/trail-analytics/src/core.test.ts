@@ -12,6 +12,15 @@ beforeEach(() => {
 });
 
 describe('inject', () => {
+  it.each([
+    ['/t/t.js', '/t/e'],
+    ['https://trail.x/_t/t.p.js', 'https://trail.x/_t/e'],
+    [undefined, '/_t/e'],
+  ])('derives data-api from src %s', (src, api) => {
+    inject({ site: 's', src });
+    expect((scripts()[0] as HTMLScriptElement).dataset.api).toBe(api);
+  });
+
   it('adds one deferred script with data attributes', () => {
     inject({ site: 'mysite', api: '/a', env: 'prod', dev: true, route: '/x', vitals: true, rage: true });
     const s = scripts()[0] as HTMLScriptElement;
@@ -41,7 +50,7 @@ describe('inject', () => {
     inject({ site: 's', dev: false });
     const s = scripts()[0] as HTMLScriptElement;
     expect(s.dataset.dev).toBeUndefined();
-    expect(s.dataset.api).toBeUndefined();
+    expect(s.dataset.api).toBe('/_t/e'); // derived from the default src
   });
 
   it('is idempotent', () => {

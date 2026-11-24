@@ -319,7 +319,8 @@ func TestEventBreakdownTotal(t *testing.T) {
 	ev := func(anon string, ts int64) store.Event {
 		return store.Event{Type: "event", AnonID: anon, SessionID: anon, Name: "Signup", TS: ts}
 	}
-	db := fixture(t, ev("A", t0), ev("A", t0+1), ev("B", t0), pv("A", "A", "/", t0))
+	// B needs a pageview to count as a visitor (#4: a person is someone with a pageview in the window).
+	db := fixture(t, ev("A", t0), ev("A", t0+1), ev("B", t0), pv("A", "A", "/", t0), pv("B", "B", "/", t0-1))
 	rows, err := Breakdown(db, around(), "event", "", 10)
 	if err != nil {
 		t.Fatal(err)
@@ -496,5 +497,120 @@ func TestSeriesBadMetric(t *testing.T) {
 	db := fixture(t)
 	if _, err := Series(db, winParams(t, "7d", "prev"), "password", false); !errors.Is(err, ErrBadMetric) {
 		t.Fatalf("err = %v", err)
+	}
+}
+
+// pathFilterFixture: session sa lands on / from google, engages, then views /pricing; sb only views /.
+func pathFilterFixture(t *testing.T) *sql.DB {
+	t.Helper()
+	land := pv("A", "sa", "/", t0)
+	land.RefHost = "google.com"
+	return fixture(t, land, engage("A", "sa", t0+20000, 20000), pv("A", "sa", "/pricing", t0+30000), pv("B", "sb", "/", t0))
+}
+
+func pathFilter() Params {
+	p := around()
+	p.Filters = map[string]string{"path": "/pricing"}
+	return p
+}
+
+func TestPathFilterKeepsSessionMetrics(t *testing.T) {
+	s := mustStats(t, pathFilterFixture(t), pathFilter())
+	if s.Visitors != 1 || s.Pageviews != 1 || s.Sessions != 1 || s.Bounce != 0 || s.DurationMs != 30000 {
+		t.Fatalf("got %+v, want 1 visitor, 1 pageview, 1 session, bounce 0, 30000 ms", s.Totals)
+	}
+}
+
+func TestPathFilterSourceIsLanding(t *testing.T) {
+	rows, err := Breakdown(pathFilterFixture(t), pathFilter(), "referrer", "", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 1 || rows[0].Key != "google.com" || rows[0].Visitors != 1 {
+		t.Fatalf("rows = %+v", rows)
+	}
+}
+
+func TestPathFilterSeriesDuration(t *testing.T) {
+	r, err := Series(pathFilterFixture(t), pathFilter(), "duration", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, pt := range r.Points {
+		if pt.T <= t0 && pt.V != nil && *pt.V == 30000 {
+			return
+		}
+	}
+	t.Fatalf("no bucket with 30000: %+v", r.Points)
+}
+
+func TestPathFilterSessionsList(t *testing.T) {
+	rows, _, err := Sessions(pathFilterFixture(t), pathFilter(), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 1 || rows[0].DurationMs != 30000 || rows[0].Pages != 2 || rows[0].Entry != "/" {
+		t.Fatalf("rows = %+v", rows)
+	}
+}
+
+func TestPathFilterPathBreakdownKeepsRows(t *testing.T) {
+	rows, err := Breakdown(pathFilterFixture(t), pathFilter(), "path", "", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 1 || rows[0].Key != "/pricing" || rows[0].Pageviews != 1 {
+		t.Fatalf("rows = %+v", rows)
+	}
+}
+
+func onlineFixture(t *testing.T) (*sql.DB, int64) {
+	t.Helper()
+	now := time.Now().UnixMilli()
+	prod := pv("A", "sa", "/", now-minute)
+	prev := pv("B", "sb", "/", now-minute)
+	prev.Env = "preview"
+	// C and D are two anon ids of one user, both active.
+	return fixture(t, prod, prev,
+		pv("C", "sc", "/", now-minute), identify("C", "sc", "u1", now-minute+1),
+		pv("D", "sd", "/", now-2*minute), identify("D", "sd", "u1", now-2*minute+1)), now
+}
+
+func TestOnlineHonoursEnv(t *testing.T) {
+	db, now := onlineFixture(t)
+	p := params(now-day, now)
+	p.Env = "production"
+	if s := mustStats(t, db, p); s.Online != 2 {
+		t.Fatalf("production online = %d, want 2 (A and user u1)", s.Online)
+	}
+	p.Env = "all"
+	if s := mustStats(t, db, p); s.Online != 3 {
+		t.Fatalf("all online = %d, want 3", s.Online)
+	}
+}
+
+func TestOnlineHonoursFilters(t *testing.T) {
+	now := time.Now().UnixMilli()
+	db := fixture(t, pv("A", "sa", "/pricing", now-minute), pv("B", "sb", "/", now-minute))
+	p := params(now-day, now)
+	p.Filters = map[string]string{"path": "/pricing"}
+	if s := mustStats(t, db, p); s.Online != 1 {
+		t.Fatalf("online = %d, want 1", s.Online)
+	}
+}
+
+func TestOnlineMatchesLive(t *testing.T) {
+	db, now := onlineFixture(t)
+	for _, env := range []string{"production", "all"} {
+		p := params(now-day, now)
+		p.Env = env
+		p.Now = time.UnixMilli(now)
+		live, err := Live(db, p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if s := mustStats(t, db, p); s.Online != live.Active {
+			t.Fatalf("env %s: online %d != live active %d", env, s.Online, live.Active)
+		}
 	}
 }

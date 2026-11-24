@@ -1,0 +1,11 @@
+lockfileVersion: '9.0'
+importers:
+  apps/www:
+    dependencies:
+      next:
+        specifier: 16.2.9
+        version: 16.2.9(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
+
+packages:
+  next@16.2.9:
+    resolution: {integrity: sha512-fixture}

@@ -38,6 +38,7 @@ chk(2, 'sidebar: the IA in order, Views region, Settings at the bottom', async (
 
 chk(19, 'saved views: S names the filter set, it appears under Views and survives a reload', async ({ page, goto }) => {
   await goto('/?f=source:Google')
+  await expect(page.getByRole('region', { name: 'Views' })).toBeVisible() // shortcuts bind after the shell mounts
   await page.keyboard.press('s')
   await page.getByRole('textbox', { name: /name/i }).fill('Google people')
   await page.keyboard.press('Enter')
@@ -54,6 +55,7 @@ chk(19, 'saved views: S names the filter set, it appears under Views and survive
 
 chk(21, '? opens the keyboard shortcuts sheet and Esc closes it', async ({ page, goto }) => {
   await goto('/')
+  await expect(page.getByRole('region', { name: 'Views' })).toBeVisible() // shortcuts bind after the shell mounts
   await page.keyboard.press('Shift+?')
   const d = page.getByRole('dialog', { name: 'Keyboard shortcuts' })
   await expect(d).toContainText('Save the view')

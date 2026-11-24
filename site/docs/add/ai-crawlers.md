@@ -24,14 +24,21 @@ npx trail-analytics@latest init --url https://trail.example.com --site mysite --
 |---|---|
 | `--url <url>` | Your Trail server |
 | `--site <id>` | The site id in Trail |
-| `--token <token>` | The crawl token from the card. It is kept in your env file only |
+| `--token <token>` | The crawl token from the card. It is kept in your env file only. `--token -` reads it from stdin |
 | `--yes`, `-y` | Apply without asking |
 | `--dry-run` | Show the changes and write nothing |
 | `--cwd <dir>` | Project directory (default: the current directory) |
 | `--no-install` | Do not install `trail-analytics` |
+| `--offline` | Skip the check that your Trail server is reachable and accepts the token |
 | `--help`, `-h` | Show the help |
 
-Init prints a diff, the warnings and any manual steps, then asks `Apply these changes? [y/N]`. Without a terminal it refuses unless you pass `--yes`. It never replaces a file you wrote, and running it again changes nothing. Unless you pass `--no-install`, it adds `trail-analytics@^0.2.0` with the package manager your lockfile uses.
+The token can come from `--token`, `--token -` (stdin, which keeps it out of shell history), the `TRAIL_CRAWL_TOKEN` variable, the existing env file, or a hidden prompt on a terminal. `--url` must be https (http is allowed for localhost and private networks).
+
+Before it writes anything, init checks that your Trail server is reachable and accepts the token. `--offline` skips that check.
+
+Init prints a diff, the warnings and any manual steps, then asks `Apply these changes? [y/N]`. Without a terminal it refuses unless you pass `--yes`. Running it again changes only Trail's own lines. It detects pnpm, yarn, bun and workspaces from `packageManager` and the lockfile, and writes `trail-analytics@^0.3.0` into `package.json`. It runs an install only when a lockfile exists and you did not pass `--no-install`.
+
+After you deploy, run `npx trail-analytics verify --url https://your-site` to check the install end to end. See [the npm package](/add/npm#test-and-verify).
 
 Exit codes: `0` applied or nothing to do, `1` error, `2` unsupported framework or manual steps needed (they are printed).
 
@@ -43,7 +50,7 @@ Exit codes: `0` applied or nothing to do, `1` error, `2` unsupported framework o
 | Next.js 15 | `middleware.ts` (or `.js`; in `src/` when you use it) | the same | `.env.local` |
 | Astro | none: `trail({ site: "mysite" })` in `integrations` in `astro.config` | added by the integration | `.env` |
 
-The Next.js hook file is a three-line wrapper:
+For a new Next.js hook file, init writes a three-line wrapper:
 
 ::: code-group
 ```ts [proxy.ts]
@@ -61,9 +68,13 @@ export const config = { matcher: ['/((?!_next/static|_next/image).*)'] };
 
 Next.js 15 gets the same file as `middleware.ts`, with `export function middleware`. The layout gains `import { Analytics } from 'trail-analytics/next'` after the last import and the tag just before `</body>`. If the layout already renders `<Analytics>` from `trail-analytics/next`, init only adds the `src` and `api` props.
 
+If a `proxy` or `middleware` file already exists, init wraps it instead of replacing it: a default export, or a named `proxy` or `middleware` function or constant, becomes `withTrail(...)`. It also adds Trail's four paths to the file's `matcher`, so `/t/*` is served before your code runs. A matcher scoped to a few paths still serves the script, but crawlers are captured only on matching pages, and init prints how to widen it.
+
+Init also finds root layouts under `[locale]` and route groups, and imports Trail's tag as `TrailAnalytics` when `Analytics` is already taken (Vercel Analytics, your own component).
+
 Init prints a manual step instead of a change when:
 
-- **a `proxy` or `middleware` file already exists.** Wrap your handler:
+- **it cannot edit your proxy or middleware file safely.** This covers an export list or re-export, more than one proxy export, a handler referenced elsewhere in the file, a file that does not parse, or a `matcher` built at runtime. Wrap the handler yourself:
 
   ```ts
   import { withTrail } from 'trail-analytics/next/proxy';
@@ -73,9 +84,10 @@ Init prints a manual step instead of a change when:
   });
   ```
 
-  Keep, or add, a matcher that includes `/t/t.js` and `/t/e`.
+  Keep, or add, a matcher that includes `/t/t.js`, `/t/t.x.js`, `/t/t.p.js` and `/t/e`.
 - **the app uses the Pages Router.** Render `<Analytics site="mysite" src="/t/t.js" api="/t/e" />` from `trail-analytics/react` in `pages/_app`.
-- **the layout has no `</body>`, or more than one**, or the Astro config has no `defineConfig({`.
+- **the layout has no `</body>`, or more than one**, uses both the names `Analytics` and `TrailAnalytics`, or the Astro config has no `defineConfig({`.
+- **the env file is tracked by git.** Init will not write the token into it. Run `git rm --cached <file> && echo <file> >> .gitignore`, then rerun init, or set the three variables only in your host.
 
 If `app/t`, `src/app/t`, `pages/t` or `src/pages/t` exists, init warns that `/t/t.js` and `/t/e` are now served by Trail. Other `/t/...` paths still reach your routes.
 

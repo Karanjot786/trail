@@ -33,6 +33,15 @@ export function ShareDialog({ open, onOpenChange }: { open: boolean; onOpenChang
   const [hideRevenue, setHideRevenue] = useState(false)
   const [busy, setBusy] = useState(false)
   const [made, setMade] = useState<string | null>(null)
+  // Each opening, and each site, starts from the defaults. Adjusted during render, not in an effect.
+  const ctx = `${open}|${s.site}`
+  const [seenCtx, setSeenCtx] = useState(ctx)
+  if (seenCtx !== ctx) {
+    setSeenCtx(ctx)
+    setTtl('7d')
+    setHideRevenue(false)
+    setMade(null)
+  }
   const shares = useQuery('shares', (sig) => api.shares(sig), { enabled: open, staleMs: 0 })
   const state = viewState(s)
   const now = Date.now()

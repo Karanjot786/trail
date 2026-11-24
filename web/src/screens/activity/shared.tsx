@@ -2,15 +2,15 @@
 import { Fragment, type ReactNode } from 'react'
 import { apiQuery } from '../../state/url'
 import { useUrlState } from '../../state/useUrlState'
-import { viewerTz } from '../../shell/labels'
+import { useReportTz } from '../../shell/useReportTz'
 import { Avatar } from '../../ui/avatar'
 import { api } from '../../api/client'
 
 /** The API query for the current URL, its cache key, the viewer tz and whether this is a share link. */
 export function useAq() {
   const s = useUrlState()
-  const tz = viewerTz()
-  const q = apiQuery(s, tz)
+  const tz = useReportTz()
+  const q = apiQuery(s)
   return { s, q, tz, key: `${s.prefix}|${q.toString()}`, share: s.prefix.startsWith('/share/') }
 }
 

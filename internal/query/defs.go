@@ -7,7 +7,7 @@ import "errors"
 
 const (
 	// purchaseWhere selects Purchase events (either capitalisation).
-	purchaseWhere = "type='event' AND name IN ('Purchase','purchase')"
+	purchaseWhere = "type='event' AND name<>'' AND name IN ('Purchase','purchase')"
 	// amountMinorExpr is a purchase's amount (major units in props) in integer minor units.
 	amountMinorExpr = "CAST(round(coalesce(json_extract(props,'$.amount'),0)*100) AS INTEGER)"
 	// currencyExpr is a purchase's ISO 4217 currency, USD when missing.

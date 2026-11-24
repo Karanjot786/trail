@@ -24,7 +24,10 @@ type shareFixture struct {
 	clock *time.Time
 }
 
-func newShareFixture(t *testing.T) *shareFixture {
+func newShareFixture(t *testing.T) *shareFixture { return newShareFixtureWith(t) }
+
+// newShareFixtureWith is newShareFixture plus extra events (SiteID s unless set).
+func newShareFixtureWith(t *testing.T, extra ...store.Event) *shareFixture {
 	t.Helper()
 	st, err := store.Open(filepath.Join(t.TempDir(), "sh.db"))
 	if err != nil {
@@ -40,6 +43,18 @@ func newShareFixture(t *testing.T) *shareFixture {
 		{SiteID: "s", Type: "pageview", AnonID: "anonB", SessionID: "sb", Path: "/pricing", Country: "US", TS: ts + 3, Env: "production"},
 		{SiteID: "o", Type: "pageview", AnonID: "anonO", SessionID: "so", Path: "/other", Country: "US", TS: ts, Env: "production"},
 	} {
+		st.Enqueue(e)
+	}
+	for _, e := range extra {
+		if e.SiteID == "" {
+			e.SiteID = "s"
+		}
+		if e.Env == "" {
+			e.Env = "production"
+		}
+		if e.TS == 0 {
+			e.TS = ts + 10
+		}
 		st.Enqueue(e)
 	}
 	if err := st.Flush(); err != nil {
@@ -230,5 +245,88 @@ func TestShareRateLimit429(t *testing.T) {
 	_, other := f.share(t, "", false, 0)
 	if w := f.get(other, "goals"); w.Code != 200 {
 		t.Fatalf("another link shares the bucket: %d", w.Code)
+	}
+}
+
+func TestShareHideRevenueStripsPurchaseProps(t *testing.T) {
+	f := newShareFixture(t)
+	_, tok := f.share(t, "", true, 0)
+	_, key, _ := meta.LookupShare(f.db, tok, time.Now())
+	opaque, _ := share.Pseudonym(key, "alice@example.com")
+	for _, route := range []string{"events?range=7d", "events/detail?range=7d&name=Purchase", "journey?person=" + opaque} {
+		w := f.get(tok, route)
+		if w.Code != 200 {
+			t.Fatalf("%s: %d %s", route, w.Code, w.Body)
+		}
+		t.Log(route, w.Body.String())
+		for _, leak := range []string{`"amount"`, `"currency"`, `"USD"`} {
+			if strings.Contains(w.Body.String(), leak) {
+				t.Errorf("%s leaks %s: %s", route, leak, w.Body)
+			}
+		}
+	}
+	_, open := f.share(t, "", false, 0)
+	if w := f.get(open, "events/detail?range=7d&name=Purchase"); !strings.Contains(w.Body.String(), `"amount"`) {
+		t.Errorf("open link lost props: %s", w.Body)
+	}
+}
+
+func alice2() store.Event {
+	return store.Event{Type: "pageview", AnonID: "anonA", SessionID: "sa2", Path: "/admin", Country: "US"}
+}
+
+func TestShareJourneyHonoursForcedFilter(t *testing.T) {
+	f := newShareFixtureWith(t, alice2())
+	_, tok := f.share(t, "f=country:IN", false, 0)
+	_, key, _ := meta.LookupShare(f.db, tok, time.Now())
+	opaque, _ := share.Pseudonym(key, "alice@example.com")
+	w := f.get(tok, "journey?person="+opaque)
+	if w.Code != 200 {
+		t.Fatalf("journey: %d %s", w.Code, w.Body)
+	}
+	if !strings.Contains(w.Body.String(), `"sa"`) || strings.Contains(w.Body.String(), `"sa2"`) || strings.Contains(w.Body.String(), "/admin") {
+		t.Errorf("share journey ignores the forced filter: %s", w.Body)
+	}
+}
+
+func TestDashboardJourneyIgnoresFilters(t *testing.T) {
+	f := newShareFixtureWith(t, alice2())
+	reg, err := sites.Open(f.db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ist, _ := time.LoadLocation("Asia/Kolkata")
+	w := get(New(f.db, reg, ist), "/api/journey?site=s&person=alice@example.com&f=country:IN")
+	if w.Code != 200 || !strings.Contains(w.Body.String(), `"sa2"`) || !strings.Contains(w.Body.String(), `"sa"`) {
+		t.Fatalf("dashboard journey lost sessions: %d %s", w.Code, w.Body)
+	}
+}
+
+func TestShareForcesEnvAndActor(t *testing.T) {
+	f := newShareFixtureWith(t, store.Event{Type: "pageview", AnonID: "anonP", SessionID: "sp", Path: "/", Env: "preview"})
+	_, tok := f.share(t, "env=production&actor=human", false, 0)
+	plain := f.get(tok, "stats?range=7d")
+	forced := f.get(tok, "stats?range=7d&env=all&actor=all")
+	if plain.Code != 200 || forced.Code != 200 {
+		t.Fatalf("%d %d", plain.Code, forced.Code)
+	}
+	if plain.Body.String() != forced.Body.String() {
+		t.Errorf("viewer overrode env/actor:\n%s\n%s", plain.Body, forced.Body)
+	}
+	_, loose := f.share(t, "env=all&actor=all", false, 0)
+	if f.get(loose, "stats?range=7d").Body.String() == f.get(tok, "stats?range=7d").Body.String() {
+		t.Errorf("fixture cannot tell env apart; the test proves nothing")
+	}
+}
+
+func TestShareForcesRangeAndCmp(t *testing.T) {
+	f := newShareFixture(t)
+	_, tok := f.share(t, "range=30d&cmp=none", false, 0)
+	base := f.get(tok, "stats").Body.String()
+	for _, extra := range []string{"&env=all", "&actor=all", "&range=7d", "&cmp=prev", "&from=1&to=2"} {
+		w := f.get(tok, "stats?x=1"+extra)
+		if w.Code != 200 || w.Body.String() != base {
+			t.Errorf("viewer override %q changed the share: %d %s vs %s", extra, w.Code, w.Body, base)
+		}
 	}
 }

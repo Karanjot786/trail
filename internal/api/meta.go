@@ -129,7 +129,11 @@ func (s *server) addView(w http.ResponseWriter, r *http.Request) {
 func (s *server) deleteView(w http.ResponseWriter, r *http.Request) {
 	id, err := pathID(r)
 	if err == nil {
-		err = meta.DeleteView(s.db, id)
+		site := ""
+		if t, ok := auth.TokenFrom(r.Context()); ok {
+			site = t.Site
+		}
+		err = meta.DeleteView(s.db, id, site)
 	}
 	if err != nil {
 		s.fail(w, r, err)

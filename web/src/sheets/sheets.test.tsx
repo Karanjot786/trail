@@ -8,7 +8,8 @@ vi.mock('../api/client', async (orig) => {
 })
 
 import { invalidate } from '../api/useQuery'
-import { current, startRouter } from '../shell/router'
+import { api } from '../api/client'
+import { current, navigate, startRouter } from '../shell/router'
 import { IST, journey, state } from '../screens/activity/testdata'
 import { JourneySheet } from './JourneySheet'
 import { EventSheet } from './EventSheet'
@@ -86,6 +87,18 @@ describe('JourneySheet', () => {
     expect(within(dlg).getByTestId('journey-label').textContent).toBe('Visitor K7QD')
     expect(dlg.textContent).not.toContain('rawp')
     expect(dlg.textContent).not.toContain('rawperson123456')
+  })
+
+  it('journey sheet does not show the previous person while the next loads', async () => {
+    visit('/activity/visitors?site=demo&v=p_1')
+    render(<JourneySheet />)
+    await flush()
+    const dlg = screen.getByRole('dialog')
+    expect(within(dlg).getAllByRole('button', { name: /^Visit \d/ }).length).toBe(3)
+    vi.mocked(api.journey).mockImplementationOnce(() => new Promise(() => {}))
+    act(() => navigate({ sheet: { kind: 'journey', person: 'p_2' } }))
+    await flush()
+    expect(within(screen.getByRole('dialog')).queryAllByRole('button', { name: /^Visit \d/ })).toHaveLength(0)
   })
 
   it('an unknown person gets a calm state', async () => {

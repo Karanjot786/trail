@@ -8,14 +8,15 @@ import { navigate, useUrlState } from '../state/useUrlState'
 import { Menu, MenuItem, MenuLabel, MenuRadio, MenuRadioGroup, MenuSeparator } from '../ui/menu'
 import { useLayer } from '../ui/layers'
 import { Button } from '../ui/button'
-import { RANGE_GROUPS, rangeLabel, tzCity, viewerTz } from './labels'
+import { RANGE_GROUPS, rangeLabel, tzCity } from './labels'
 import { useStats } from './useStats'
-
-const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+import { useReportTz } from './useReportTz'
+import { dayIso, todayIso } from '../lib/format'
 
 export function RangePicker() {
   const s = useUrlState()
   const stats = useStats()
+  const tz = useReportTz()
   const [custom, setCustom] = useState(false)
   // Opened once the menu has closed (see CompareMenu).
   const wantCustom = useRef(false)
@@ -23,14 +24,17 @@ export function RangePicker() {
     if (!wantCustom.current) return
     wantCustom.current = false
     e.preventDefault()
+    // Seed the inputs from the current view each time the popover opens, not once at mount.
+    setFrom(from0)
+    setTo(to0)
     setCustom(true)
   }
   useLayer(custom, () => setCustom(false))
   const isCustom = s.range.startsWith('c:')
   const w = stats.data?.window
   const [long, short] = w && w.key === s.range && w.label ? [w.label, rangeLabel(s.range)[1]] : rangeLabel(s.range)
-  const today = iso(new Date())
-  const [from0, to0] = isCustom ? s.range.slice(2).split('~') : [iso(new Date(Date.now() - 29 * 86_400_000)), today]
+  const today = todayIso(tz)
+  const [from0, to0] = isCustom ? s.range.slice(2).split('~') : [dayIso(Date.now() - 29 * 86_400_000, tz), today]
   const [from, setFrom] = useState(from0)
   const [to, setTo] = useState(to0)
 
@@ -51,6 +55,16 @@ export function RangePicker() {
       <ChevronDown size={14} aria-hidden="true" />
     </button>
   )
+
+  // A share link's range is part of the link: show it, offer no menu.
+  if (s.prefix.startsWith('/share/'))
+    return (
+      <span className="btn range-btn" data-static="" role="group" aria-label={`Date range: ${long}`}>
+        <Calendar size={14} aria-hidden="true" />
+        <span className="rl" aria-hidden="true">{long}</span>
+        <span className="rs" aria-hidden="true">{short}</span>
+      </span>
+    )
 
   return (
     <PP.Root open={custom} onOpenChange={setCustom}>
@@ -75,7 +89,7 @@ export function RangePicker() {
               Custom range…
             </MenuItem>
             <MenuSeparator />
-            <MenuLabel>{tzCity(w?.tz || viewerTz())} time. Weeks start on Monday.</MenuLabel>
+            <MenuLabel>{tzCity(tz)} time. Weeks start on Monday.</MenuLabel>
           </Menu>
         </span>
       </PP.Anchor>

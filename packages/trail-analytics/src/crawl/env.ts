@@ -15,3 +15,16 @@ export function resolve(o: TrailCrawlOptions = {}, src?: Env): Resolved {
   const url = o.url ?? env('TRAIL_URL', src);
   return { url: url?.replace(/\/+$/, ''), site: o.site ?? env('TRAIL_SITE', src), token: o.token ?? env('TRAIL_CRAWL_TOKEN', src) };
 }
+
+const warned = new Set<string>();
+
+/** One console.warn per code per process. */
+export function warnOnce(code: 'no-url' | 'unsigned' | 'ip', msg: string): void {
+  if (warned.has(code)) return;
+  warned.add(code);
+  try {
+    console.warn(msg);
+  } catch {
+    /* no console */
+  }
+}

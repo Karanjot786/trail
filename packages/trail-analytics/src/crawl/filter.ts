@@ -1,4 +1,5 @@
 import { AGENT_TOKENS, CRAWLER_TOKENS } from './ua.gen';
+import { clientAddr } from './ip';
 import type { CrawlLine } from './types';
 
 const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -20,10 +21,9 @@ export function shouldReport(req: Request): boolean {
   return true;
 }
 
-/** The client IP as the edge platform set it: cf-connecting-ip, x-real-ip, then the first x-forwarded-for. */
+/** The trusted client IP (see clientAddr). */
 export function clientIp(req: Request): string {
-  const h = req.headers;
-  return (h.get('cf-connecting-ip') ?? h.get('x-real-ip') ?? h.get('x-forwarded-for')?.split(',')[0] ?? '').trim().slice(0, 64);
+  return clientAddr(req).ip;
 }
 
 /** One NDJSON crawl line (§0.7). `status` 0 = unknown. Query strings are never sent. */
@@ -36,8 +36,15 @@ export function toLine(req: Request, status = 0): CrawlLine {
   return line;
 }
 
-/** `/t/t.js` and `/t/e`: the first-party Trail paths every runtime forwards. */
-export const isTrailPath = (req: Request): boolean => {
-  const p = path(req);
-  return p === '/t/t.js' || p === '/t/e';
-};
+const TRAIL_PATH = /^\/t\/(t(?:\.x|\.p)?\.js|e)\/?$/;
+
+/** The Trail file a request asks for, or null. Path is req.nextUrl?.pathname (basePath and locale stripped) when present, else the URL pathname. A trailing slash is ignored. */
+export function trailPath(req: Request): 't.js' | 't.x.js' | 't.p.js' | 'e' | null {
+  const nu = (req as { nextUrl?: { pathname?: unknown } }).nextUrl;
+  const p = typeof nu?.pathname === 'string' ? nu.pathname : path(req);
+  const m = TRAIL_PATH.exec(p);
+  return m ? (m[1] as 't.js' | 't.x.js' | 't.p.js' | 'e') : null;
+}
+
+/** `/t/t.js`, `/t/t.x.js`, `/t/t.p.js` and `/t/e`: the first-party Trail paths every runtime forwards. */
+export const isTrailPath = (req: Request): boolean => trailPath(req) !== null;

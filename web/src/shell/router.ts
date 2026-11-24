@@ -14,14 +14,18 @@ function read() {
   const key = location.pathname + location.search
   if (!cache || key !== cacheKey) {
     const parsed = parseUrl(location.pathname, location.search)
-    if (parsed.redirect && parsed.redirect !== key) {
-      // Legacy and unknown links: replace, never push.
-      history.replaceState(history.state, '', parsed.redirect)
-    }
-    cacheKey = location.pathname + location.search
+    cacheKey = key
     cache = { state: parsed.state, invalidRange: parsed.invalidRange }
   }
   return cache
+}
+
+/** Legacy and unknown links: replace the URL with its canonical form, never push. Kept out of read() so that
+ *  rendering (useSyncExternalStore's getSnapshot) never writes to history. */
+function applyRedirect(): void {
+  const key = location.pathname + location.search
+  const { redirect } = parseUrl(location.pathname, location.search)
+  if (redirect && redirect !== key) history.replaceState(history.state, '', redirect)
 }
 
 export function current(): UrlState {
@@ -34,7 +38,10 @@ export function invalidRange(): string | null {
 }
 
 const emit = () => listeners.forEach((f) => f())
-const onPop = () => emit()
+const onPop = () => {
+  applyRedirect()
+  emit()
+}
 
 export function subscribe(f: () => void): () => void {
   if (!started) {
@@ -48,6 +55,7 @@ export function subscribe(f: () => void): () => void {
 /** Starts the router: applies a legacy redirect at once. Safe to call more than once. */
 export function startRouter(): void {
   cache = null
+  applyRedirect()
   read()
   if (!started) {
     started = true
@@ -119,5 +127,6 @@ export function navigate(patch: Patch, opts: { replace?: boolean } = {}): void {
 export function go(href: string, opts: { replace?: boolean } = {}): void {
   if (opts.replace) history.replaceState(null, '', href)
   else history.pushState(null, '', href)
+  applyRedirect()
   emit()
 }

@@ -4,10 +4,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
 
+	"trail/internal/auth"
 	"trail/internal/meta"
 	"trail/internal/query"
 )
@@ -127,5 +129,28 @@ func TestGoalPatch(t *testing.T) {
 	}
 	if w := send(h, http.MethodPatch, "/api/goals/999", `{"site":"s","name":"Z","kind":"page","match":"/z"}`); w.Code != http.StatusNotFound {
 		t.Errorf("patch unknown: %d", w.Code)
+	}
+}
+
+func TestDeleteViewTokenSiteScope(t *testing.T) {
+	h := setup(t)
+	w := send(h, http.MethodPost, "/api/views", `{"name":"B","site":"b","state":""}`)
+	if w.Code != http.StatusCreated {
+		t.Fatalf("create: %d %s", w.Code, w.Body)
+	}
+	var v meta.SavedView
+	decodeStrict(t, w.Body.Bytes(), &v)
+	del := func(site string) int {
+		r := httptest.NewRequest(http.MethodDelete, fmt.Sprintf("/api/views/%d", v.ID), nil)
+		r = r.WithContext(auth.WithToken(r.Context(), auth.Token{ID: "t", Scope: meta.ScopeWrite, Site: site}))
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, r)
+		return rec.Code
+	}
+	if c := del("s"); c != http.StatusNotFound {
+		t.Fatalf("other site's token: %d", c)
+	}
+	if c := del("b"); c != http.StatusNoContent {
+		t.Fatalf("own site's token: %d", c)
 	}
 }

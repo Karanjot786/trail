@@ -46,7 +46,7 @@ func Heatmap(db *sql.DB, p Params) (HeatmapResult, error) {
 		return res, err
 	}
 	seen := map[string]bool{}
-	err = forRows(db, cte+`SELECT ts, person FROM ev`, args, func(r *sql.Rows) error {
+	err = forRows(db, cte+`SELECT ts, person FROM ev WHERE type<>'engage'`, args, func(r *sql.Rows) error {
 		var ts int64
 		var person string
 		if err := r.Scan(&ts, &person); err != nil {

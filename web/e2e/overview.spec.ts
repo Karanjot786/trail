@@ -300,7 +300,9 @@ chk(47, 'phone: chart within 1.5 screens, no keyboard hints', async ({ page, got
 
 chk(48, 'signup marks are uniform with the count printed', async ({ page, goto }) => {
   await goto('/')
-  const r = await page.getByRole('figure').first().locator('[data-goal-mark] circle').evaluateAll((els) => [...new Set(els.map((e) => e.getAttribute('r')))])
+  const marks = page.getByRole('figure').first().locator('[data-goal-mark] circle')
+  await expect(marks.first()).toBeVisible() // marks render after the goal series loads; evaluateAll does not wait
+  const r = await marks.evaluateAll((els) => [...new Set(els.map((e) => e.getAttribute('r')))])
   expect(r.length).toBe(1)
 })
 

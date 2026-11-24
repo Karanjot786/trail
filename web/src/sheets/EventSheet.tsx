@@ -54,7 +54,7 @@ const COUNT_COL: ColumnDef[] = [
 export function EventBody({ name }: { name: string }) {
   const { q, key, tz } = useAq()
   const stats = useStats()
-  const d = useQuery<EventDetail>(`event-detail|${key}|${name}`, async (sig) => api.eventDetail(q, name, sig))
+  const d = useQuery<EventDetail>(`event-detail|${key}|${name}`, async (sig) => api.eventDetail(q, name, sig), { keepPrevious: false })
   const w = stats.data?.window
 
   if (d.error && !d.data) return <ErrorState onRetry={d.refetch} />

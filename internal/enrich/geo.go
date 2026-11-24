@@ -80,7 +80,8 @@ type cityRecord struct {
 		ISOCode string `maxminddb:"iso_code"`
 	} `maxminddb:"country"`
 	Subdivisions []struct {
-		Names map[string]string `maxminddb:"names"`
+		IsoCode string            `maxminddb:"iso_code"`
+		Names   map[string]string `maxminddb:"names"`
 	} `maxminddb:"subdivisions"`
 	City struct {
 		Names map[string]string `maxminddb:"names"`
@@ -101,7 +102,11 @@ func (g *Geo) Lookup(ip string) (country, region, city string) {
 		return "", "", ""
 	}
 	if len(rec.Subdivisions) > 0 {
-		region = rec.Subdivisions[0].Names["en"]
+		sub := rec.Subdivisions[0]
+		region = sub.Names["en"]
+		if name, ok := RegionName(rec.Country.ISOCode, sub.IsoCode); ok {
+			region = name
+		}
 	}
 	return rec.Country.ISOCode, region, rec.City.Names["en"]
 }

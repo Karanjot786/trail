@@ -3,6 +3,7 @@ package crawlers
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -186,12 +187,29 @@ func Scan(r io.Reader, format string, since int64, batch int, emit func([]Record
 	default:
 		return 0, 0, fmt.Errorf("unknown format %q: want combined or caddy", format)
 	}
-	sc := bufio.NewScanner(r)
-	sc.Buffer(make([]byte, 0, 64<<10), maxLine)
+	br := bufio.NewReaderSize(r, maxLine)
 	buf := make([]Record, 0, batch)
-	for sc.Scan() {
+	for {
+		chunk, rerr := br.ReadSlice('\n')
+		tooLong := false
+		for errors.Is(rerr, bufio.ErrBufferFull) {
+			tooLong = true
+			_, rerr = br.ReadSlice('\n') // discard the rest of the line
+		}
+		if rerr != nil && rerr != io.EOF {
+			return lines, kept, fmt.Errorf("read log: %w", rerr)
+		}
+		if len(chunk) == 0 && !tooLong && rerr == io.EOF {
+			break
+		}
 		lines++
-		rec, ok := parse(sc.Text())
+		if tooLong {
+			if rerr == io.EOF {
+				break
+			}
+			continue
+		}
+		rec, ok := parse(strings.TrimRight(string(chunk), "\r\n"))
 		if !ok || rec.TS <= since {
 			continue
 		}
@@ -206,9 +224,9 @@ func Scan(r io.Reader, format string, since int64, batch int, emit func([]Record
 			kept += len(buf)
 			buf = buf[:0]
 		}
-	}
-	if err := sc.Err(); err != nil {
-		return lines, kept, fmt.Errorf("read log: %w", err)
+		if rerr == io.EOF {
+			break
+		}
 	}
 	if len(buf) > 0 {
 		if err := emit(buf); err != nil {

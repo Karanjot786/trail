@@ -6,12 +6,13 @@ import { fmtInt } from '../lib/format'
 import { useUrlState } from '../state/useUrlState'
 import { StatusDot } from '../ui/small'
 import { RouteLink } from './RouteLink'
-import { tzCity, viewerTz } from './labels'
+import { tzCity } from './labels'
+import { useReportTz } from './useReportTz'
 import { useStats } from './useStats'
 import { useDataMode } from './useDataMode'
 import { useOnline } from './useOnline'
 
-function hhmm(ms: number, tz: string): string {
+export function hhmm(ms: number, tz: string): string {
   try {
     return new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: tz }).format(ms)
   } catch {
@@ -43,7 +44,7 @@ export function Freshness() {
     const id = window.setInterval(() => setNow(Date.now()), 1000)
     return () => window.clearInterval(id)
   }, [])
-  const tz = stats.data?.window?.tz || viewerTz()
+  const tz = useReportTz()
   const at = stats.updatedAt
   const basis = stats.data?.window?.basis?.text ? stats.data.window.basis : undefined
   const bots = stats.data?.botRequests

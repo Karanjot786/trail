@@ -5,10 +5,9 @@ import { useMemo, useState } from 'react'
 import { api } from '../api/client'
 import type { Dim, Filter } from '../api/types'
 import { useQuery } from '../api/useQuery'
-import { viewerTz } from '../shell/labels'
 import { useSite } from '../shell/useSite'
 import { useStats } from '../shell/useStats'
-import { apiQuery } from '../state/url'
+import { apiQuery, reportSite } from '../state/url'
 import { navigate, useUrlState } from '../state/useUrlState'
 import { Menu, MenuCheckbox, MenuItem, MenuLabel, MenuSeparator } from '../ui/menu'
 import { EmptyState, ErrorState, Skeleton } from '../ui/states'
@@ -62,15 +61,14 @@ function download(href: string): void {
 export function Panel({ id, title, tabs, definition }: PanelProps) {
   const state = useUrlState()
   const { share } = useSite()
-  const tz = viewerTz()
   const tab = tabs.find((t) => t.value === state.panels[id]) ?? tabs[0]
-  const q = apiQuery(state, tz)
+  const q = apiQuery(state)
   const qs = q.toString()
   const [hidden, setHidden] = useState<Record<string, string[]>>({})
   const [exitSort, setExitSort] = useState<'exits' | 'rate'>('exits')
   const headingId = `panel-${id}-h`
 
-  const rowsQ = useQuery(`breakdown|${tab?.dim}|${qs}|${state.prefix}`, async (signal) => api.breakdown(q, tab.dim, { limit: 100 }, signal))
+  const rowsQ = useQuery(`breakdown|${tab?.dim}|${qs}|${state.prefix}`, async (signal) => api.breakdown(q, tab.dim, { limit: 100 }, signal), { enabled: reportSite(state) })
   const statsQ = useStats()
 
   const allCols = tab?.columns ?? []
@@ -139,9 +137,13 @@ export function Panel({ id, title, tabs, definition }: PanelProps) {
             )
           })}
           <MenuSeparator />
-          <MenuItem onSelect={() => download(api.exportUrl('/breakdown', exportQ(), 'csv'))}>Export CSV</MenuItem>
-          <MenuItem onSelect={() => download(api.exportUrl('/breakdown', exportQ(), 'json'))}>Export JSON</MenuItem>
-          <MenuItem onSelect={() => void copyCurl()}>Copy as API call</MenuItem>
+          {!share && (
+            <>
+              <MenuItem onSelect={() => download(api.exportUrl('/breakdown', exportQ(), 'csv'))}>Export CSV</MenuItem>
+              <MenuItem onSelect={() => download(api.exportUrl('/breakdown', exportQ(), 'json'))}>Export JSON</MenuItem>
+              <MenuItem onSelect={() => void copyCurl()}>Copy as API call</MenuItem>
+            </>
+          )}
           <MenuItem onSelect={openReport}>Open full report</MenuItem>
         </Menu>
       </div>

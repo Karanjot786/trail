@@ -12,7 +12,7 @@ primary_region = "sin"
 [env]
   TRAIL_DB = "/data/trail.db"
   TRAIL_ADDR = ":8080"
-  TRAIL_TZ = "Asia/Kolkata"
+  TRAIL_TZ = "UTC"
 
 [mounts]
   source = "trail_data"

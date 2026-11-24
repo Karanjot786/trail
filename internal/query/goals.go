@@ -177,7 +177,7 @@ func allVisitors(db *sql.DB, p Params) (int, error) {
 		return 0, err
 	}
 	var total int
-	if err := db.QueryRow(cte+`SELECT count(DISTINCT person) FROM ev`, args...).Scan(&total); err != nil {
+	if err := db.QueryRow(cte+`SELECT count(DISTINCT CASE WHEN type='pageview' THEN person END) FROM ev`, args...).Scan(&total); err != nil {
 		return 0, fmt.Errorf("goal visitors: %w", err)
 	}
 	return total, nil
@@ -192,7 +192,7 @@ func goalNumbers(db *sql.DB, p Params, g Goal, total int) (GoalPrev, error) {
 	var where string
 	switch {
 	case g.Kind == "event":
-		where, args = "type='event' AND name=?", append(args, g.Match)
+		where, args = "type='event' AND name<>'' AND name=?", append(args, g.Match)
 	case strings.HasSuffix(g.Match, "*"):
 		// substr = is case-sensitive like the exact-path goal; LIKE is not.
 		prefix := strings.TrimSuffix(g.Match, "*")
@@ -200,7 +200,7 @@ func goalNumbers(db *sql.DB, p Params, g Goal, total int) (GoalPrev, error) {
 	default:
 		where, args = "type='pageview' AND path=?", append(args, g.Match)
 	}
-	if err := db.QueryRow(cte+`SELECT count(*), count(DISTINCT person) FROM ev WHERE `+where, args...).
+	if err := db.QueryRow(cte+`SELECT count(*), count(DISTINCT CASE WHEN `+pvPeople+` THEN person END) FROM ev WHERE `+where, args...).
 		Scan(&n.Conversions, &n.Visitors); err != nil {
 		return n, fmt.Errorf("goal %q: %w", g.Name, err)
 	}
@@ -217,7 +217,7 @@ func Delivery(db *sql.DB, p Params) (DeliveryResult, error) {
 	if err != nil {
 		return d, err
 	}
-	if err := db.QueryRow(cte+`SELECT count(*), coalesce(sum(retry>=1),0) FROM ev`, args...).
+	if err := db.QueryRow(cte+`SELECT count(*), coalesce(sum(retry>=1),0) FROM ev WHERE type<>'engage'`, args...).
 		Scan(&d.Events, &d.Retried); err != nil {
 		return d, fmt.Errorf("delivery: %w", err)
 	}

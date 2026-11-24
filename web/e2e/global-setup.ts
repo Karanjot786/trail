@@ -24,7 +24,7 @@ export default async function globalSetup() {
   }
   execFileSync('go', ['build', '-o', bin, './cmd/trail'], { cwd: repoDir, stdio: 'inherit' })
 
-  const env = { ...process.env, TRAIL_DB: db, TRAIL_SITES: E2E_SITES, TRAIL_PASSWORD: E2E_PASSWORD, TRAIL_ADDR: `:${port}`, TRAIL_AGENT_LISTS: 'off' }
+  const env = { ...process.env, TRAIL_DB: db, TRAIL_SITES: E2E_SITES, TRAIL_PASSWORD: E2E_PASSWORD, TRAIL_ADDR: `:${port}`, TRAIL_AGENT_LISTS: 'off', TRAIL_TZ: 'Asia/Kolkata' }
   try {
     execFileSync(bin, ['seed', '--sites', 'demo,docs', '--days', '60', '--persons', '1800', '--seed', '42', '--revenue', 'demo', '--crawlers', 'demo'], { cwd: repoDir, env, stdio: 'inherit' })
   } catch {

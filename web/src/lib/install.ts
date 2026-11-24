@@ -94,7 +94,7 @@ export default defineNuxtConfig({
 }
 
 export interface InstallStatus {
-  tone: 'wait' | 'ok' | 'bad'
+  tone: 'wait' | 'ok' | 'warn' | 'bad'
   title: string
   code: ReasonCode | null
 }
@@ -103,7 +103,7 @@ export interface InstallStatus {
 export const REASON: Record<ReasonCode, string> = {
   ok: 'see the checks below',
   fetch_failed: 'the page did not load',
-  script_missing: 'no Trail snippet on the page',
+  script_missing: 'no Trail script in the server HTML',
   wrong_site_id: 'the snippet has another site ID',
   wrong_host: 'the snippet points at another Trail server',
   csp_blocked: 'your Content Security Policy blocks Trail',
@@ -112,12 +112,22 @@ export const REASON: Record<ReasonCode, string> = {
   events_preview_only: 'only preview events so far',
   bot_filtered: 'the visits were filtered out as bots',
   retries_high: 'many events need retries',
+  api_missing: 'the snippet has no data-api',
+  bot_protection: 'bot protection answered instead of the page',
+  robots_blocks_ai: 'robots.txt turns AI crawlers away',
+  proxy_unsigned: 'your proxy forwards events without a signature',
+  proxy_bad_signature: 'your proxy token is wrong or revoked',
 }
 
 /** The one-line install state, read from the same response as the checklist. */
 export function installStatus(c: InstallCheck | undefined): InstallStatus {
   if (!c) return { tone: 'wait', title: 'Checking the install', code: null }
-  if (c.state === 'receiving') return { tone: 'ok', title: 'Receiving data', code: null }
+  if (c.state === 'receiving') {
+    const warns = c.checks.filter((x) => x.status === 'warn' || x.status === 'fail')
+    if (warns.length === 0) return { tone: 'ok', title: 'Receiving data', code: null }
+    const code = warns[0].code
+    return { tone: 'warn', title: warns.length === 1 ? `Receiving data, with a warning: ${REASON[code] ?? warns[0].label}` : `Receiving data, with ${warns.length} warnings`, code }
+  }
   if (c.state === 'blocked') {
     const bad = c.checks.find((x) => x.status === 'fail')
     return { tone: 'bad', title: `Blocked: ${REASON[bad?.code ?? 'ok'] ?? bad?.label}`, code: bad?.code ?? null }

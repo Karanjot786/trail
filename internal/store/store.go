@@ -5,14 +5,17 @@ import (
 	"context"
 	"database/sql"
 	_ "embed"
+	"errors"
 	"fmt"
 	"log"
 	"net/url"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	_ "modernc.org/sqlite"
+	sqlite "modernc.org/sqlite"
+	sqlite3 "modernc.org/sqlite/lib"
 )
 
 //go:embed schema.sql
@@ -41,13 +44,22 @@ type Event struct {
 
 // Store owns the database and the in-memory write queue.
 type Store struct {
-	db      *sql.DB
-	queue   chan Event
-	kick    chan struct{}
-	mu      sync.Mutex // serialises Flush and guards closed
-	closed  bool
-	dropped atomic.Int64
-	every   time.Duration // the timer flush interval (flushEvery; tests raise it)
+	db                                  *sql.DB
+	path                                string
+	queue                               chan Event
+	kick                                chan struct{}
+	mu                                  sync.Mutex // serialises Flush and guards closed
+	qmu                                 sync.Mutex // serialises producers so a batch is admitted whole
+	closed                              bool
+	dropped                             atomic.Int64
+	failed                              atomic.Int64
+	pending                             []Event        // drained from the queue, not yet committed; guarded by mu
+	pendCap                             int            // most events pending may hold (queueCap; tests lower it)
+	every                               time.Duration  // the timer flush interval (flushEvery; tests raise it)
+	foldReady, foldFinished, foldWarned bool           // history fold state; only the writer goroutine touches them
+	backingUp                           atomic.Bool    // the pre-fold backup goroutine is running
+	bwg                                 sync.WaitGroup // joins that goroutine at Close
+	noFold                              atomic.Bool    // true: engage events are stored as rows (tests write unfolded history)
 }
 
 // Open opens (or creates) the database at path, enabling WAL and a 5 s busy timeout.
@@ -66,10 +78,12 @@ func Open(path string) (*Store, error) {
 		return nil, err
 	}
 	return &Store{
-		db:    db,
-		queue: make(chan Event, queueCap),
-		kick:  make(chan struct{}, 1),
-		every: flushEvery,
+		db:      db,
+		path:    path,
+		queue:   make(chan Event, queueCap),
+		kick:    make(chan struct{}, 1),
+		every:   flushEvery,
+		pendCap: queueCap,
 	}, nil
 }
 
@@ -95,15 +109,138 @@ func migrate(db *sql.DB) error {
 		if ok {
 			continue
 		}
-		if _, err := db.Exec(`ALTER TABLE events ADD COLUMN ` + c.def); err != nil {
-			return fmt.Errorf("add %s column: %w", c.name, err)
+		if err := addColumn(db, "events", c.name, c.def); err != nil {
+			return err
 		}
 	}
 	// After the ALTERs: on old databases schema.sql runs before the agent column exists.
 	if _, err := db.Exec(`CREATE INDEX IF NOT EXISTS events_site_agent_ts ON events(site_id, ts) WHERE agent<>''`); err != nil {
 		return fmt.Errorf("create events_site_agent_ts: %w", err)
 	}
-	return migrateCrawlHits(db)
+	if err := migrateCrawlHits(db); err != nil {
+		return err
+	}
+	return migrateVersioned(db)
+}
+
+// Versioned migration steps: each step's number is the user_version it leaves behind.
+const (
+	verDwell   = 1 // events.dwell_ms
+	verIndexes = 2 // trimmed index set
+	verEndIdx  = 3 // events_site_end, for the live reports' fold lookback
+	verTypeIdx = 4 // events_site_type_ts, for the (site, type) scans the partial name index cannot serve
+	// schemaVersion is the PRAGMA user_version this binary migrates to: the newest step.
+	schemaVersion = verTypeIdx
+)
+
+// trimmedIndexes are the v1 index names the v2 step drops. A downgraded binary recreates them.
+var trimmedIndexes = []string{"events_site_type_name_ts", "events_site_user_ts"}
+
+// addColumn adds a column. "duplicate column name" means another opener added it first: success.
+func addColumn(db *sql.DB, table, name, def string) error {
+	if _, err := db.Exec(`ALTER TABLE ` + table + ` ADD COLUMN ` + def); err != nil {
+		if strings.Contains(err.Error(), "duplicate column name") {
+			return nil
+		}
+		return fmt.Errorf("add %s column: %w", name, err)
+	}
+	return nil
+}
+
+// migrateVersioned runs the numbered steps above PRAGMA user_version. Each step is idempotent.
+func migrateVersioned(db *sql.DB) error {
+	var v int
+	if err := db.QueryRow(`PRAGMA user_version`).Scan(&v); err != nil {
+		return fmt.Errorf("read user_version: %w", err)
+	}
+	// done records a finished step; user_version only ever moves up.
+	done := func(step int) error {
+		if v >= step {
+			return nil
+		}
+		if _, err := db.Exec(fmt.Sprintf(`PRAGMA user_version=%d`, step)); err != nil {
+			return fmt.Errorf("set user_version: %w", err)
+		}
+		v = step
+		return nil
+	}
+	if v < verDwell {
+		// Constant default: SQLite rewrites no rows, so this is instant on any size of database.
+		ok, err := hasColumn(db, "events", "dwell_ms")
+		if err != nil {
+			return err
+		}
+		if !ok {
+			if err := addColumn(db, "events", "dwell_ms", "dwell_ms INTEGER NOT NULL DEFAULT 0"); err != nil {
+				return err
+			}
+		}
+		if err := done(verDwell); err != nil {
+			return err
+		}
+	}
+	// Also when user_version is already 2: a downgraded binary recreates the old indexes without
+	// touching it.
+	old, err := hasIndex(db, trimmedIndexes...)
+	if err != nil {
+		return err
+	}
+	if v < verIndexes || old {
+		// New names, not reused ones, so a downgraded binary recreates its own full indexes. Create
+		// before drop. Runs at Open, before ingest listens, so the index build blocks no writer.
+		qs := []string{`CREATE INDEX IF NOT EXISTS events_site_name_ts ON events(site_id, type, name, ts) WHERE name<>''`}
+		for _, n := range trimmedIndexes {
+			qs = append(qs, `DROP INDEX IF EXISTS `+n)
+		}
+		for _, q := range qs {
+			if _, err := db.Exec(q); err != nil {
+				return fmt.Errorf("migrate to v2: %w", err)
+			}
+		}
+		if err := done(verIndexes); err != nil {
+			return err
+		}
+	}
+	if v < verEndIdx {
+		// Where a folded pageview's dwell ends. The live reports ask for the pageviews still in dwell
+		// at the start of their window; this index answers that with a range seek, not a day scan.
+		// ts is the third column so a query can drop rows by ts without reading the table. The expression
+		// must match query.activeEnd.
+		if _, err := db.Exec(`CREATE INDEX IF NOT EXISTS events_site_end ON events(site_id, (ts+dwell_ms), ts) WHERE dwell_ms>0`); err != nil {
+			return fmt.Errorf("migrate to v3: %w", err)
+		}
+		if err := done(verEndIdx); err != nil {
+			return err
+		}
+	}
+	if v < verTypeIdx {
+		// events_site_name_ts is partial (name<>''), so a lookup by type alone (event catalogue, the
+		// outbound filter, the event breakdown) cannot use it and would scan events_site_ts over the
+		// window. This index restores the seek. It is partial (non-pageview rows are a small share after the
+		// fold), and the three reports' WHERE carry a literal type<>'pageview' so the planner can use it.
+		// It is additive, so a downgrade is unaffected.
+		if _, err := db.Exec(`CREATE INDEX IF NOT EXISTS events_site_type_ts ON events(site_id, type, ts) WHERE type<>'pageview'`); err != nil {
+			return fmt.Errorf("migrate to v4: %w", err)
+		}
+		if err := done(verTypeIdx); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// hasIndex reports whether any of the named indexes exists.
+func hasIndex(db *sql.DB, names ...string) (bool, error) {
+	for _, n := range names {
+		var c int
+		if err := db.QueryRow(`SELECT count(*) FROM sqlite_master WHERE type='index' AND name=?`, n).Scan(&c); err != nil {
+			return false, fmt.Errorf("inspect index %s: %w", n, err)
+		}
+		if c > 0 {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // hasColumn reports whether table has the named column.
@@ -152,28 +289,75 @@ func (s *Store) DB() *sql.DB { return s.db }
 // Dropped reports how many events were discarded because the queue was full.
 func (s *Store) Dropped() int64 { return s.dropped.Load() }
 
-// Enqueue queues e for the next flush. It never blocks: a full queue drops the event.
-func (s *Store) Enqueue(e Event) {
-	select {
-	case s.queue <- e:
-	default:
-		s.dropped.Add(1)
-		return
+// Enqueue queues e for the next flush. It never blocks: a full queue refuses
+// the event and reports false.
+func (s *Store) Enqueue(e Event) bool { return s.EnqueueBatch([]Event{e}) }
+
+// EnqueueBatch queues all of evs or none. It never blocks. On refusal it counts
+// len(evs) as dropped and returns false, so the caller can tell the client to retry
+// without a half-stored batch being duplicated.
+func (s *Store) EnqueueBatch(evs []Event) bool {
+	s.qmu.Lock()
+	// Only Flush receives from the queue, so free space can only grow while qmu is held.
+	if cap(s.queue)-len(s.queue) < len(evs) {
+		s.qmu.Unlock()
+		s.dropped.Add(int64(len(evs)))
+		return false
 	}
-	if len(s.queue) >= batchSize {
+	for _, e := range evs {
+		s.queue <- e
+	}
+	full := len(s.queue) >= batchSize
+	s.qmu.Unlock()
+	if full {
 		select {
 		case s.kick <- struct{}{}:
 		default:
 		}
 	}
+	return true
+}
+
+// Pending reports how many events wait for a write retry.
+func (s *Store) Pending() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return len(s.pending)
+}
+
+// Failed reports events dropped because SQLite rejected the row itself.
+func (s *Store) Failed() int64 { return s.failed.Load() }
+
+// retryable is false only for data errors, which a retry can never fix. Anything else
+// (busy, locked, disk full, I/O, unknown) keeps the data: losing it silently is worse.
+func retryable(err error) bool {
+	var se *sqlite.Error
+	if !errors.As(err, &se) {
+		return true
+	}
+	switch se.Code() & 0xff {
+	case sqlite3.SQLITE_CONSTRAINT, sqlite3.SQLITE_MISMATCH, sqlite3.SQLITE_TOOBIG, sqlite3.SQLITE_RANGE:
+		return false
+	}
+	return true
+}
+
+// nextBackoff is 1 s after the first failure, doubling up to 30 s.
+func nextBackoff(d time.Duration) time.Duration {
+	if d <= 0 {
+		return time.Second
+	}
+	return min(d*2, 30*time.Second)
 }
 
 // Start runs the background writer: it flushes every second, or as soon as
-// 500 events are waiting, until ctx is cancelled.
+// 500 events are waiting, until ctx is cancelled. After a failed write it backs
+// off (1 s doubling to 30 s) and keeps the batch for retry.
 func (s *Store) Start(ctx context.Context) {
 	go func() {
 		t := time.NewTicker(s.every)
 		defer t.Stop()
+		var backoff time.Duration
 		for {
 			select {
 			case <-ctx.Done():
@@ -181,29 +365,77 @@ func (s *Store) Start(ctx context.Context) {
 			case <-t.C:
 			case <-s.kick:
 			}
-			if err := s.Flush(); err != nil {
-				log.Printf("store: flush: %v", err)
+			err := s.Flush()
+			if err == nil {
+				if backoff > 0 {
+					log.Printf("store: write recovered")
+					backoff = 0
+				}
+				s.foldTick()
+				continue
+			}
+			if backoff == 0 {
+				log.Printf("store: flush failed, keeping %d events for retry: %v", s.Pending(), err)
+			}
+			backoff = nextBackoff(backoff)
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(backoff):
 			}
 		}
 	}()
 }
 
-// Flush writes every queued event in one transaction.
+// Flush writes the queued events, plus any batch a failed write left pending, in one
+// transaction. A retryable failure keeps the batch pending and returns the error. A
+// data error falls back to one transaction per event and drops only the rows SQLite rejects.
 func (s *Store) Flush() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.closed {
 		return nil
 	}
-	n := len(s.queue)
-	if n == 0 {
+	for n := len(s.queue); n > 0 && len(s.pending) < s.pendCap; n-- {
+		s.pending = append(s.pending, <-s.queue)
+	}
+	if len(s.pending) == 0 {
 		return nil
 	}
-	batch := make([]Event, 0, n)
-	for range n {
-		batch = append(batch, <-s.queue)
+	err := s.write(s.pending)
+	if err == nil {
+		s.pending = nil
+		return nil
 	}
-	return s.write(batch)
+	if retryable(err) {
+		return err
+	}
+	return s.salvage()
+}
+
+// salvage writes pending events one by one after a data error.
+func (s *Store) salvage() error {
+	var keep []Event
+	var keepErr error
+	var dropped int
+	var lastBad error
+	for _, e := range s.pending {
+		err := s.write([]Event{e})
+		switch {
+		case err == nil:
+		case retryable(err):
+			keep, keepErr = append(keep, e), err
+		default:
+			dropped++
+			lastBad = err
+		}
+	}
+	s.pending = keep
+	if dropped > 0 {
+		s.failed.Add(int64(dropped))
+		log.Printf("store: dropped %d unwritable events: %v", dropped, lastBad)
+	}
+	return keepErr
 }
 
 func (s *Store) write(batch []Event) error {
@@ -227,8 +459,22 @@ func (s *Store) write(batch []Event) error {
 		return fmt.Errorf("prepare identity: %w", err)
 	}
 	defer idm.Close()
+	var fold *sql.Stmt
+	if !s.noFold.Load() {
+		if fold, err = tx.Prepare(foldUpdateSQL); err != nil {
+			return fmt.Errorf("prepare fold: %w", err)
+		}
+		defer fold.Close()
+	}
 
 	for _, e := range batch {
+		if fold != nil && e.Type == "engage" {
+			if ok, err := foldEngage(fold, e); err != nil {
+				return fmt.Errorf("fold engage: %w", err)
+			} else if ok {
+				continue
+			}
+		}
 		if _, err := ins.Exec(e.SiteID, e.TS, e.Type, e.AnonID, e.SessionID, e.UserID,
 			e.Host, e.Path, e.Route, e.UTMSource, e.UTMMedium, e.UTMCampaign, e.UTMTerm, e.UTMContent,
 			e.RefHost, e.RefURL, e.Name, e.Props, e.EngagedMs, e.ScrollPct,
@@ -246,6 +492,7 @@ func (s *Store) write(batch []Event) error {
 
 // Close flushes pending events and closes the database.
 func (s *Store) Close() error {
+	s.bwg.Wait() // a running backup holds a read transaction
 	flushErr := s.Flush()
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -253,6 +500,9 @@ func (s *Store) Close() error {
 		return flushErr
 	}
 	s.closed = true
+	if n := len(s.pending); n > 0 {
+		log.Printf("store: %d events lost at shutdown: %v", n, flushErr)
+	}
 	if err := s.db.Close(); err != nil {
 		return err
 	}

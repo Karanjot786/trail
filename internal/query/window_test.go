@@ -155,3 +155,85 @@ func TestLabels(t *testing.T) {
 		t.Fatal(DayLabel(a), RangeLabel(a, a.AddDate(0, 0, 29)))
 	}
 }
+
+func exactIST() (from, to int64) {
+	return winNow.Add(-24 * time.Hour).UnixMilli(), winNow.UnixMilli()
+}
+
+func TestExactWindow24h(t *testing.T) {
+	from, to := exactIST()
+	w := ExactWindow(from, to, "prev", winNow, ist, 0)
+	if w.Bucket != "hour" || w.From != from || w.To != to || !w.Elapsed {
+		t.Fatalf("%+v", w)
+	}
+	if w.PrevTo == nil || *w.PrevTo != from-1 || *w.PrevFrom != from-(to-from) {
+		t.Fatalf("prev %v %v", w.PrevFrom, w.PrevTo)
+	}
+	if w.Basis.Short != "prev. 24 hours" || w.Basis.None {
+		t.Fatalf("%+v", w.Basis)
+	}
+}
+
+func TestExactWindowKolkataHourBuckets(t *testing.T) {
+	from, to := exactIST()
+	w := ExactWindow(from, to, "prev", winNow, ist, 0)
+	bs := BucketStarts(w, ist)
+	want := time.Date(2026, 11, 19, 10, 0, 0, 0, ist).UnixMilli()
+	if bs[0] != want {
+		t.Fatalf("first bucket %v, want %v", time.UnixMilli(bs[0]).In(ist), time.UnixMilli(want).In(ist))
+	}
+	for _, b := range bs {
+		if tm := time.UnixMilli(b).In(ist); tm.Minute() != 0 || tm.Second() != 0 {
+			t.Fatalf("bucket off the hour: %v", tm)
+		}
+	}
+	if lb := bs[w.LastBucket]; lb > to || to-lb >= 3600_000 {
+		t.Fatalf("lastBucket %d (%v) does not hold now", w.LastBucket, time.UnixMilli(lb).In(ist))
+	}
+}
+
+func TestExactWindowLong(t *testing.T) {
+	to := winNow.UnixMilli()
+	w := ExactWindow(to-10*24*3600_000, to, "prev", winNow, ist, 0)
+	if w.Bucket != "day" || w.Basis.Short != "prev. 10 days" {
+		t.Fatalf("%+v", w)
+	}
+}
+
+func TestExactWindowNoEarlierData(t *testing.T) {
+	from, to := exactIST()
+	w := ExactWindow(from, to, "prev", winNow, ist, from+3600_000)
+	if !w.Basis.None || w.PrevFrom != nil || w.PrevTo != nil {
+		t.Fatalf("%+v", w)
+	}
+	if w.From != from {
+		t.Fatalf("from was clamped: %d", w.From)
+	}
+	n := ExactWindow(from, to, "none", winNow, ist, 0)
+	if !n.Basis.None || n.PrevFrom != nil {
+		t.Fatalf("%+v", n)
+	}
+}
+
+func TestExactWindowCustomComparison(t *testing.T) {
+	from, to := exactIST()
+	w := ExactWindow(from, to, "c:2026-11-15", winNow, ist, 0)
+	wantFrom := time.Date(2026, 11, 15, 10, 5, 0, 0, ist).UnixMilli()
+	if w.PrevFrom == nil || *w.PrevFrom != wantFrom || *w.PrevTo != wantFrom+(to-from)-1 || !w.Basis.Custom {
+		t.Fatalf("%v %v %+v", w.PrevFrom, w.PrevTo, w.Basis)
+	}
+	o := ExactWindow(from, to, "c:2026-11-19", winNow, ist, 0) // overlaps the window: ignored
+	if *o.PrevTo != from-1 || o.Basis.Custom {
+		t.Fatalf("overlap not ignored: %v %+v", o.PrevTo, o.Basis)
+	}
+}
+
+func TestDataStart(t *testing.T) {
+	db := fixture(t, pv("A", "sa", "/", t0+hour), pv("B", "sb", "/", t0))
+	if got, err := DataStart(db, "s"); err != nil || got != t0 {
+		t.Fatalf("got %d %v, want %d", got, err, t0)
+	}
+	if got, err := DataStart(db, "empty"); err != nil || got != 0 {
+		t.Fatalf("empty site: %d %v", got, err)
+	}
+}
