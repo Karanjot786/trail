@@ -74,7 +74,7 @@ No password or secret to set up: the first start prints a generated dashboard pa
 | `TRAIL_SITES` | empty | Optional `id=domain,id2=domain2`, added at startup if missing. Sites edited in the dashboard keep their edits. You can also add sites in **Settings** |
 | `TRAIL_INGEST_RPS` | `50` | Events requests per second per client IP on `/_t/e`, burst twice that. Over the limit is `429`. `0` turns it off |
 | `TRAIL_TRUSTED_PROXIES` | `private,cloudflare` | Which TCP peers may report the visitor IP in `X-Forwarded-For` (or `CF-Connecting-IP` from Cloudflare). Comma list of IPs, CIDRs, `private` (loopback and private ranges) and `cloudflare`. `none` trusts no header. Headers from any other peer are ignored, so they cannot dodge the rate limit or fake geo |
-| `TRAIL_TZ` | `UTC` | Timezone for daily buckets. The dashboard shows days in this zone |
+| `TRAIL_TZ` | `UTC` | Timezone for daily buckets. The dashboard shows days in this zone. An unknown name stops the server at start; a bad `tz` on an API call is a `400` |
 | `TRAIL_GEO_DB` | unset | Path to your own City `.mmdb` (for example DB-IP Lite City) for region and city. Without it, the built-in database gives country only |
 | `TRAIL_SECRET` | stored in the database | Signs session cookies (32+ chars). Unset: a random key is created once and kept in the database, so logins survive restarts |
 | `TRAIL_API_TOKENS` | unset | `name:token:scope,...` for the read API and MCP. Scope `read` or `write`; tokens of 24+ chars |
@@ -83,7 +83,7 @@ No password or secret to set up: the first start prints a generated dashboard pa
 
 ## Add a site
 
-Open **Settings** in the dashboard and click **Add site**. Paste the domain the site runs on; the site id is suggested from it (it goes in `data-site` and can't be changed later). The site's **Install** panel has copy-ready code for a script tag, npm, Next.js, React and a Vercel rewrite, filled in with the site id and your Trail host. It then polls the server every 3 seconds and shows "Waiting for the first event…" until the first event lands.
+Open **Settings** in the dashboard and click **Add site**. Paste the domain the site runs on; the site id is suggested from it (it goes in `data-site` and can't be changed later). The site's **Install** panel has copy-ready code for a script tag, npm, Next.js, React and a Vercel rewrite, filled in with the site id and your Trail host. It then polls the server every 3 seconds and shows "Waiting for the first event…" until the first event lands. If it stays **Blocked**, its checks say why; bot protection that challenges the check shows a warning rather than a failure, and a robots.txt that disallows AI crawlers is a warning only.
 
 Deleting a site stops ingest at once and keeps its data, so adding the same id again brings it back. Tick "also delete data" to remove its events, goals and identities in one go. The same routes are on the API: `GET/POST /api/v1/sites`, `PATCH/DELETE /api/v1/sites/{id}` (`?purge=1` deletes data) and `GET /api/v1/sites/{id}/status`; changes need a `write` token.
 
@@ -92,7 +92,7 @@ Deleting a site stops ingest at once and keeps its data, so adding the same id a
 `/_t/e` accepts events for a site only from a browser page on an allowed host. Trail reads the `Origin` header, or the `Referer` host when there is no `Origin`, and allows:
 
 - the site's domain and any subdomain of it (`example.com`, `www.example.com`; not `evil-example.com`);
-- each entry in the site's allowed origins: an exact host like `staging.example.org`, or `*.vercel.app` for every subdomain of `vercel.app` (Vercel preview deployments). Up to 20;
+- each entry in the site's allowed origins: an exact host like `staging.example.org`, or `*.vercel.app` for every subdomain of `vercel.app`, or a preview pattern such as `*-acme.vercel.app` (Vercel) or `*--mysite.netlify.app` (Netlify). Up to 20;
 - `localhost`, `127.0.0.1` and `[::1]`, so local development works.
 
 Anything else gets an empty `403`, and the dashboard warns that events were rejected (counted in memory per site, for about the last 24 hours). A request with neither header is refused too; server-side sending will use a per-site secret key in a later release. A `/_t/*` rewrite on your own domain still works: the browser sends your domain as the `Origin`. Edit a site's list in **Settings → ⋯ → Allowed origins**.
@@ -169,7 +169,7 @@ Script attributes:
 |---|---|
 | `data-site` | Site id (required) |
 | `data-api` | Ingest endpoint, default `/_t/e` |
-| `data-env` | Tag events, e.g. `production` or `preview`; the dashboard can filter on it |
+| `data-env` | Tag events, e.g. `production` or `preview`; the dashboard can filter on it. Unset: derived from the page host, where subdomains of the site's domain count as `production` unless a label looks like staging (`staging`, `dev`, `qa`, `pr-*` and similar) |
 | `data-dev` | Also track on `localhost` |
 | `data-route` | Default route template for pageviews |
 | `data-mode` | `full` stores an id from the first page; `private` never stores anything. Absent: private until consent |
@@ -178,6 +178,8 @@ Script attributes:
 | `data-rage` | Opt in to rage-click detection |
 | `data-forms` | Opt in to form-submit events; records the form id or name, never field values. Loaded via `t.x.js` |
 | `data-errors` | Opt in to JS error events, at most 5 per page. Loaded via `t.x.js` |
+| `data-hash` | Count hash-router navigation (`#/x`, `#!/x`) as pageviews. Loaded via `t.x.js` |
+| `data-cfasync` | Set to `false` on Cloudflare so Rocket Loader leaves the tag alone (otherwise the tracker may not start) |
 
 Any element with `data-trail="Name"` records a named click event (full mode). `/_t/t.p.js` is a smaller private-only build.
 
@@ -225,9 +227,11 @@ The database is a single SQLite file. Take consistent snapshots with a cron job 
 | Full | `data-mode="full"` | first-party `_t_id` cookie and localStorage | across visits and devices |
 
 - Private visitors are counted on the server as `HMAC-SHA256(daily key, site|IP|UA)`. The key is random, held only in memory and replaced at midnight in `TRAIL_TZ`.
+- The server never sets `_t_id`; the script writes it. Safari clears script-written storage after 7 days without a visit, so a Safari visitor who returns after more than a week can count as new, including on same-site installs.
+- IPv6 visitors are keyed by their /64 network in the private-mode hash and the rate limit.
 - `trail.consent(false)` deletes `_t_id`, `_t_s`, `_t_u` and the queue, stops sending, and remembers the choice in `localStorage._t_c`.
 - Do Not Track and Global Privacy Control mean nothing is sent, unless the tag has `data-dnt="off"`.
-- The raw IP address is never written to disk. It is used in memory for geo, bot checks and the private-mode hash only. No third parties are involved.
+- The tracker stamps each event with its age (`c`, in ms) when it sends, so retried and delayed events keep their real time. The server accepts ages up to 7 days and rejects older events with `400`. The raw IP address is never written to disk. It is used in memory for geo, bot checks and the private-mode hash only. No third parties are involved.
 
 ## Tracker cost
 

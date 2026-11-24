@@ -28,12 +28,26 @@ This works on any site, with or without a framework. Set up the [`/_t/*` rewrite
 | `data-rage` | off | Report rage clicks |
 | `data-forms` | off | Report form submits: the form's `id` or `name`, never field values |
 | `data-errors` | off | Report JavaScript errors, at most 5 distinct ones per page load |
+| `data-hash` | off | Count hash-router navigation (`#/about`, `#!/about`) as pageviews. Loads `t.x.js` |
+| `data-cfasync` | | Set it to `false` on Cloudflare. See [Cloudflare Rocket Loader](#cloudflare-rocket-loader) |
 
 On/off attributes are on when present, whatever their value: `data-dev` and `data-dev="1"` mean the same.
 
-The last four load a small second file, `t.x.js`, only when one of them is set. See [Extras](/tracking/extras).
+`data-vitals`, `data-rage`, `data-forms`, `data-errors` and `data-hash` load a small second file, `t.x.js`, only when one of them is set. See [Extras](/tracking/extras).
 
 To name clicks on buttons and links without code, add `data-trail="Name"` to the element itself, not to the script tag. See [Named clicks](/tracking/named-clicks).
+
+## Hash routers
+
+Routers that keep the page in the URL fragment (`example.com/#/pricing`) change only the hash, so the tracker sees no new page. Add `data-hash` and each change to a `#/` or `#!/` route counts as a pageview. The route stays in the stored path (`/#/pricing`, without any query after it) and `:id`-style segments are grouped as usual. Plain anchors such as `#install` are not pageviews, and the path stored for them has no fragment.
+
+## Cloudflare Rocket Loader
+
+Rocket Loader defers scripts and runs them in a way that leaves `document.currentScript` empty, which the tracker needs to find its own tag, so it silently does nothing. Opt the tag out:
+
+```html
+<script defer src="/_t/t.js" data-site="mysite" data-cfasync="false"></script>
+```
 
 ## Add a site
 
@@ -41,7 +55,7 @@ Open **Settings** in the dashboard, click **Add website** and enter the domain, 
 
 ## Origins that can send events
 
-`/_t/e` accepts events for a site only from its own domain, its subdomains, hosts on the site's allowed-origins list (up to 20, wildcards such as `*.vercel.app` work) and `localhost`. Anything else gets an empty `403`. A [rewrite](/install/rewrites) on your own domain still works. The full rules and the `rejected24h` counter are in [Allowed origins](/operations/configuration#allowed-origins).
+`/_t/e` accepts events for a site only from its own domain, its subdomains, hosts on the site's allowed-origins list (up to 20; `*.vercel.app` and `*-team.vercel.app` style patterns work) and `localhost`. Anything else gets an empty `403`. A [rewrite](/install/rewrites) on your own domain still works. The full rules and the `rejected24h` counter are in [Allowed origins](/operations/configuration#allowed-origins).
 
 ## The private-only file
 

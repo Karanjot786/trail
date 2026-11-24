@@ -136,6 +136,12 @@ Schema changes run at startup, so an update is a new binary or image over the sa
 | Compose | `docker compose pull && docker compose up -d` |
 | Binary | run the install script again: it replaces the binary and restarts the service, leaving `/etc/trail.env` and the data alone |
 
+What an update changes for people:
+
+- Everyone signed in to the dashboard is signed out once (session cookies are now bound to the password).
+- IPv6 visitors get a new private-mode id once, and share a rate-limit bucket per /64 network. IPv4 is unchanged.
+- The server no longer sets the `_t_id` cookie; the script does. On Safari, script-written storage expires after 7 days without a visit.
+
 Pin a version (`ghcr.io/karanjot786/trail:0.3`, `TRAIL_VERSION=v0.3.0`) if you want to choose when to move. Read the [changelog](site/docs/changelog.md) before a big jump. The tracker is embedded, so your sites get the new `t.js` once the server restarts.
 
 ## Backups
@@ -171,7 +177,7 @@ None are required.
 | `TRAIL_DB` | `trail.db` (`/data/trail.db` in Docker, `/var/lib/trail/trail.db` with install.sh) | Path of the SQLite file |
 | `TRAIL_ADDR` | `:8080` | Listen address. `127.0.0.1:8080` keeps it private behind a local proxy |
 | `TRAIL_SITES` | empty | `id=domain,id2=domain2`, added at startup if missing. Or add sites in **Settings** |
-| `TRAIL_TZ` | `UTC` (install.sh writes the server's own zone) | IANA timezone for daily buckets, e.g. `Europe/Berlin`. The dashboard shows days in this zone. A bad name stops the server at start |
+| `TRAIL_TZ` | `UTC` (install.sh writes the server's own zone) | IANA timezone for daily buckets, e.g. `Europe/Berlin`. The dashboard shows days in this zone. A bad name stops the server at start; a bad `tz` on an API call is a `400` |
 | `TRAIL_TRUSTED_PROXIES` | `private,cloudflare` | Which proxies may report the visitor IP. See below |
 | `TRAIL_GEO_DB` | unset | Path to a City `.mmdb` (DB-IP Lite City, GeoLite2 City) for region and city. Country works without it |
 | `TRAIL_API_TOKENS` | unset | `name:token:scope,...` for the read API and MCP. You can also create tokens in **Settings** |
@@ -239,6 +245,7 @@ To load the tracker from your own site's domain (it survives more ad blockers), 
 - **Signed out after every restart.** You set `TRAIL_SECRET` to a value that changes on each start. Unset it, or fix it to one value.
 - **Every visit has the same country, or is rate limited together.** Your proxy's IP is not trusted, so Trail sees the proxy instead of the visitor. See [Reverse proxies](#reverse-proxies-and-the-visitor-ip).
 - **The container is `unhealthy`.** `docker logs trail` shows why the server stopped answering; `docker exec trail /trail health` checks it by hand.
+- **Events do not show up, or the install check says Blocked.** The check separates failures from warnings (bot protection on your site, a robots.txt that blocks AI crawlers). Preview hosts need an allowed-origin pattern such as `*-acme.vercel.app`. Rocket Loader needs `data-cfasync="false"` on the script tag.
 - **Events do not show up.** Work through [Troubleshooting](site/docs/operations/troubleshooting.md): it covers the script tag, status codes and allowed origins.
 
 ## Other platforms

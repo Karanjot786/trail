@@ -24,6 +24,13 @@ The tracker files are embedded in the binary, so sites that load `/_t/t.js` get 
 
 Read the [changelog](/changelog) before upgrading.
 
+## What an upgrade changes for people
+
+- **Everyone signed in to the dashboard is signed out once.** Session cookies are now bound to the password, so sign in again.
+- **IPv6 visitors get a new private id once.** Rate limits and private-mode ids now use the /64 network of an IPv6 address. IPv4 visitors and full-mode visitors keep theirs.
+- **`TRAIL_TZ` defaults to `UTC`.** Set it if you rely on another zone for day boundaries; the install script writes the host's zone on a new install. A name Trail does not know stops the server at start.
+- **The server no longer sets `_t_id`.** See [the cookie](/tracking/privacy#the-t-id-cookie).
+
 ## Next
 
 - Check the [changelog](/changelog) for what changed.

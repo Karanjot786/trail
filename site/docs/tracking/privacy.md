@@ -26,14 +26,22 @@ When the browser stores nothing, the server works out who is who. For each event
 
 and groups that visitor's pages into sessions in memory (30 minutes idle, 24 hours at most). The daily key is 32 random bytes held only in memory and replaced at midnight in `TRAIL_TZ`. The IP and the key are never written to disk. Yesterday's key is kept until the next midnight so that a visit running past midnight stays one visitor.
 
+For an IPv6 visitor the IP in that formula is the /64 network, not the full address, since devices rotate through addresses in it. Upgrading to a version with this rule gives IPv6 visitors a new private id once; IPv4 visitors are not affected.
+
 As a result the same person on a different day is a different visitor, and a server restart starts every private visitor afresh. That is the price of storing nothing.
+
+## The _t_id cookie
+
+In full mode the tracker writes `_t_id` itself, in the browser, and mirrors it to localStorage. The server does not set it: Trail answers `/_t/e` with no `Set-Cookie` header, whatever the install.
+
+Safari limits what a script can store. Its tracking prevention deletes script-written cookies and localStorage for a site that was not visited in 7 days. On a same-site install, where a server cookie would have lasted a year, a Safari visitor who comes back after more than a week now gets a new id and counts as a new visitor. Chrome and Firefox keep the id for the cookie's year. The [private modes](#how-a-private-visitor-is-counted) do not depend on storage and are not affected.
 
 ## IP addresses
 
 Trail never stores an IP address, in any mode. The client IP is used in memory for a few things, then dropped:
 
 - the location lookup (see [Geo database](/operations/geo));
-- the per-IP rate limit, which keys its buckets by a hash under a random per-process key;
+- the per-IP rate limit, which keys its buckets by a hash under a random per-process key (IPv6 by /64);
 - the private-mode visitor key above;
 - recognising AI agents: checking the IP against the operators' published lists, and the relay below.
 
