@@ -5,6 +5,7 @@ import { HELP, parseArgs } from './args';
 import { detect } from './detect';
 import { checkTrail, detectHost, envSteps } from './host';
 import { mask, renderDiff } from './diff';
+import { verify } from './verify';
 import { envFileFor, nodeFs, plan, readEnvValue } from './plan';
 import { ask as askTTY, askSecret as askSecretTTY, readStdin as readStdinNode } from './prompt';
 
@@ -60,6 +61,24 @@ export async function main(argv: string[], io: Io): Promise<number> {
   if (a.help || a.cmd === 'help') {
     io.stdout(HELP);
     return 0;
+  }
+  if (a.cmd === 'verify') {
+    if (!a.url) {
+      io.stderr('trail-analytics: verify needs --url https://your-site\n');
+      return 1;
+    }
+    let target: URL;
+    try {
+      target = new URL(a.url);
+      if (target.protocol !== 'https:' && target.protocol !== 'http:') throw new Error();
+    } catch {
+      io.stderr('trail-analytics: --url must be an http(s) URL\n');
+      return 1;
+    }
+    const checks = await verify({ url: target.href, site: a.site, api: a.api }, io.fetch ?? globalThis.fetch);
+    if (a.json) io.stdout(JSON.stringify(checks, null, 2) + '\n');
+    else for (const c of checks) io.stdout(`${c.ok === true ? 'ok  ' : c.ok === 'warn' ? 'warn' : 'FAIL'}  ${c.name.padEnd(8)} ${c.detail}\n`);
+    return checks.some((c) => c.ok === false) ? 1 : 0;
   }
   if (a.cmd !== 'init') {
     io.stderr(`trail-analytics: unknown command ${a.cmd || '(none)'}\n\n${HELP}`);
