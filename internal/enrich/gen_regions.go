@@ -41,7 +41,8 @@ func main() {
 	}
 	seen := map[string]string{}
 	for _, s := range d.Subs {
-		name := strings.TrimSpace(s.Name)
+		// CLDR marks some names with superscript footnote digits; drop them.
+		name := strings.TrimSpace(strings.TrimRight(strings.TrimSpace(s.Name), "¹²³⁴⁵⁶⁷⁸⁹⁰"))
 		if s.Alt != "" || len(s.Type) < 3 || name == "" {
 			continue
 		}
