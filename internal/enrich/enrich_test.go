@@ -56,6 +56,19 @@ func TestDeriveEnv(t *testing.T) {
 		{"x-git.vercel.app", "example.com", "", "preview"},
 		{"localhost:3000", "example.com", "", "development"},
 		{"127.0.0.1:8080", "example.com", "", "development"},
+		{"blog.example.com", "example.com", "", "production"},
+		{"app.eu.example.com", "example.com", "", "production"},
+		{"www.blog.example.com", "example.com", "", "production"},
+		{"staging.example.com", "example.com", "", "preview"},
+		{"pr-12.example.com", "example.com", "", "preview"},
+		{"preview-x.example.com", "example.com", "", "preview"},
+		{"staging-eu.example.com", "example.com", "", "preview"},
+		{"api.dev.example.com", "example.com", "", "preview"},
+		{"notexample.com", "example.com", "", "preview"},
+		{"example.com.evil.io", "example.com", "", "preview"},
+		{"example.com", "", "", "preview"},
+		{"blog.example.com", "", "", "preview"},
+		{"", "", "", "preview"},
 	}
 	for _, tt := range tests {
 		if got := DeriveEnv(tt.host, tt.domain, tt.given); got != tt.want {

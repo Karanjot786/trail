@@ -65,11 +65,30 @@ func DeriveEnv(host, configuredDomain, given string) string {
 		return "development"
 	case isLoopbackOrPrivate(h):
 		return "development"
-	case h == bareHost(configuredDomain):
-		return "production"
-	default:
-		return "preview"
 	}
+	d := bareHost(configuredDomain)
+	switch {
+	case d == "":
+		return "preview"
+	case h == d:
+		return "production"
+	case strings.HasSuffix(h, "."+d):
+		for _, l := range strings.Split(strings.TrimSuffix(h, "."+d), ".") {
+			if stagingLabel(l) {
+				return "preview"
+			}
+		}
+		return "production"
+	}
+	return "preview"
+}
+
+func stagingLabel(l string) bool {
+	switch l {
+	case "staging", "stage", "preview", "dev", "test", "qa", "uat", "sandbox":
+		return true
+	}
+	return strings.HasPrefix(l, "pr-") || strings.HasPrefix(l, "preview-") || strings.HasPrefix(l, "staging-")
 }
 
 func isLoopbackOrPrivate(h string) bool {
