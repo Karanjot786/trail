@@ -15,7 +15,7 @@ services:
     environment:
       TRAIL_PASSWORD: ${TRAIL_PASSWORD:-} # empty: a password is generated and logged on first start
       TRAIL_SITES: ${TRAIL_SITES:-}       # optional, e.g. blog=example.com; or add sites in Settings
-      TRAIL_TZ: ${TRAIL_TZ:-UTC}
+      TRAIL_TZ: ${TRAIL_TZ:-UTC}         # IANA zone for day boundaries, e.g. Asia/Kolkata
     volumes:
       - trail-data:/data
     # No published port: only Caddy reaches Trail, over the private compose network,

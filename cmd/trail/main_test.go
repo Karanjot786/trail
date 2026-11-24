@@ -470,3 +470,18 @@ func TestLoginUsesForwardedClient(t *testing.T) {
 		}
 	}
 }
+
+func TestServerTZDefault(t *testing.T) {
+	t.Setenv("TRAIL_TZ", "")
+	if loc, err := serverTZ(); err != nil || loc.String() != "UTC" {
+		t.Fatalf("default: %v %v", loc, err)
+	}
+	t.Setenv("TRAIL_TZ", "Europe/Berlin")
+	if loc, err := serverTZ(); err != nil || loc.String() != "Europe/Berlin" {
+		t.Fatalf("berlin: %v %v", loc, err)
+	}
+	t.Setenv("TRAIL_TZ", "Nope/Zone")
+	if _, err := serverTZ(); err == nil || !strings.Contains(err.Error(), "TRAIL_TZ") {
+		t.Fatalf("bad zone: %v", err)
+	}
+}

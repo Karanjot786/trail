@@ -30,6 +30,7 @@ import (
 	"strings"
 	"syscall"
 	"time"
+	_ "time/tzdata" // zone names work on hosts and images without a zoneinfo database
 
 	"trail/internal/agents"
 	"trail/internal/api"
@@ -249,10 +250,11 @@ func runServe() error {
 	if err != nil {
 		return err
 	}
-	tz, err := time.LoadLocation(env("TRAIL_TZ", "Asia/Kolkata"))
+	tz, err := serverTZ()
 	if err != nil {
-		return fmt.Errorf("TRAIL_TZ: %w", err)
+		return err
 	}
+	log.Printf("time zone: %s (TRAIL_TZ)", tz)
 	geo, err := enrich.OpenGeo(os.Getenv("TRAIL_GEO_DB"))
 	if err != nil {
 		return err
@@ -610,4 +612,13 @@ func spaHandler(fsys fs.FS) http.Handler {
 		w.Header().Set("Cache-Control", "no-cache")
 		_, _ = w.Write(index)
 	})
+}
+
+// serverTZ is the zone for day boundaries: TRAIL_TZ, else UTC.
+func serverTZ() (*time.Location, error) {
+	loc, err := time.LoadLocation(env("TRAIL_TZ", "UTC"))
+	if err != nil {
+		return nil, fmt.Errorf("TRAIL_TZ: %w", err)
+	}
+	return loc, nil
 }

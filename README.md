@@ -74,7 +74,7 @@ No password or secret to set up: the first start prints a generated dashboard pa
 | `TRAIL_SITES` | empty | Optional `id=domain,id2=domain2`, added at startup if missing. Sites edited in the dashboard keep their edits. You can also add sites in **Settings** |
 | `TRAIL_INGEST_RPS` | `50` | Events requests per second per client IP on `/_t/e`, burst twice that. Over the limit is `429`. `0` turns it off |
 | `TRAIL_TRUSTED_PROXIES` | `private,cloudflare` | Which TCP peers may report the visitor IP in `X-Forwarded-For` (or `CF-Connecting-IP` from Cloudflare). Comma list of IPs, CIDRs, `private` (loopback and private ranges) and `cloudflare`. `none` trusts no header. Headers from any other peer are ignored, so they cannot dodge the rate limit or fake geo |
-| `TRAIL_TZ` | `Asia/Kolkata` | Timezone for daily buckets |
+| `TRAIL_TZ` | `UTC` | Timezone for daily buckets. The dashboard shows days in this zone |
 | `TRAIL_GEO_DB` | unset | Path to your own City `.mmdb` (for example DB-IP Lite City) for region and city. Without it, the built-in database gives country only |
 | `TRAIL_SECRET` | stored in the database | Signs session cookies (32+ chars). Unset: a random key is created once and kept in the database, so logins survive restarts |
 | `TRAIL_API_TOKENS` | unset | `name:token:scope,...` for the read API and MCP. Scope `read` or `write`; tokens of 24+ chars |

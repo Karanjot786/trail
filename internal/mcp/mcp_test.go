@@ -520,3 +520,17 @@ func TestMCPClampsToFirstEvent(t *testing.T) {
 		t.Errorf("what_changed reports sources on a new site: %s", wc.StructuredContent)
 	}
 }
+
+func TestMCPBadTZ(t *testing.T) {
+	h, _ := setup(t)
+	res := callTool(t, h, "get_stats", map[string]any{"site": "s", "tz": "Mars/Base"})
+	if !res.IsError {
+		t.Fatalf("bad tz accepted: %+v", res.Content)
+	}
+	if len(res.Content) == 0 || !strings.Contains(res.Content[0].Text, "bad tz") {
+		t.Fatalf("content %+v", res.Content)
+	}
+	if res := callTool(t, h, "get_stats", map[string]any{"site": "s", "tz": "Asia/Calcutta"}); res.IsError {
+		t.Fatalf("alias rejected: %+v", res.Content)
+	}
+}

@@ -344,10 +344,12 @@ func (s *server) params(ctx context.Context, in Scope) (query.Params, error) {
 	if p.Filters == nil {
 		p.Filters = map[string]string{}
 	}
-	if in.TZ != "" && len(in.TZ) <= 64 {
-		if loc, err := time.LoadLocation(in.TZ); err == nil {
-			p.TZ = loc
+	if in.TZ != "" {
+		loc, err := time.LoadLocation(in.TZ)
+		if len(in.TZ) > 64 || err != nil {
+			return p, fmt.Errorf("bad tz %q: want an IANA name like Europe/Berlin", in.TZ)
 		}
+		p.TZ = loc
 	}
 	cmp := in.Cmp
 	if cmp == "" {

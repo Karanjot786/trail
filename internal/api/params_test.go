@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -54,15 +55,25 @@ func TestParamsRangeKeyResolves(t *testing.T) {
 	}
 }
 
-func TestParamsBadTZFallsBack(t *testing.T) {
-	s := testServer(t)
-	for _, tz := range []string{"Mars/Base", "../../etc/passwd", strings.Repeat("A", 65), ""} {
-		p, err := s.params(req("/api/stats?site=s&range=7d&tz=" + tz))
-		if err != nil {
-			t.Fatalf("%q: %v", tz, err)
+func TestParamsBadTZIs400(t *testing.T) {
+	h := setup(t)
+	for _, tz := range []string{"Mars/Base", "../../etc/passwd", strings.Repeat("A", 65)} {
+		w := get(h, "/api/stats?site=s&range=7d&tz="+url.QueryEscape(tz))
+		if w.Code != http.StatusBadRequest || !strings.Contains(w.Body.String(), "bad tz") {
+			t.Errorf("tz %q: %d %s", tz, w.Code, w.Body)
 		}
-		if p.TZ.String() != "Asia/Kolkata" {
-			t.Errorf("%q: tz %v, want the server default", tz, p.TZ)
+	}
+	w := get(h, "/api/stats?site=s&range=7d&tz=")
+	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), `"tz":"Asia/Kolkata"`) {
+		t.Errorf("empty tz: %d %s", w.Code, w.Body)
+	}
+}
+
+func TestParamsTZAliasesAccepted(t *testing.T) {
+	h := setup(t)
+	for _, tz := range []string{"Asia/Calcutta", "US/Eastern", "UTC", "Etc/GMT+5"} {
+		if w := get(h, "/api/stats?site=s&range=7d&tz="+url.QueryEscape(tz)); w.Code != http.StatusOK {
+			t.Errorf("tz %q: %d %s", tz, w.Code, w.Body)
 		}
 	}
 }

@@ -171,7 +171,7 @@ None are required.
 | `TRAIL_DB` | `trail.db` (`/data/trail.db` in Docker, `/var/lib/trail/trail.db` with install.sh) | Path of the SQLite file |
 | `TRAIL_ADDR` | `:8080` | Listen address. `127.0.0.1:8080` keeps it private behind a local proxy |
 | `TRAIL_SITES` | empty | `id=domain,id2=domain2`, added at startup if missing. Or add sites in **Settings** |
-| `TRAIL_TZ` | `Asia/Kolkata` (`UTC` in compose.yaml and install.sh) | IANA timezone for daily buckets, e.g. `Europe/Berlin` |
+| `TRAIL_TZ` | `UTC` (install.sh writes the server's own zone) | IANA timezone for daily buckets, e.g. `Europe/Berlin`. The dashboard shows days in this zone. A bad name stops the server at start |
 | `TRAIL_TRUSTED_PROXIES` | `private,cloudflare` | Which proxies may report the visitor IP. See below |
 | `TRAIL_GEO_DB` | unset | Path to a City `.mmdb` (DB-IP Lite City, GeoLite2 City) for region and city. Country works without it |
 | `TRAIL_API_TOKENS` | unset | `name:token:scope,...` for the read API and MCP. You can also create tokens in **Settings** |

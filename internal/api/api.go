@@ -309,10 +309,12 @@ func (s *server) paramsFor(r *http.Request, mode allMode) (query.Params, error) 
 	default:
 		return p, errors.New("bad actor")
 	}
-	if tz := q.Get("tz"); tz != "" && len(tz) <= 64 {
-		if loc, err := time.LoadLocation(tz); err == nil {
-			p.TZ = loc
+	if tz := q.Get("tz"); tz != "" {
+		loc, err := time.LoadLocation(tz)
+		if len(tz) > 64 || err != nil {
+			return p, fmt.Errorf("%w: bad tz %q: want an IANA name like Europe/Berlin", errBadRequest, tz)
 		}
+		p.TZ = loc
 	}
 	if err := s.window(&p, q); err != nil {
 		return p, err
