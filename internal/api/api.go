@@ -201,12 +201,18 @@ func (s *server) fail(w http.ResponseWriter, r *http.Request, err error) {
 
 // handle parses common params for a per-site report, runs fn, and maps errors to 400 or 500.
 func (s *server) handle(fn func(query.Params, *http.Request) (any, error)) http.HandlerFunc {
-	return s.handleSites(false, fn)
+	return s.handleSites(allNever, fn)
 }
 
-// handleAll is handle for reports that also accept site=all.
+// handleAll is handle for reports that also accept site=all (sites/summary).
 func (s *server) handleAll(fn func(query.Params, *http.Request) (any, error)) http.HandlerFunc {
-	return s.handleSites(true, fn)
+	return s.handleSites(allAlways, fn)
+}
+
+// handleWindow is handle for the reports the dashboard also calls with site=all to read the
+// window: the cookie dashboard may; an API token gets 400 instead of zeros.
+func (s *server) handleWindow(fn func(query.Params, *http.Request) (any, error)) http.HandlerFunc {
+	return s.handleSites(allCookie, fn)
 }
 
 // paramFail answers a parameter error: 403 for a token bound to another site, else 400.
@@ -218,9 +224,18 @@ func (s *server) paramFail(w http.ResponseWriter, _ *http.Request, err error) {
 	http.Error(w, err.Error(), http.StatusBadRequest)
 }
 
-func (s *server) handleSites(allowAll bool, fn func(query.Params, *http.Request) (any, error)) http.HandlerFunc {
+// allMode says who may send site=all to a report.
+type allMode int
+
+const (
+	allNever allMode = iota
+	allCookie
+	allAlways
+)
+
+func (s *server) handleSites(mode allMode, fn func(query.Params, *http.Request) (any, error)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		p, err := s.paramsFor(r, allowAll)
+		p, err := s.paramsFor(r, mode)
 		if err != nil {
 			s.paramFail(w, r, err)
 			return
@@ -258,19 +273,22 @@ func (s *server) handleSites(allowAll bool, fn func(query.Params, *http.Request)
 }
 
 // params parses the common report parameters (plan §0.3) for a per-site report.
-func (s *server) params(r *http.Request) (query.Params, error) { return s.paramsFor(r, false) }
+func (s *server) params(r *http.Request) (query.Params, error) { return s.paramsFor(r, allNever) }
 
 // sortRe allowlists the shape of a sort key; each endpoint maps it to a column itself.
 var sortRe = regexp.MustCompile(`^-?[a-zA-Z_]{1,32}$`)
 
-// paramsFor parses the report parameters. allowAll lets site=all through.
-func (s *server) paramsFor(r *http.Request, allowAll bool) (query.Params, error) {
+// paramsFor parses the report parameters. mode says who may send site=all.
+func (s *server) paramsFor(r *http.Request, mode allMode) (query.Params, error) {
 	q := r.URL.Query()
 	p := query.Params{Site: q.Get("site"), Env: q.Get("env"), TZ: s.tz, Filters: map[string]string{}, Now: s.now()}
 	switch {
 	case p.Site == "all":
-		if !allowAll {
+		if mode == allNever {
 			return p, query.ErrNeedSite
+		}
+		if _, ok := auth.TokenFrom(r.Context()); ok && mode == allCookie {
+			return p, fmt.Errorf("%w: site=all works only on /api/v1/sites/summary", query.ErrNeedSite)
 		}
 	case !s.known(p.Site):
 		return p, errors.New("unknown site")

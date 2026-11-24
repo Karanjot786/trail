@@ -197,6 +197,19 @@ func TestV1ReadAPI(t *testing.T) {
 	}
 }
 
+func TestSiteAllRefusedForTokens(t *testing.T) {
+	h := testRoutes(t)
+	for _, path := range []string{"/api/v1/stats?site=all", "/api/v1/series?site=all&metric=visitors", "/api/v1/breakdown?site=all&dim=path"} {
+		w := do(h, "GET", path, testRead, "")
+		if w.Code != http.StatusBadRequest || !strings.Contains(w.Body.String(), "pick a site") {
+			t.Errorf("%s: %d %s", path, w.Code, w.Body)
+		}
+	}
+	if w := do(h, "GET", "/api/v1/sites/summary?site=all", testRead, ""); w.Code != 200 {
+		t.Errorf("sites/summary site=all: %d %s", w.Code, w.Body)
+	}
+}
+
 func TestV1ReadTokenCannotWrite(t *testing.T) {
 	h := testRoutes(t)
 	goal := `{"site":"s","name":"Home","kind":"page","match":"/"}`

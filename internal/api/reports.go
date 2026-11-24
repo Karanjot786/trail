@@ -17,7 +17,7 @@ type list struct {
 
 // reportRoutes wires the v3 report routes of plan §0.4 to their query functions.
 func (s *server) reportRoutes(mux *http.ServeMux) {
-	mux.HandleFunc("GET /api/stats", s.handleAll(func(p query.Params, _ *http.Request) (any, error) {
+	mux.HandleFunc("GET /api/stats", s.handleWindow(func(p query.Params, _ *http.Request) (any, error) {
 		st, err := query.Stats(s.db, p)
 		if err != nil {
 			return nil, err
@@ -34,10 +34,10 @@ func (s *server) reportRoutes(mux *http.ServeMux) {
 		}
 		return st, nil
 	}))
-	mux.HandleFunc("GET /api/series", s.handleAll(func(p query.Params, r *http.Request) (any, error) {
+	mux.HandleFunc("GET /api/series", s.handleWindow(func(p query.Params, r *http.Request) (any, error) {
 		return query.Series(s.db, p, r.URL.Query().Get("metric"), r.URL.Query().Get("extras") == "1")
 	}))
-	mux.HandleFunc("GET /api/breakdown", s.handleAll(func(p query.Params, r *http.Request) (any, error) {
+	mux.HandleFunc("GET /api/breakdown", s.handleWindow(func(p query.Params, r *http.Request) (any, error) {
 		q := r.URL.Query()
 		return query.Breakdown(s.db, p, q.Get("dim"), q.Get("q"), p.Limit)
 	}))

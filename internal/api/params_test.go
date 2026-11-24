@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -117,7 +118,7 @@ func TestParamsSiteAllOnlyWhereAllowed(t *testing.T) {
 		t.Fatalf("sessions site=all: %d %s", w.Code, w.Body)
 	}
 	s := testServer(t)
-	if _, err := s.paramsFor(req("/api/stats?site=all"), true); err != nil {
+	if _, err := s.paramsFor(req("/api/stats?site=all"), allCookie); err != nil {
 		t.Fatalf("stats site=all: %v", err)
 	}
 }
@@ -169,5 +170,21 @@ func TestParamsActor(t *testing.T) {
 		if w.Code != http.StatusBadRequest || !strings.Contains(w.Body.String(), "bad actor") {
 			t.Fatalf("actor=%s: %d %s", bad, w.Code, w.Body.String())
 		}
+	}
+}
+
+func TestSiteAllCookieStillServesWindow(t *testing.T) {
+	h := setup(t)
+	w := get(h, "/api/stats?site=all&range=7d")
+	if w.Code != http.StatusOK {
+		t.Fatalf("stats site=all: %d %s", w.Code, w.Body)
+	}
+	var out struct {
+		Window struct {
+			Key string `json:"key"`
+		} `json:"window"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &out); err != nil || out.Window.Key == "" {
+		t.Fatalf("window key missing: %v %s", err, w.Body)
 	}
 }
