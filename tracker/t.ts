@@ -30,14 +30,10 @@ declare const MODE: string;
           } catch {}
         }
       : (0 as any);
-  // time-ordered uuid (v7 layout): 48-bit ms time, then 72 random bits
+  // time-ordered id: ms time in hex, then 72 random bits
   const uuid: () => string =
     MODE == 'full'
-      ? () =>
-          (Date.now().toString(16).padStart(12, '0') + [...crypto.getRandomValues(new Uint8Array(9))].map((b) => (b | 256).toString(16).slice(1)).join('')).replace(
-            /(.{8})(.{4})(.{3})(.{3})/,
-            '$1-$2-7$3-8$4-',
-          )
+      ? () => Date.now().toString(16) + [...crypto.getRandomValues(new Uint8Array(9))].map((b) => (b | 256).toString(16).slice(1)).join('')
       : (0 as any);
 
   // consent: _t_c "1" = granted (upgraded), "0" = denied (send nothing, store nothing else)

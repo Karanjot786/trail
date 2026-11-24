@@ -44,8 +44,8 @@ test('pageview on load: wire contract, text/plain, keepalive transport', async (
   expect(Object.keys(pv).every((k) => WIRE.has(k))).toBe(true);
   expect(pv).toMatchObject({ s: 'demo', t: 'pageview', env: 'production', w: 1 });
   expect(pv.u).toBe('http://127.0.0.1:4173/index.html?utm_source=tw');
-  expect(pv.a).toMatch(/^[0-9a-f-]{36}$/);
-  expect(pv.ss).toMatch(/^[0-9a-f-]{36}$/);
+  expect(pv.a).toMatch(/^[0-9a-f]{29,30}$/);
+  expect(pv.ss).toMatch(/^[0-9a-f]{29,30}$/);
   expect(c.types[0]).toContain('text/plain');
   const cookie = await page.evaluate(() => document.cookie);
   expect(cookie).toContain('_t_id=' + pv.a);
@@ -518,7 +518,7 @@ test.describe('modes and consent', () => {
     await trail(page, 'track', 'x');
     await hide(page);
     await expect.poll(() => c.of('event').length).toBe(1);
-    expect(c.of('event')[0]).toMatchObject({ m: 'f', a: expect.stringMatching(/^[0-9a-f-]{36}$/) });
+    expect(c.of('event')[0]).toMatchObject({ m: 'f', a: expect.stringMatching(/^[0-9a-f]{29,30}$/) });
     await page.reload();
     await expect.poll(() => c.of('pageview').length).toBe(2);
     expect(c.of('pageview')[1]).toMatchObject({ m: 'f', a: c.of('event')[0].a });
@@ -542,7 +542,7 @@ test.describe('modes and consent', () => {
     await trail(page, 'identify', 'u1');
     await hide(page);
     await expect.poll(() => c.of('identify').length).toBe(1);
-    expect(c.of('identify')[0]).toMatchObject({ m: 'f', uid: 'u1', a: expect.stringMatching(/^[0-9a-f-]{36}$/) });
+    expect(c.of('identify')[0]).toMatchObject({ m: 'f', uid: 'u1', a: expect.stringMatching(/^[0-9a-f]{29,30}$/) });
     expect(await page.evaluate(() => localStorage.getItem('_t_c'))).toBe('1');
   });
 
@@ -600,7 +600,7 @@ test.describe('modes and consent', () => {
     const c = await capture(page);
     await page.goto('/full.html');
     await expect.poll(() => c.of('pageview').length).toBe(1);
-    expect(c.of('pageview')[0]).toMatchObject({ m: 'f', a: expect.stringMatching(/^[0-9a-f-]{36}$/) });
+    expect(c.of('pageview')[0]).toMatchObject({ m: 'f', a: expect.stringMatching(/^[0-9a-f]{29,30}$/) });
     expect(await writes(page)).toEqual(expect.arrayContaining([expect.stringMatching(/^cookie:_t_id=/), 'ls.setItem:_t_id', 'ls.setItem:_t_s']));
   });
 
