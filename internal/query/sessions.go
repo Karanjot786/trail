@@ -105,7 +105,8 @@ func Visitors(db *sql.DB, p Params, q string) ([]Person, int, error) {
 		return nil, 0, fmt.Errorf("visitors total: %w", err)
 	}
 	sqlText := cte + `, px AS (SELECT person, max(ident) AS ident, min(ts) AS first, max(` + activeEnd + `) AS last,
-    count(DISTINCT session_id) AS visits, sum(type='pageview') AS pages FROM evp` + where + ` GROUP BY person),
+    count(DISTINCT CASE WHEN session_id IN (SELECT session_id FROM ev WHERE type='pageview') THEN session_id END) AS visits,
+    sum(type='pageview') AS pages FROM evp` + where + ` GROUP BY person),
   pd AS (SELECT person, sum(d) AS dur FROM (SELECT person, max(` + activeEnd + `)-min(ts) AS d FROM evp GROUP BY session_id
     HAVING sum(type='pageview')>0) GROUP BY person),
   pl AS (SELECT person, max(ts), country, region, city, device, browser, os FROM evp GROUP BY person),
