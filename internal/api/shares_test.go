@@ -232,3 +232,26 @@ func TestShareRateLimit429(t *testing.T) {
 		t.Fatalf("another link shares the bucket: %d", w.Code)
 	}
 }
+
+func TestShareHideRevenueStripsPurchaseProps(t *testing.T) {
+	f := newShareFixture(t)
+	_, tok := f.share(t, "", true, 0)
+	_, key, _ := meta.LookupShare(f.db, tok, time.Now())
+	opaque, _ := share.Pseudonym(key, "alice@example.com")
+	for _, route := range []string{"events?range=7d", "events/detail?range=7d&name=Purchase", "journey?person=" + opaque} {
+		w := f.get(tok, route)
+		if w.Code != 200 {
+			t.Fatalf("%s: %d %s", route, w.Code, w.Body)
+		}
+		t.Log(route, w.Body.String())
+		for _, leak := range []string{`"amount"`, `"currency"`, `"USD"`} {
+			if strings.Contains(w.Body.String(), leak) {
+				t.Errorf("%s leaks %s: %s", route, leak, w.Body)
+			}
+		}
+	}
+	_, open := f.share(t, "", false, 0)
+	if w := f.get(open, "events/detail?range=7d&name=Purchase"); !strings.Contains(w.Body.String(), `"amount"`) {
+		t.Errorf("open link lost props: %s", w.Body)
+	}
+}

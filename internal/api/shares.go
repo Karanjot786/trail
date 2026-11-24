@@ -245,15 +245,19 @@ func scrubJSON(body []byte, key []byte, hideRevenue bool) ([]byte, error) {
 	if err := dec.Decode(&v); err != nil {
 		return nil, err
 	}
-	scrub(v, key, hideRevenue)
+	scrub(v, key, hideRevenue, false)
 	return json.Marshal(v)
 }
 
-func scrub(v any, key []byte, hideRevenue bool) {
+// purchaseNames are the Purchase event names, as query.purchaseWhere in
+// internal/query/defs.go.
+var purchaseNames = map[string]bool{"Purchase": true, "purchase": true}
+
+func scrub(v any, key []byte, hideRevenue, inPurchase bool) {
 	switch x := v.(type) {
 	case []any:
 		for _, e := range x {
-			scrub(e, key, hideRevenue)
+			scrub(e, key, hideRevenue, inPurchase)
 		}
 	case map[string]any:
 		if p, ok := x["person"].(string); ok && p != "" {
@@ -278,9 +282,19 @@ func scrub(v any, key []byte, hideRevenue bool) {
 			if f, ok := x["features"].(map[string]any); ok {
 				f["revenue"] = false
 			}
+			// Purchase properties carry amount and currency.
+			if n, _ := x["name"].(string); inPurchase || purchaseNames[n] {
+				inPurchase = true
+				switch x["props"].(type) {
+				case []any:
+					x["props"] = []any{}
+				case map[string]any:
+					x["props"] = map[string]any{}
+				}
+			}
 		}
 		for _, e := range x {
-			scrub(e, key, hideRevenue)
+			scrub(e, key, hideRevenue, inPurchase)
 		}
 	}
 }
