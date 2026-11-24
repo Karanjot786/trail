@@ -1,11 +1,12 @@
 import { readFileSync } from 'node:fs';
 import { env } from '../crawl/env';
 
-/** `astro dev` does not put .env values in process.env, where the middleware reads them. Load the TRAIL_ ones. */
-export function loadDevEnv(root: string | URL | undefined): void {
+/** `astro dev` and `astro build` do not put .env values in process.env, where the integration and middleware read them. Load the TRAIL_ ones (never over an existing value). */
+export function loadDevEnv(root: string | URL | undefined, mode: 'development' | 'production' = 'development'): void {
   const pe = (globalThis as { process?: { env: Record<string, string | undefined> } }).process?.env;
   if (!pe) return;
-  for (const f of ['.env.development.local', '.env.local', '.env.development', '.env']) {
+  const files = mode === 'production' ? ['.env.production.local', '.env.local', '.env.production', '.env'] : ['.env.development.local', '.env.local', '.env.development', '.env'];
+  for (const f of files) {
     let text = '';
     try {
       text = readFileSync(new URL(f, root ?? `file://${process.cwd()}/`), 'utf8');
@@ -70,6 +71,7 @@ export default function trail(opts: { site?: string; url?: string } = {}): Astro
     hooks: {
       'astro:config:setup': ({ config, command, addMiddleware, injectScript, logger, updateConfig }) => {
         if (command === 'dev') loadDevEnv(config.root);
+        else if (command === 'build') loadDevEnv(config.root, 'production');
         const site = opts.site ?? env('TRAIL_SITE') ?? '';
         const url = (opts.url ?? env('TRAIL_URL') ?? '').replace(/\/+$/, '');
         const isStatic = (config.output ?? 'static') === 'static';

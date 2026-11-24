@@ -53,7 +53,7 @@ async function target(name, tarball, mock) {
     run('npm', ['install', '--no-audit', '--no-fund', '--loglevel=error', tarball], dir);
     const ver = JSON.parse(readFileSync(join(dir, `node_modules/${name === 'astro' ? 'astro' : 'next'}/package.json`), 'utf8')).version;
     log(`${name}: framework ${ver}`);
-    run('node', [join(dir, 'node_modules/trail-analytics/dist/cli.js'), 'init', '--url', TRAIL, '--site', SITE, '--token', TOKEN, '--yes', '--no-install', '--cwd', dir], dir);
+    run('node', [join(dir, 'node_modules/trail-analytics/dist/cli.js'), 'init', '--url', TRAIL, '--site', SITE, '--token', TOKEN, '--yes', '--no-install', '--offline', '--cwd', dir], dir);
     log(`${name}: init wrote\n${readFileSync(join(dir, t.hook), 'utf8')}`);
     const t0 = Date.now();
     run(t.build[0], t.build[1], dir, { NEXT_TELEMETRY_DISABLED: '1', ASTRO_TELEMETRY_DISABLED: '1' });

@@ -253,7 +253,7 @@ function planInstall(fs: PlanFs, p: Project, out: Plan) {
 export function plan(p: Project, o: PlanOptions, fs: PlanFs): Plan {
   const out: Plan = { changes: [], manual: [], warnings: [] };
   if (p.framework === 'unknown') {
-    out.manual.push(T.GENERIC);
+    out.manual.push(T.genericSnippet(o.url, o.site));
     return out;
   }
   if (p.framework === 'next') planNext(fs, p, o, out);

@@ -89,7 +89,8 @@ export function detect(cwd: string): Project {
   if (deps.astro) {
     const cfg = ['astro.config.mjs', 'astro.config.ts', 'astro.config.js', 'astro.config.mts'].find((f) => existsSync(join(cwd, f)));
     const text = cfg ? readFileSync(join(cwd, cfg), 'utf8') : '';
-    const astroOutput = /output\s*:\s*['"`]server['"`]/.test(text) ? 'server' : 'static';
+    // hybrid (Astro 4) runs middleware for on-demand routes, like the integration's isStatic check.
+    const astroOutput = /output\s*:\s*['"`](?:server|hybrid)['"`]/.test(text) ? 'server' : 'static';
     return { ...base, framework: 'astro', srcDir: true, astroOutput };
   }
   return { ...base, framework: 'unknown', srcDir: false };

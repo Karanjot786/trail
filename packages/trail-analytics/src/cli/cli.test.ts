@@ -164,6 +164,18 @@ describe('init', () => {
     const r = await run(d, ['--yes']);
     expect(r.code).toBe(2);
     expect(r.text()).toContain("trail-analytics/crawl");
+    expect(r.text()).toContain('<script defer src="https://trail.example.com/_t/t.js" data-site="shop" data-api="https://trail.example.com/_t/e"></script>');
+    expect(r.text()).not.toContain('SITE_ID');
+  });
+
+  it('detects Astro hybrid output as server', () => {
+    const d = fixture('astro-ssr');
+    const cfg = read(d, 'astro.config.mjs');
+    writeFileSync(join(d, 'astro.config.mjs'), cfg.replace(/output\s*:\s*['"]server['"]/, "output: 'hybrid'"));
+    expect(read(d, 'astro.config.mjs')).toContain('hybrid');
+    expect(detect(d).astroOutput).toBe('server');
+    const p = plan(detect(d), { url: 'https://t', site: 'shop', token: TOKEN }, nodeFs(d, () => true));
+    expect(p.warnings.join('\n')).not.toContain('Static Astro');
   });
 
   it('TestInitIdempotent', async () => {

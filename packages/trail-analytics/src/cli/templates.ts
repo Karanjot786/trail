@@ -63,7 +63,11 @@ export const ORIGIN_WARNING =
 export const STATIC_WARNING =
   "Static Astro sites never run middleware at request time: AI crawlers are not captured. Use server output or Trail's log import.";
 
-export const GENERIC = `This framework is not supported by init yet. Report AI crawlers and serve /t/* from your server with trail-analytics/crawl:
+export const genericSnippet = (url: string, site: string) => `This framework is not supported by init yet. Load the script straight from your Trail server (works on any host, including static ones):
+
+  <script defer src="${url}/_t/t.js" data-site="${site}" data-api="${url}/_t/e"></script>
+
+To also report AI crawlers and serve /t/* first-party from your own server, use trail-analytics/crawl:
 
   // Hono
   import { hono } from 'trail-analytics/crawl';
@@ -77,8 +81,8 @@ export const GENERIC = `This framework is not supported by init yet. Report AI c
   import { withTrail } from 'trail-analytics/crawl';
   export default { fetch: withTrail(handler) };
 
-Then set TRAIL_URL, TRAIL_SITE and TRAIL_CRAWL_TOKEN in the server environment, and load the script with
-<script defer src="/t/t.js" data-site="SITE_ID" data-api="/t/e"></script>`;
+and set TRAIL_URL, TRAIL_SITE and TRAIL_CRAWL_TOKEN in the server environment. Then load the script as
+<script defer src="/t/t.js" data-site="${site}" data-api="/t/e"></script>`;
 
 export const STATIC_EXPORT_WARNING =
   'Static export: no proxy runs, so AI crawlers are not captured and the script loads from your Trail server directly.';
