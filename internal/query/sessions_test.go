@@ -228,3 +228,24 @@ func TestJourneyEquivalence(t *testing.T) {
 		}
 	}
 }
+
+func TestKeepSessions(t *testing.T) {
+	db := fixture(t,
+		pv("A", "sa", "/", t0),
+		store.Event{Type: "pageview", AnonID: "A", SessionID: "sb", Path: "/x", Country: "US", TS: t0 + hour},
+	)
+	js, err := Journey(db, "s", "A", nil)
+	if err != nil || len(js) != 2 {
+		t.Fatalf("%v %+v", err, js)
+	}
+	p := around()
+	p.Filters = map[string]string{"country": "IN"}
+	got, err := KeepSessions(db, p, js)
+	if err != nil || len(got) != 1 || got[0].SessionID != "sa" {
+		t.Fatalf("%v %+v", err, got)
+	}
+	empty, err := KeepSessions(db, p, []JourneySession{})
+	if err != nil || empty == nil || len(empty) != 0 {
+		t.Fatalf("empty: %v %#v", err, empty)
+	}
+}

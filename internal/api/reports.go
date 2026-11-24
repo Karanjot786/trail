@@ -70,7 +70,16 @@ func (s *server) reportRoutes(mux *http.ServeMux) {
 		if err != nil {
 			return nil, err
 		}
-		return query.Journey(s.db, p.Site, person, goals)
+		js, err := query.Journey(s.db, p.Site, person, goals)
+		if err != nil {
+			return nil, err
+		}
+		// A share link's viewer sees only the sessions inside the link's env and filters;
+		// the dashboard keeps the person's whole history.
+		if inShare(r.Context()) && (len(p.Filters) > 0 || p.Env != "all") {
+			return query.KeepSessions(s.db, p, js)
+		}
+		return js, nil
 	}))
 	mux.HandleFunc("GET /api/campaigns", s.handle(func(p query.Params, _ *http.Request) (any, error) {
 		return query.Campaigns(s.db, p)

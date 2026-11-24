@@ -342,3 +342,51 @@ func Journey(db *sql.DB, site, person string, goals []Goal) ([]JourneySession, e
 	}
 	return out, nil
 }
+
+// KeepSessions returns the sessions of js that have at least one row inside p's env and
+// filters (the same rows base(p) keeps). The window is the span of js itself, so the scan
+// stays bounded by one person's history. Agents are not excluded: a journey is one actor's
+// history (journeyCond), so the actor is not narrowed again here.
+func KeepSessions(db *sql.DB, p Params, js []JourneySession) ([]JourneySession, error) {
+	if len(js) == 0 {
+		return js, nil
+	}
+	lp := p
+	lp.Actor = ActorAll
+	lp.From, lp.To = js[0].Start, js[0].Start
+	ids := make([]any, 0, len(js))
+	marks := make([]string, 0, len(js))
+	for _, j := range js {
+		lp.From = min(lp.From, j.Start)
+		lp.To = max(lp.To, j.Start)
+		for _, st := range j.Steps {
+			lp.To = max(lp.To, st.TS)
+		}
+		ids = append(ids, j.SessionID)
+		marks = append(marks, "?")
+	}
+	cte, args, err := base(lp)
+	if err != nil {
+		return nil, err
+	}
+	keep := map[string]bool{}
+	err = forRows(db, cte+"SELECT DISTINCT session_id FROM ev WHERE session_id IN ("+strings.Join(marks, ",")+")",
+		append(args, ids...), func(r *sql.Rows) error {
+			var sid string
+			if err := r.Scan(&sid); err != nil {
+				return err
+			}
+			keep[sid] = true
+			return nil
+		})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]JourneySession, 0, len(js))
+	for _, j := range js {
+		if keep[j.SessionID] {
+			out = append(out, j)
+		}
+	}
+	return out, nil
+}
