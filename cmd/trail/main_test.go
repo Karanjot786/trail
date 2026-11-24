@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -439,6 +440,20 @@ func TestAgentListsEnv(t *testing.T) {
 	for _, v := range []string{"on", "OFF", "0", "false", " off"} {
 		if _, err := parseAgentLists(v); err == nil || !strings.Contains(err.Error(), "TRAIL_AGENT_LISTS") {
 			t.Errorf("%q: err %v, want one naming TRAIL_AGENT_LISTS", v, err)
+		}
+	}
+}
+
+func TestLoginUsesForwardedClient(t *testing.T) {
+	h := testRoutes(t)
+	for i := range 6 {
+		r := httptest.NewRequest(http.MethodPost, "/api/login", strings.NewReader(`{"password":"nope"}`))
+		r.RemoteAddr = "10.0.0.2:5555" // a private proxy, trusted by default
+		r.Header.Set("X-Forwarded-For", fmt.Sprintf("203.0.113.%d", i%5+1))
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, r)
+		if w.Code != http.StatusUnauthorized {
+			t.Fatalf("login %d: %d, want 401 (keyed by the forwarded client, not the proxy)", i+1, w.Code)
 		}
 	}
 }

@@ -7,6 +7,9 @@ import (
 	"crypto/subtle"
 	"encoding/hex"
 	"encoding/json"
+	"log"
+	"math"
+	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -25,6 +28,10 @@ type Auth struct {
 	secret []byte
 	now    func() time.Time
 	bearer bearer
+
+	lim      loginLimiter
+	clientIP func(*http.Request) string // the visitor's address, not the proxy's
+	sleep    func(time.Duration)
 }
 
 // New returns an Auth for password. secret signs cookies; a random per-boot
@@ -36,10 +43,21 @@ func New(password string, secret []byte) *Auth {
 // NewHashed is New for a password known only by its SHA-256, such as the one
 // Trail generates on first start when TRAIL_PASSWORD is unset.
 func NewHashed(pwHash [32]byte, secret []byte) *Auth {
-	return &Auth{pwHash: pwHash, secret: secret, now: time.Now}
+	return &Auth{pwHash: pwHash, secret: secret, now: time.Now, sleep: time.Sleep, clientIP: remoteHost}
 }
 
-// Login handles POST /api/login {"password": "..."}: 204 plus cookie, or 401.
+func remoteHost(r *http.Request) string {
+	if h, _, err := net.SplitHostPort(r.RemoteAddr); err == nil {
+		return h
+	}
+	return r.RemoteAddr
+}
+
+// SetClientIP sets how Login finds the client address that failed logins are
+// counted against; behind a proxy it should return the forwarded visitor.
+func (a *Auth) SetClientIP(f func(*http.Request) string) { a.clientIP = f }
+
+// Login handles POST /api/login {"password": "..."}: 204 plus cookie, or 401, or 429 when the client is locked.
 func (a *Auth) Login(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Password string `json:"password"`
@@ -48,12 +66,28 @@ func (a *Auth) Login(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "bad request", http.StatusBadRequest)
 		return
 	}
+	key := clientKey(a.clientIP(r))
+	now := a.now()
+	if retry, ok := a.lim.locked(key, now); !ok {
+		w.Header().Set("Retry-After", strconv.Itoa(int(math.Ceil(retry.Seconds()))))
+		http.Error(w, "too many failed logins", http.StatusTooManyRequests)
+		return
+	}
+	// One password check at a time, so parallel requests cannot multiply the rate.
+	a.lim.check.Lock()
 	got := sha256.Sum256([]byte(body.Password))
 	if body.Password == "" || subtle.ConstantTimeCompare(got[:], a.pwHash[:]) != 1 {
-		time.Sleep(failDelay)
+		a.lim.fail(key, now)
+		a.sleep(a.lim.delay(now))
+		a.lim.check.Unlock()
+		log.Printf("auth: failed login from %s", key)
+		if _, ok := a.lim.locked(key, now); !ok {
+			log.Printf("auth: login locked for %s for %s", key, failWindow)
+		}
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
+	a.lim.check.Unlock()
 	exp := a.now().Add(ttl)
 	http.SetCookie(w, &http.Cookie{
 		Name:     cookieName,

@@ -412,6 +412,12 @@ type appConfig struct {
 
 func routes(st *store.Store, geo *enrich.Geo, reg *sites.Registry, tz *time.Location, a *auth.Auth, dist fs.FS, demoH http.Handler, rps float64, ips *netx.Resolver, dir agentDirectory, cfg appConfig) *http.ServeMux {
 	a.SetLookup(func(plain string) (auth.Token, bool) { return meta.LookupToken(st.DB(), plain) })
+	// Failed logins are counted per visitor, not per proxy.
+	loginIPs := ips
+	if loginIPs == nil {
+		loginIPs = netx.Default()
+	}
+	a.SetClientIP(loginIPs.ClientIP)
 	apiOpts := []api.Option{api.WithEnvTokens(a.EnvTokens())}
 	// Client IP and location: signed first-party proxy forwards (keyed by the
 	// site's crawl tokens) and Cloudflare edges, else netx and the database.
