@@ -126,15 +126,30 @@ describe('useQuery', () => {
     expect(out.r!.loading).toBe(true)
   })
 
-  it("an error on a new key does not fall back to the previous key's data", async () => {
+  it("an error on a new key in another site does not fall back to the previous site's data", async () => {
+    history.replaceState(null, '', '/?site=a')
+    const out: { r?: QueryResult<string> } = {}
+    const r = render(<Probe k="x|a" fn={async () => 'X'} out={out} />)
+    await flush()
+    act(() => {
+      navigate({ site: 'b' })
+      r.rerender(<Probe k="x|b" fn={async () => Promise.reject(new Error('boom'))} out={out} />)
+    })
+    await flush()
+    expect(out.r!.data).toBeUndefined()
+    expect(out.r!.error?.message).toBe('boom')
+  })
+
+  it('an error on a new key in the same site keeps the previous numbers and sets error', async () => {
     history.replaceState(null, '', '/?site=a')
     const out: { r?: QueryResult<string> } = {}
     const r = render(<Probe k="x" fn={async () => 'X'} out={out} />)
     await flush()
     r.rerender(<Probe k="y" fn={async () => Promise.reject(new Error('boom'))} out={out} />)
     await flush()
-    expect(out.r!.data).toBeUndefined()
+    expect(out.r!.data).toBe('X')
     expect(out.r!.error?.message).toBe('boom')
+    expect(out.r!.updatedAt).not.toBeNull()
   })
 
   it("keepPrevious:false drops the previous key's data while loading", async () => {

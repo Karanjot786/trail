@@ -200,7 +200,7 @@ export function useQuery<T>(key: string, fn: (signal: AbortSignal) => Promise<T>
 
   const entry = cache.get(key)
   if (entry && entry.data !== undefined) shown.current = { data: entry.data, at: entry.at, scope }
-  const prevOk = keepPrevious && shown.current.scope === scope && !entry?.error
+  const prevOk = keepPrevious && shown.current.scope === scope
   const data = (entry?.data ?? (prevOk ? shown.current.data : undefined)) as T | undefined
   const at = entry?.data !== undefined ? entry.at : prevOk ? shown.current.at : null
   return {
