@@ -1,7 +1,6 @@
 package auth
 
 import (
-	"net/netip"
 	"sync"
 	"time"
 )
@@ -86,18 +85,4 @@ func (l *loginLimiter) delay(now time.Time) time.Duration {
 		return slowDelay
 	}
 	return failDelay
-}
-
-// clientKey is the limiter key for ip: an IPv4 address as is, an IPv6 address
-// as its /64 (one subscriber holds a whole /64), anything else unchanged.
-func clientKey(ip string) string {
-	a, err := netip.ParseAddr(ip)
-	if err != nil {
-		return ip
-	}
-	a = a.WithZone("").Unmap()
-	if a.Is4() {
-		return a.String()
-	}
-	return netip.PrefixFrom(a, 64).Masked().String()
 }

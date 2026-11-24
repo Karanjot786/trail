@@ -14,6 +14,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"trail/internal/netx"
 )
 
 const (
@@ -66,7 +68,7 @@ func (a *Auth) Login(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "bad request", http.StatusBadRequest)
 		return
 	}
-	key := clientKey(a.clientIP(r))
+	key := netx.Bucket(a.clientIP(r))
 	// One password check at a time, so parallel requests cannot multiply the
 	// rate. The lock is tested after taking the mutex, with a fresh clock, so a
 	// burst that queued while the client had no failures is still stopped.
