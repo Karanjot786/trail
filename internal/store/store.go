@@ -126,8 +126,9 @@ const (
 	verDwell   = 1 // events.dwell_ms
 	verIndexes = 2 // trimmed index set
 	verEndIdx  = 3 // events_site_end, for the live reports' fold lookback
+	verTypeIdx = 4 // events_site_type_ts, for the (site, type) scans the partial name index cannot serve
 	// schemaVersion is the PRAGMA user_version this binary migrates to: the newest step.
-	schemaVersion = verEndIdx
+	schemaVersion = verTypeIdx
 )
 
 // trimmedIndexes are the v1 index names the v2 step drops. A downgraded binary recreates them.
@@ -207,6 +208,17 @@ func migrateVersioned(db *sql.DB) error {
 			return fmt.Errorf("migrate to v3: %w", err)
 		}
 		if err := done(verEndIdx); err != nil {
+			return err
+		}
+	}
+	if v < verTypeIdx {
+		// events_site_name_ts is partial (name<>''), so a lookup by type alone (event catalogue, the
+		// outbound filter, the event breakdown) cannot use it and would scan events_site_ts over the
+		// window. This full index restores the seek; it is additive, so a downgrade is unaffected.
+		if _, err := db.Exec(`CREATE INDEX IF NOT EXISTS events_site_type_ts ON events(site_id, type, ts)`); err != nil {
+			return fmt.Errorf("migrate to v4: %w", err)
+		}
+		if err := done(verTypeIdx); err != nil {
 			return err
 		}
 	}

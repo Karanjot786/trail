@@ -69,8 +69,9 @@ func (s *Store) EngageKey() []byte {
 }
 
 // foldTargetSQL picks the pageview an engage belongs to: the latest one of its session and
-// path at or before it. It runs through events_site_session_ts.
-const foldTargetSQL = `SELECT id FROM events WHERE site_id=? AND session_id=? AND type='pageview' AND path=? AND ts<=?
+// path at or before it. It runs through events_site_session_ts; the unary plus on type keeps the
+// planner off events_site_type_ts, which would walk every pageview of the site before ts.
+const foldTargetSQL = `SELECT id FROM events WHERE site_id=? AND session_id=? AND +type='pageview' AND path=? AND ts<=?
 	ORDER BY ts DESC, id DESC LIMIT 1`
 
 const foldUpdateSQL = `UPDATE events SET engaged_ms=max(engaged_ms,?), scroll_pct=max(scroll_pct,?), dwell_ms=max(dwell_ms, ?-ts)

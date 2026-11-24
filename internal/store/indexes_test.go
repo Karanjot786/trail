@@ -25,7 +25,7 @@ func eventIndexes(t *testing.T, s *Store) []string {
 	return out
 }
 
-var wantIndexes = []string{"events_site_agent_ts", "events_site_anon_ts", "events_site_end", "events_site_name_ts", "events_site_session_ts", "events_site_ts"}
+var wantIndexes = []string{"events_site_agent_ts", "events_site_anon_ts", "events_site_end", "events_site_name_ts", "events_site_session_ts", "events_site_ts", "events_site_type_ts"}
 
 // A v1 database (both trimmed indexes present, user_version 1) gets the v2 index set; reopening is a no-op.
 func TestMigrateV2Indexes(t *testing.T) {
@@ -144,5 +144,31 @@ func TestMigrateV3EndIndex(t *testing.T) {
 	var sql string
 	if err := s.db.QueryRow(`SELECT sql FROM sqlite_master WHERE name='events_site_end'`).Scan(&sql); err != nil || !strings.Contains(sql, "WHERE dwell_ms>0") {
 		t.Errorf("events_site_end sql %q %v", sql, err)
+	}
+}
+
+// A v3 database (no events_site_type_ts) gets the v4 index: (site, type) scans of the type-only reports
+// (event catalogue, outbound filter, event breakdown) need it because events_site_name_ts is partial.
+func TestMigrateV4TypeIndex(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "a.db")
+	s, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, q := range []string{`DROP INDEX events_site_type_ts`, `PRAGMA user_version=3`} {
+		if _, err := s.db.Exec(q); err != nil {
+			t.Fatal(err)
+		}
+	}
+	_ = s.Close()
+	if s, err = Open(path); err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	if got := eventIndexes(t, s); !reflect.DeepEqual(got, wantIndexes) {
+		t.Errorf("indexes %v, want %v", got, wantIndexes)
+	}
+	if got := userVersion(t, s); got != schemaVersion {
+		t.Errorf("user_version %d, want %d", got, schemaVersion)
 	}
 }

@@ -117,6 +117,7 @@ func TestStorageReport(t *testing.T) {
 		`CREATE INDEX events_site_user_ts ON events(site_id, user_id, ts)`,
 		`CREATE INDEX events_site_type_name_ts ON events(site_id, type, name, ts)`,
 		`DROP INDEX events_site_name_ts`,
+		`DROP INDEX events_site_type_ts`,
 		`ANALYZE`,
 	} {
 		if _, err := db.Exec(q); err != nil {

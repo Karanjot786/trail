@@ -107,7 +107,7 @@ func TestPlanGuard(t *testing.T) {
 	if len(plans) < 50 {
 		t.Fatalf("captured only %d statements", len(plans))
 	}
-	named, lookback := 0, 0
+	named, lookback, typeOnly := 0, 0, 0
 	for q, lines := range plans {
 		plan := strings.Join(lines, "\n")
 		// The fold lookback reads ev from a two-part subquery aliased e: its "SCAN e" walks that
@@ -133,9 +133,16 @@ func TestPlanGuard(t *testing.T) {
 		if nameLookup.MatchString(q) && !nameLookupExempt(q, plan) && !strings.Contains(plan, "events_site_name_ts") {
 			t.Errorf("name lookup does not use events_site_name_ts (name<>'' term lost?)\n%s\n%s", plan, q)
 		}
+		if (strings.Contains(q, "type='outbound'") || strings.Contains(q, "type='event' GROUP BY")) &&
+			!nameLookup.MatchString(q) && strings.Contains(plan, "events_site_type_ts (site_id=? AND type=?") {
+			typeOnly++
+		}
 		if nameLookup.MatchString(q) && strings.Contains(plan, "events_site_name_ts") {
 			named++
 		}
+	}
+	if typeOnly < 3 {
+		t.Errorf("only %d type-only scans used events_site_type_ts (event catalogue, outbound, event breakdown)", typeOnly)
 	}
 	if lookback < 3 {
 		t.Errorf("only %d lookback statements were checked (Live and activeNow)", lookback)
