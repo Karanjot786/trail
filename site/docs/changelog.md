@@ -9,6 +9,8 @@ Subscribe with the [RSS feed](/changelog.xml).
 
 ## Unreleased {#unreleased}
 
+<time datetime="2026-11-24">2026-11-24</time>
+
 Bug-fix pass. Worth knowing before you upgrade:
 
 - Everyone signed in to the dashboard is signed out once, and IPv6 visitors get a new private-mode id once (they are now keyed by /64).

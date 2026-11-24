@@ -5,7 +5,7 @@ description: Opt-in extras that load a small second file only when you ask for t
 
 # Web vitals, rage clicks, forms, errors and hash routes
 
-Five features live in `t.x.js`, a separate file the tracker loads from the same folder only when the tag asks for one of them. Sites that do not use them never download it. It is 740 bytes gzipped.
+Five features live in `t.x.js`, a separate file the tracker loads from the same folder only when the tag asks for one of them. Sites that do not use them never download it. It is 888 bytes gzipped.
 
 | Attribute | Records |
 |---|---|

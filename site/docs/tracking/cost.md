@@ -15,7 +15,7 @@ Trail publishes what its tracker costs. The table below is filled in when this s
 
 ## Rules the build enforces
 
-- Every tracker file is at most **2,048 bytes** gzipped. `tracker/build.mjs` fails the build if one is over, and a test in CI checks it again. Today `t.p.js` is 1,490 bytes, `t.js` is 2,040 and `t.x.js` is 740.
+- Every tracker file is at most **2,048 bytes** gzipped. `tracker/build.mjs` fails the build if one is over, and a test in CI checks it again. Today `t.p.js` is 1,532 bytes, `t.js` is 2,034 and `t.x.js` is 888.
 - The limit holds under two measurements: `gzip -9`, and raw deflate plus 18 bytes of header. Zlib builds differ by a few bytes, so the file has to fit under both.
 - Script time at load is checked before and after every tracker change.
 

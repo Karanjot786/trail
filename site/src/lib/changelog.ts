@@ -1,6 +1,13 @@
 // Single source for the changelog page and the RSS feed.
 export const changes = [
   {
+    id: 'unreleased',
+    title: 'Unreleased',
+    date: '2026-11-24',
+    summary:
+      'Bug-fix pass. Everyone signed in is signed out once, the server no longer sets the _t_id cookie, the tracker sends each event’s age so delayed events keep their real time, and trail-analytics 0.3.0 adds a verify command.',
+  },
+  {
     id: 'ai-visibility',
     title: 'AI visibility',
     date: '2026-11-21',

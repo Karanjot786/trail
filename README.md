@@ -239,10 +239,10 @@ Measured, not promised. Sizes are gzip level 9; timings are the median of 15 run
 
 | File | Gzipped | Script at load | Heap added | Requests per pageview |
 |---|---|---|---|---|
-| `t.p.js`, private only | 1,490 B | 1.33 ms | 117 KB | 2 |
-| `t.js`, all modes, default private until consent | 2,040 B | 1.61 ms | 120 KB | 2 |
+| `t.p.js`, private only | 1,532 B | 1.33 ms | 117 KB | 2 |
+| `t.js`, all modes, default private until consent | 2,034 B | 1.61 ms | 120 KB | 2 |
 | `t.js` with `data-mode="full"` | same file | 2.15 ms | 126 KB | 2 |
-| `t.x.js`, extras loaded on demand | 740 B | — | — | — |
+| `t.x.js`, extras loaded on demand | 888 B | — | — | — |
 
 Every tracker file must stay at or under 2,048 B gzipped; CI fails otherwise. Rerun with `cd tracker && npm run bench`. Method: [Tracker cost](https://trail.karanjot.co.in/docs/tracking/cost/).
 
