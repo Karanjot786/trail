@@ -9,7 +9,7 @@ vi.mock('../../api/client', async (orig) => {
 
 import { api } from '../../api/client'
 import { invalidate } from '../../api/useQuery'
-import { current, startRouter } from '../../shell/router'
+import { current, navigate, startRouter } from '../../shell/router'
 import { live, state } from '../activity/testdata'
 import LiveScreen, { POLL_MS, streamCopy } from './index'
 
@@ -29,7 +29,8 @@ const setOnline = (v: boolean) => {
 
 beforeEach(() => {
   invalidate()
-  liveFn.mockClear()
+  liveFn.mockReset()
+  liveFn.mockImplementation(async () => state.live)
   state.live = live()
   setHidden(false)
   setOnline(true)
@@ -38,6 +39,8 @@ afterEach(() => {
   cleanup()
   vi.useRealTimers()
 })
+
+const flush = () => act(() => new Promise((r) => setTimeout(r, 30)))
 
 describe('Live', () => {
   it('polls every 5 s and stops while the tab is hidden', async () => {
@@ -65,7 +68,40 @@ describe('Live', () => {
     const n = liveFn.mock.calls.length
     await act(async () => void (await vi.advanceTimersByTimeAsync(POLL_MS * 3)))
     expect(liveFn.mock.calls.length).toBe(n)
-    expect(screen.getByRole('button', { name: 'Resume' }).getAttribute('aria-pressed')).toBe('true')
+    expect(screen.getByRole('button', { name: 'Resume' })).toBeTruthy()
+  })
+
+  it('pause button has no aria-pressed', async () => {
+    visit('/live?site=demo')
+    render(<LiveScreen />)
+    await screen.findByTestId('live-active')
+    expect(screen.getByRole('button', { name: 'Pause updates' }).hasAttribute('aria-pressed')).toBe(false)
+    fireEvent.click(screen.getByRole('button', { name: 'Pause updates' }))
+    expect(screen.getByRole('button', { name: 'Resume' }).hasAttribute('aria-pressed')).toBe(false)
+  })
+
+  it('no row is marked new right after a site switch', async () => {
+    visit('/live?site=demo')
+    render(<LiveScreen />)
+    await screen.findByTestId('live-active')
+    const ev = state.live.stream[0]
+    state.live = live({ stream: [{ ...ev, sessionId: 's9', path: '/other', ts: ev.ts + 1 }] })
+    act(() => navigate({ site: 'docs' }))
+    await flush()
+    expect(screen.getByText('/other')).toBeTruthy()
+    expect(document.querySelectorAll('.ev-row.new').length).toBe(0)
+  })
+
+  it('a failed refresh says so instead of updated just now', async () => {
+    vi.useFakeTimers()
+    visit('/live?site=demo')
+    render(<LiveScreen />)
+    await act(async () => void (await vi.advanceTimersByTimeAsync(10)))
+    expect(screen.getByTestId('live-updated').textContent).toContain('updated just now')
+    liveFn.mockRejectedValue(new Error('boom'))
+    await act(async () => void (await vi.advanceTimersByTimeAsync(POLL_MS + 10)))
+    expect(screen.getByTestId('live-updated').textContent).toMatch(/update failed, as of \d\d:\d\d/)
+    expect(screen.getByTestId('live-updated').textContent).not.toContain('updated just now')
   })
 
   it('offline: "as of", "paused while offline", Pause disabled, grey dots', async () => {

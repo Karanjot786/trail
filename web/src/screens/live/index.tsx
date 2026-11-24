@@ -54,6 +54,7 @@ export default function LiveScreen() {
   const [query, setQuery] = useState('')
   const live = useQuery<Live>(`live|${key}`, async (sig) => api.live(q, sig), { pollMs: paused ? undefined : POLL_MS, staleMs: 0 })
   const seen = useRef<Set<string>>(new Set())
+  const seenSite = useRef(s.site)
   const d = live.data
   const off = !online
   const frozen = off || paused
@@ -85,6 +86,11 @@ export default function LiveScreen() {
   const list = side === 'country' ? d.countries : side === 'source' ? d.sources : d.pages
   const max = list.reduce((m, x) => Math.max(m, x.count), 0)
   const asOf = hm(d.asOf, tz)
+  // The first stream of a newly switched site has nothing to compare with, so nothing is new.
+  if (seenSite.current !== s.site) {
+    seenSite.current = s.site
+    seen.current = new Set()
+  }
   const fresh = new Set(seen.current)
   const newKeys = new Set<string>()
   for (const e of d.stream) {
@@ -105,7 +111,7 @@ export default function LiveScreen() {
             {fmtInt(d.active)}
           </span>
           <span className="upd" data-testid="live-updated">
-            in the last 5 minutes · {off ? `as of ${asOf}, not updating` : paused ? `paused, as of ${asOf}` : 'updated just now'}
+            in the last 5 minutes · {off ? `as of ${asOf}, not updating` : live.error ? `update failed, as of ${asOf}` : paused ? `paused, as of ${asOf}` : 'updated just now'}
           </span>
           <Globe points={d.countries.map((c) => ({ code: c.key, n: c.count }))} frozen={frozen} />
         </section>
@@ -196,7 +202,7 @@ export default function LiveScreen() {
               { value: 'event', label: 'Events' },
             ]}
           />
-          <Button size="sm" aria-pressed={paused} disabled={off} onClick={() => setPaused(!paused)}>
+          <Button size="sm" disabled={off} onClick={() => setPaused(!paused)}>
             {paused ? <Play aria-hidden="true" size={14} /> : <Pause aria-hidden="true" size={14} />}
             {paused ? 'Resume' : 'Pause updates'}
           </Button>
