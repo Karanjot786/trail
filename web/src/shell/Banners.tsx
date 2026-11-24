@@ -1,6 +1,6 @@
 // State banners (plan F1-5, F1-8): offline, refresh failed (kept above the greyed last good data), stale,
 // the read-only share notice, an expired or revoked share link, and the fixtures preset fallback.
-import { useEffect, useSyncExternalStore } from 'react'
+import { useEffect, useState, useSyncExternalStore } from 'react'
 import { Clock, Eye, Info, TriangleAlert, WifiOff } from 'lucide-react'
 import { onGone } from '../api/useQuery'
 import { useUrlState } from '../state/useUrlState'
@@ -9,7 +9,9 @@ import { useSite } from './useSite'
 import { useStats } from './useStats'
 import { useOnline } from './useOnline'
 import { useDataMode } from './useDataMode'
-import { tzCity, viewerTz } from './labels'
+import { tzCity } from './labels'
+import { hhmm } from './Freshness'
+import { useReportTz } from './useReportTz'
 
 let gone = false
 const goneListeners = new Set<() => void>()
@@ -32,12 +34,8 @@ export function resetGone(): void {
   goneListeners.forEach((f) => f())
 }
 
-function hhmm(ms: number): string {
-  const d = new Date(ms)
-  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
-}
-
 export function Banners() {
+  const tz = useReportTz()
   const s = useUrlState()
   const { site, share } = useSite()
   const online = useOnline()
@@ -50,8 +48,19 @@ export function Banners() {
     document.documentElement.classList.toggle('is-offline', !online)
   }, [online])
 
-  const failed = stats.error != null && stats.data != null && online
-  const stale = stats.stale && !failed && online
+  // `stale` is computed from the clock at render time; tick so it flips without other activity.
+  const [, tick] = useState(0)
+  // Settings and welcome show no numbers and fetch no stats, so no stats notice belongs there.
+  const noStats = s.screen === 'settings' || s.screen === 'welcome'
+  const hasData = stats.updatedAt != null && !noStats
+  useEffect(() => {
+    if (!hasData) return
+    const id = window.setInterval(() => tick((n) => n + 1), 30_000)
+    return () => window.clearInterval(id)
+  }, [hasData])
+
+  const failed = !noStats && stats.error != null && stats.data != null && online
+  const stale = !noStats && stats.stale && !failed && online
   useEffect(() => {
     document.documentElement.classList.toggle('is-stale', failed)
   }, [failed])
@@ -73,7 +82,7 @@ export function Banners() {
       <div key="off" className="notice" data-tone="warn" role="status">
         <WifiOff size={14} aria-hidden="true" />
         <span>
-          <b>You are offline.</b> Live is paused{stats.updatedAt ? ` and the numbers below are from ${hhmm(stats.updatedAt)}` : ''}. Trail reconnects by itself.
+          <b>You are offline.</b> Live is paused{stats.updatedAt && !noStats ? ` and the numbers below are from ${hhmm(stats.updatedAt, tz)}` : ''}. Trail reconnects by itself.
         </span>
         <span className="spacer" />
         <Button size="sm" onClick={() => stats.refetch()}>
@@ -86,7 +95,7 @@ export function Banners() {
       <div key="fail" className="notice" data-tone="bad" role="alert">
         <TriangleAlert size={14} aria-hidden="true" />
         <span>
-          <b>Refresh failed.</b> These numbers are from {stats.updatedAt ? hhmm(stats.updatedAt) : 'earlier'} and may be out of date; they stay greyed until Trail can refresh. Nothing is lost:
+          <b>Refresh failed.</b> These numbers are from {stats.updatedAt ? hhmm(stats.updatedAt, tz) : 'earlier'} and may be out of date; they stay greyed until Trail can refresh. Nothing is lost:
           events are still being recorded.
         </span>
         <span className="spacer" />
@@ -126,13 +135,14 @@ export function Banners() {
 /** The note for an unknown `range=` or a window clamped to the data start. */
 export function RangeNote({ invalid }: { invalid: string | null }) {
   const stats = useStats()
+  const tz = useReportTz()
   const w = stats.data?.window
   const msg = invalid
     ? `“${invalid}” is not a range Trail knows, so this shows the last 30 days.`
     : w?.invalid
       ? `“${w.invalid}” is not a range Trail knows, so this shows ${w.label.toLowerCase()}.`
       : w?.clamped
-        ? `Data starts later than this range, so the numbers begin at the first event (${tzCity(w.tz || viewerTz())} time).`
+        ? `Data starts later than this range, so the numbers begin at the first event (${tzCity(w.tz || tz)} time).`
         : null
   if (!msg) return null
   return (

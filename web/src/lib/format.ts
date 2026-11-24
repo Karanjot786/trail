@@ -85,3 +85,17 @@ export function fmtRange(from: number, to: number, tz: string): string {
   const b = fmtShortDay(to, tz)
   return a === b ? a : `${a} – ${b}`
 }
+
+/** "2026-11-12" for a timestamp in the given zone. */
+export function dayIso(ms: number, tz: string): string {
+  try {
+    return new Intl.DateTimeFormat('en-CA', { year: 'numeric', month: '2-digit', day: '2-digit', timeZone: tz }).format(ms)
+  } catch {
+    return new Date(ms).toISOString().slice(0, 10)
+  }
+}
+
+/** Today's date as "2026-11-12" in the given zone. */
+export function todayIso(tz: string): string {
+  return dayIso(Date.now(), tz)
+}

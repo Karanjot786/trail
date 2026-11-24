@@ -25,7 +25,7 @@ chk(40, 'Add website is a real form; the test visit and the checklist never disa
   await goto('/settings/sites')
   await page.getByRole('button', { name: /add website/i }).click()
   const dlg = page.getByRole('dialog', { name: /add website/i })
-  await dlg.getByLabel(/name/i).fill('Shop')
+  await dlg.getByLabel(/site id/i).fill('shop')
   await dlg.getByLabel(/domain/i).fill('shop.example.com')
   await dlg.getByRole('button', { name: /add/i }).last().click()
   await expect(page.getByRole('main')).toContainText('shop.example.com')

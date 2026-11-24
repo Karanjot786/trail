@@ -8,7 +8,7 @@ import type { Heatmap as HeatmapData } from '../../api/types'
 import { useQuery } from '../../api/useQuery'
 import { HeatmapGrid, HeatmapLegend, WEEKDAYS } from '../../charts/HeatmapGrid'
 import { fmtInt } from '../../lib/format'
-import { tzCity, viewerTz } from '../../shell/labels'
+import { tzCity } from '../../shell/labels'
 import { navigate, useUrlState } from '../../state/useUrlState'
 import { ErrorState, Skeleton } from '../../ui/states'
 import { useApiQuery } from './useOverviewData'
@@ -21,7 +21,7 @@ export function peakLabel(p: { dow: number; hour: number }): string {
 
 export function Heatmap() {
   const s = useUrlState()
-  const { q, key } = useApiQuery()
+  const { q, key, tz } = useApiQuery()
   const hq = new URLSearchParams(q)
   hq.delete('f')
   for (const f of s.filters) if (f.dim !== 'dow' && f.dim !== 'hour') hq.append('f', `${f.dim}:${f.value}`)
@@ -38,7 +38,7 @@ export function Heatmap() {
     <section className="panel heat-panel" aria-labelledby="heat-h">
       <div className="panel-h">
         <h2 id="heat-h">When people visit</h2>
-        <span className="muted heat-sub">Last 4 full weeks · {tzCity(viewerTz())} time</span>
+        <span className="muted heat-sub">Last 4 full weeks · {tzCity(tz)} time</span>
       </div>
       <div className="heat">
         {r.error && !hm ? (

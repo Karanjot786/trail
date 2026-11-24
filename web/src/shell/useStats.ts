@@ -4,10 +4,9 @@ import type { Stats } from '../api/types'
 import { useQuery } from '../api/useQuery'
 import { apiQuery } from '../state/url'
 import { useUrlState } from '../state/useUrlState'
-import { viewerTz } from './labels'
 
 export function useStats(enabled = true) {
   const s = useUrlState()
-  const q = apiQuery(s, viewerTz())
-  return useQuery<Stats>(`stats|${q.toString()}|${s.prefix}`, (sig) => api.stats(q, sig), { enabled: enabled && !!s.site, pollMs: 60_000 })
+  const q = apiQuery(s)
+  return useQuery<Stats>(`stats|${q.toString()}|${s.prefix}`, (sig) => api.stats(q, sig), { enabled: enabled && !!s.site && s.screen !== 'settings' && s.screen !== 'welcome', pollMs: 60_000, keepOnError: true })
 }

@@ -9,7 +9,7 @@ vi.mock('../../api/client', async (orig) => {
 
 import { api } from '../../api/client'
 import { invalidate } from '../../api/useQuery'
-import { current, startRouter } from '../../shell/router'
+import { current, navigate, startRouter } from '../../shell/router'
 import ActivityScreen from './index'
 import { goals, state } from './testdata'
 import { pathSteps } from './Sessions'
@@ -30,6 +30,16 @@ beforeEach(() => {
 afterEach(cleanup)
 
 describe('Activity', () => {
+  it('site=all sends no report request', async () => {
+    for (const tab of ['visitors', 'sessions', 'events']) {
+      visit(`/activity/${tab}?site=all`)
+      const { unmount } = render(<ActivityScreen />)
+      await flush()
+      unmount()
+    }
+    for (const name of ['visitors', 'sessions', 'events']) expect(A[name]).not.toHaveBeenCalled()
+  })
+
   it('has exactly the four tabs', async () => {
     visit('/activity?site=demo')
     render(<ActivityScreen />)
@@ -54,12 +64,29 @@ describe('Activity', () => {
     await flush()
     expect(screen.getByTestId('dt-count').textContent).toBe('120 people · 50 loaded')
     expect(A.visitors.mock.calls[0][1]).toMatchObject({ limit: 50, sort: '-last' })
-    const row = screen.getByRole('row', { name: 'Open the journey of Visitor 3' })
-    fireEvent.keyDown(row, { key: 'Enter' })
+    const row = screen.getByRole('button', { description: 'Open the journey of Visitor 3' })
+    fireEvent.click(row)
     expect(location.search).toContain('v=p3')
     fireEvent.click(screen.getByRole('button', { name: 'Load 50 more' }))
     await flush()
     expect(A.visitors.mock.calls.at(-1)![1]).toMatchObject({ limit: 100 })
+  })
+
+  it('Load more resets after a filter change', async () => {
+    visit('/activity/visitors?site=demo')
+    render(<ActivityScreen />)
+    await screen.findByRole('table', {}, { timeout: 2000 })
+    await flush()
+    fireEvent.click(screen.getByRole('button', { name: 'Load 50 more' }))
+    await flush()
+    expect(A.visitors.mock.calls.at(-1)![1]).toMatchObject({ limit: 100 })
+    const before = A.visitors.mock.calls.length
+    act(() => navigate({ filters: [{ dim: 'country', value: 'IN' }] }))
+    await flush()
+    const after = A.visitors.mock.calls.slice(before).map((c) => c[1].limit)
+    expect(after.length).toBeGreaterThan(0)
+    expect(after).not.toContain(100)
+    expect(after.at(-1)).toBe(50)
   })
 
   it('Sessions: sorting sends sort=-duration, and a row opens v=person~session', async () => {
@@ -73,7 +100,7 @@ describe('Activity', () => {
     fireEvent.click(within(screen.getByRole('columnheader', { name: /Duration/ })).getByRole('button'))
     await flush()
     expect(A.sessions.mock.calls.at(-1)![1]).toMatchObject({ sort: 'duration' })
-    fireEvent.click(screen.getAllByRole('row', { name: /Open this session/ })[0])
+    fireEvent.click(screen.getAllByRole('button', { description: /Open this session/ })[0])
     expect(decodeURIComponent(location.search)).toMatch(/v=p\d~s\d/)
   })
 
@@ -87,7 +114,7 @@ describe('Activity', () => {
     expect(within(table).getByText('Outbound link')).toBeTruthy()
     expect(within(table).getByText('plan')).toBeTruthy()
     expect(screen.getByTestId('events-n').textContent).toBe('2')
-    fireEvent.click(screen.getByRole('row', { name: /^Signup: 54 times/ }))
+    fireEvent.click(screen.getByRole('button', { description: /^Signup: 54 times/ }))
     expect(current().sheet).toEqual({ kind: 'event', name: 'Signup' })
   })
 

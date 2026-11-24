@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { apiQuery, parseUrl, serializeUrl, viewState } from './url'
+import { apiQuery, defaultState, parseUrl, serializeUrl, shareView, viewState } from './url'
 
 describe('url state', () => {
   it('round-trips defaults to a bare path', () => expect(serializeUrl(parseUrl('/', '').state)).toBe('/'))
@@ -66,7 +66,8 @@ describe('url state', () => {
 
   it('builds the api query', () => {
     const { state } = parseUrl('/', '?site=demo&f=country:IN')
-    expect(apiQuery(state, 'Asia/Kolkata').toString()).toBe('site=demo&range=30d&cmp=prev&env=production&tz=Asia%2FKolkata&f=country%3AIN')
+    expect(apiQuery(state).toString()).toBe('site=demo&range=30d&cmp=prev&env=production&f=country%3AIN')
+    expect(apiQuery(state).has('tz')).toBe(false)
   })
 
   it('accepts day and custom ranges and custom comparisons', () => {
@@ -122,8 +123,26 @@ describe('AI visibility screen and actor (AI agents plan §0.6)', () => {
   })
   it('apiQuery and viewState carry actor only when all', () => {
     const s = parseUrl('/', '?site=demo').state
-    expect(apiQuery({ ...s, actor: 'all' }, 'UTC').get('actor')).toBe('all')
-    expect(apiQuery(s, 'UTC').has('actor')).toBe(false)
+    expect(apiQuery({ ...s, actor: 'all' }).get('actor')).toBe('all')
+    expect(apiQuery(s).has('actor')).toBe(false)
     expect(viewState({ ...s, actor: 'all' })).toBe('site=demo&actor=all')
+  })
+})
+
+describe('shareView', () => {
+  const cur = () => ({ ...defaultState(), prefix: '/share/shr_abc' as const })
+  it("returns the link's own view against the default state", () => {
+    expect(shareView(cur(), 'demo', 'range=7d&env=all&actor=all&f=country:IN')).toEqual({
+      site: 'demo', range: '7d', cmp: 'prev', env: 'all', actor: 'all', filters: [{ dim: 'country', value: 'IN' }],
+    })
+  })
+  it('returns null when the URL already matches, ignoring metric, panels and sheet', () => {
+    const state = 'range=7d&env=all&actor=all&f=country:IN'
+    const want = shareView(cur(), 'demo', state)!
+    const ok = { ...cur(), ...want, metric: 'pageviews' as const, panels: { pages: 'exit' } }
+    expect(shareView(ok, 'demo', state)).toBeNull()
+  })
+  it('pins the site too', () => {
+    expect(shareView({ ...cur(), site: 'other' }, 'demo', '')).toMatchObject({ site: 'demo' })
   })
 })

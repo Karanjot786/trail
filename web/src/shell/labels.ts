@@ -63,11 +63,3 @@ export function tzCity(tz: string): string {
   const last = tz.split('/').pop() ?? tz
   return last.replace(/_/g, ' ')
 }
-
-export function viewerTz(): string {
-  try {
-    return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
-  } catch {
-    return 'UTC'
-  }
-}

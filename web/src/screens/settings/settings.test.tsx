@@ -39,12 +39,12 @@ vi.mock('./remote', () => ({ createShare: vi.fn(), testToken: vi.fn() }))
 import { api, HttpError } from '../../api/client'
 import { createShare, testToken } from './remote'
 import { invalidate } from '../../api/useQuery'
-import { startRouter, current } from '../../shell/router'
+import { startRouter, current, navigate } from '../../shell/router'
 import { getUi, resetUi } from '../../shell/uiStore'
 import SettingsScreen from './index'
 import { AddSiteDialog } from './AddSiteDialog'
 import { ShareDialog } from './ShareDialog'
-import { FRAMEWORKS, snippet } from '../../lib/install'
+import { FRAMEWORKS, snippet, suggestId } from '../../lib/install'
 
 const site = (id: string, extra: Partial<Site> = {}): Site => ({
   id, domain: `${id}.trail.dev`, origins: [], created: 0, lastEventAt: 1, events24h: 3, features: { revenue: false, crawlers: false, currency: 'USD' }, ...extra,
@@ -97,6 +97,14 @@ describe('Websites', () => {
     expect(api.deleteSite).toHaveBeenCalledWith('docs', false)
   })
 
+  it('the origins placeholder shows the Vercel preview pattern', async () => {
+    visit('/settings/sites?site=demo')
+    render(<SettingsScreen />)
+    await flush()
+    fireEvent.click(screen.getByRole('button', { name: 'Edit origins of demo.trail.dev' }))
+    expect(screen.getByRole('textbox', { name: /allowed origins/i }).getAttribute('placeholder')).toBe('*-<team>.vercel.app')
+  })
+
   it('saves allowed origins', async () => {
     visit('/settings/sites?site=demo')
     render(<SettingsScreen />)
@@ -110,28 +118,35 @@ describe('Websites', () => {
 })
 
 describe('AddSiteDialog', () => {
-  it('submits the name as the id and hands back the site', async () => {
+  it('submits an id suggested from the domain and hands back the site', async () => {
     const added = site('shop', { domain: 'shop.example.com', lastEventAt: null })
     mocked(api.createSite).mockResolvedValue(added)
     const onAdded = vi.fn()
     render(<AddSiteDialog open onOpenChange={() => {}} onAdded={onAdded} />)
-    fireEvent.change(screen.getByLabelText(/^name/i), { target: { value: 'Shop' } })
     fireEvent.change(screen.getByLabelText(/^domain/i), { target: { value: 'https://shop.example.com/' } })
     fireEvent.click(screen.getByRole('button', { name: 'Add and install' }))
     await flush()
-    expect(api.createSite).toHaveBeenCalledWith({ id: 'shop', domain: 'shop.example.com', origins: [] })
+    expect(api.createSite).toHaveBeenCalledWith({ id: suggestId('shop.example.com'), domain: 'shop.example.com', origins: [] })
     expect(onAdded).toHaveBeenCalledWith(added)
   })
 
   it('a 409 says the id is taken, next to the id field', async () => {
     mocked(api.createSite).mockRejectedValue(new HttpError(409, 'site already exists'))
     render(<AddSiteDialog open onOpenChange={() => {}} onAdded={() => {}} />)
-    fireEvent.change(screen.getByLabelText(/^name/i), { target: { value: 'Demo' } })
     fireEvent.change(screen.getByLabelText(/^domain/i), { target: { value: 'demo.dev' } })
     fireEvent.click(screen.getByRole('button', { name: 'Add and install' }))
     await flush()
     expect(screen.getByText(/That id is taken/)).toBeTruthy()
     expect(screen.getByLabelText(/^site id/i).getAttribute('aria-invalid')).toBe('true')
+  })
+})
+
+describe('AddSiteDialog fields', () => {
+  it('Add website has no Name field', () => {
+    render(<AddSiteDialog open onOpenChange={() => {}} onAdded={() => {}} />)
+    expect(screen.queryByLabelText(/^name/i)).toBeNull()
+    const labels = screen.getAllByText(/^(Domain|Site ID)$/).map((e) => e.textContent)
+    expect(labels).toEqual(['Domain', 'Site ID'])
   })
 })
 
@@ -298,6 +313,25 @@ describe('ShareDialog', () => {
     await flush()
     expect(api.deleteShare).toHaveBeenCalledWith('sh1abc')
     expect(dlg.textContent).not.toContain('expires in 30 days')
+  })
+})
+
+describe('ShareDialog state', () => {
+  it('Hide revenue is off again after switching site', async () => {
+    const rev = { revenue: true, crawlers: false, currency: 'USD' }
+    H.sites = [site('demo', { features: rev }), site('docs', { features: rev })]
+    visit('/?site=docs')
+    const { rerender } = render(<ShareDialog open onOpenChange={() => {}} />)
+    await flush()
+    let dlg = screen.getByRole('dialog', { name: /share/i })
+    fireEvent.click(within(dlg).getByRole('switch', { name: 'Hide revenue' }))
+    expect(within(dlg).getByRole('switch', { name: 'Hide revenue' }).getAttribute('aria-checked')).toBe('true')
+    rerender(<ShareDialog open={false} onOpenChange={() => {}} />)
+    act(() => navigate({ site: 'demo' }))
+    rerender(<ShareDialog open onOpenChange={() => {}} />)
+    await flush()
+    dlg = screen.getByRole('dialog', { name: /share/i })
+    expect(within(dlg).getByRole('switch', { name: 'Hide revenue' }).getAttribute('aria-checked')).toBe('false')
   })
 })
 

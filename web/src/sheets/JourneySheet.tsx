@@ -23,7 +23,7 @@ export function JourneySheet() {
   const { s, q, key, share } = useAq()
   const sheet = s.sheet?.kind === 'journey' ? s.sheet : null
   // The list row carries the person's label (a pseudonym on share links) and browser details.
-  const meta = useQuery(`journey-meta|${key}|${sheet?.person ?? ''}`, async (sig) => api.sessions(q, { person: sheet!.person, limit: 1 }, sig), { enabled: !!sheet })
+  const meta = useQuery(`journey-meta|${key}|${sheet?.person ?? ''}`, async (sig) => api.sessions(q, { person: sheet!.person, limit: 1 }, sig), { enabled: !!sheet, keepPrevious: false })
   const row = meta.data?.rows[0]
   const label = sheet ? row?.label || (share ? 'Visitor' : shortId(sheet.person)) : 'Journey'
   return (
@@ -39,7 +39,7 @@ function shortId(id: string): string {
 
 export function Journey({ person, session, row, label }: { person: string; session?: string; row?: SessionRow; label: string }) {
   const { q, key, tz, share } = useAq()
-  const j = useQuery<JourneySession[]>(`journey|${key}|${person}`, async (sig) => api.journey(q, person, sig))
+  const j = useQuery<JourneySession[]>(`journey|${key}|${person}`, async (sig) => api.journey(q, person, sig), { keepPrevious: false })
   const sessions = useMemo(() => [...(j.data ?? [])].sort((a, b) => a.start - b.start), [j.data])
   const body = useRef<HTMLDivElement>(null)
   const [newestFirst, setNewestFirst] = useState(false)

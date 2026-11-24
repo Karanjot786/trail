@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
-import { apiMock, mockState, site } from './testkit'
+import { apiMock, mockState, site, stats as baseStats } from './testkit'
 
 vi.mock('../api/client', async (orig) => {
   const real = await orig<typeof import('../api/client')>()
@@ -9,11 +9,11 @@ vi.mock('../api/client', async (orig) => {
 })
 
 import { App } from '../App'
-import { startRouter, current } from './router'
-import { invalidate } from '../api/useQuery'
+import { startRouter, current, go } from './router'
+import { invalidate, STALE_AFTER_MS } from '../api/useQuery'
 import { resetGone } from './Banners'
 import { resetUi } from './uiStore'
-import { Gone } from '../api/client'
+import { Gone, api } from '../api/client'
 
 void apiMock
 
@@ -58,7 +58,7 @@ describe('Shell', () => {
   })
 
   it('share mode hides Share, the switcher menu, Settings and Views; chips have no remove', async () => {
-    mockState.shareMeta = { site: site('demo'), state: '', hideRevenue: false, expires: null }
+    mockState.shareMeta = { site: site('demo'), state: 'f=country:IN', hideRevenue: false, expires: null }
     visit('/share/shr_abc/?site=demo&f=country:IN')
     render(<App />)
     await flush()
@@ -110,5 +110,110 @@ describe('Shell', () => {
     expect(f.textContent).toContain('India time')
     expect(f.textContent).toContain('8,006 bot requests left out')
     expect(f.textContent).toContain('Changes are vs Sep 22 – Oct 21')
+  })
+
+  it('formats the freshness zone from the server, not the browser, and sends no tz', async () => {
+    visit('/?site=demo')
+    render(<App />)
+    await flush()
+    const f = await screen.findByTestId('freshness')
+    expect(f.textContent).toContain('India time')
+    const calls = vi.mocked(api.stats).mock.calls as unknown[][]
+    expect(calls.length).toBeGreaterThan(0)
+    for (const c of calls) expect((c[0] as URLSearchParams).has('tz')).toBe(false)
+  })
+
+  it('a share link opens on its saved range and filters', async () => {
+    mockState.shareMeta = { site: site('demo'), state: 'range=7d&f=country:IN', hideRevenue: false, expires: null }
+    visit('/share/shr_abc/')
+    render(<App />)
+    await flush()
+    await screen.findByRole('navigation', { name: 'Main' })
+    await flush()
+    expect(location.search).toContain('range=7d')
+    expect(location.search).toContain('f=country%3AIN')
+    const bar = screen.getByRole('region', { name: 'Filters' })
+    expect(bar.querySelector('[data-fixed]')).toBeTruthy()
+    expect(screen.getByLabelText(/Date range: Last 7 days/)).toBeTruthy()
+  })
+
+  it('re-pins range, env, actor and filters a viewer edits', async () => {
+    mockState.shareMeta = { site: site('demo'), state: 'range=7d', hideRevenue: false, expires: null }
+    visit('/share/shr_abc/?range=12mo&env=all&actor=all&f=device:mobile')
+    render(<App />)
+    await flush()
+    await screen.findByRole('navigation', { name: 'Main' })
+    await flush()
+    expect(location.search).toBe('?site=demo&range=7d')
+  })
+
+  it('share mode shows no range or compare menu, only the label', async () => {
+    mockState.shareMeta = { site: site('demo'), state: 'range=7d', hideRevenue: false, expires: null }
+    visit('/share/shr_abc/')
+    render(<App />)
+    await flush()
+    await screen.findByRole('navigation', { name: 'Main' })
+    await flush()
+    expect(screen.queryByRole('button', { name: /date range/i })).toBeNull()
+    expect(screen.queryByRole('button', { name: /compare/i })).toBeNull()
+    expect(screen.getByLabelText(/Date range: /)).toBeTruthy()
+  })
+
+  it('Settings shows no range note and fetches no stats', async () => {
+    vi.mocked(api.stats).mockClear()
+    vi.mocked(api.stats).mockImplementation(async () => ({ ...baseStats(), window: { ...baseStats().window, clamped: true } }))
+    visit('/settings/sites?site=demo')
+    render(<App />)
+    await flush()
+    await screen.findByRole('navigation', { name: 'Main' })
+    expect(document.querySelector('[role=note]')).toBeNull()
+    expect(api.stats).not.toHaveBeenCalled()
+  })
+
+  it('the stale banner appears without a rerender after 10 minutes', async () => {
+    vi.mocked(api.stats).mockReset()
+    vi.mocked(api.stats).mockImplementationOnce(async () => baseStats())
+    vi.mocked(api.stats).mockImplementation(() => new Promise(() => {}))
+    // A hidden tab pauses the stats poll, so only the banner's own tick can bring the notice in.
+    const hidden = vi.spyOn(document, 'hidden', 'get').mockReturnValue(true)
+    vi.useFakeTimers({ toFake: ['Date', 'setInterval', 'clearInterval'] })
+    try {
+      visit('/?site=demo')
+      render(<App />)
+      await flush()
+      expect(screen.queryByText(/more than 10 minutes old/)).toBeNull()
+      act(() => {
+        vi.advanceTimersByTime(STALE_AFTER_MS + 31_000)
+      })
+      expect(screen.getByText(/more than 10 minutes old/)).toBeTruthy()
+    } finally {
+      hidden.mockRestore()
+      vi.useRealTimers()
+    }
+  })
+
+  it('Settings shows no stale banner and fires no stats request after 10 minutes', async () => {
+    vi.mocked(api.stats).mockReset()
+    vi.mocked(api.stats).mockImplementationOnce(async () => baseStats())
+    vi.mocked(api.stats).mockImplementation(() => new Promise(() => {}))
+    const hidden = vi.spyOn(document, 'hidden', 'get').mockReturnValue(true)
+    vi.useFakeTimers({ toFake: ['Date', 'setInterval', 'clearInterval'] })
+    try {
+      visit('/?site=demo')
+      render(<App />)
+      await flush()
+      expect(api.stats).toHaveBeenCalledTimes(1)
+      act(() => go('/settings/sites?site=demo'))
+      await flush()
+      act(() => {
+        vi.advanceTimersByTime(STALE_AFTER_MS + 61_000)
+      })
+      expect(screen.queryByText(/more than 10 minutes old/)).toBeNull()
+      expect(screen.queryByText(/Refresh failed/)).toBeNull()
+      expect(api.stats).toHaveBeenCalledTimes(1)
+    } finally {
+      hidden.mockRestore()
+      vi.useRealTimers()
+    }
   })
 })

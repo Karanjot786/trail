@@ -47,6 +47,13 @@ export function CompareMenu() {
       <ChevronDown size={14} aria-hidden="true" />
     </button>
   )
+  if (s.prefix.startsWith('/share/'))
+    return (
+      <span className="btn" data-static="" role="group" aria-label={mode === 'none' ? 'Compare with: off' : `Compare with: ${basis ? basis.text : 'previous period'}`} title={basis && mode !== 'none' ? basis.text : undefined}>
+        <GitCompareArrows size={14} aria-hidden="true" />
+        <span className="lbl-hide" aria-hidden="true">{label}</span>
+      </span>
+    )
   return (
     <PP.Root open={custom} onOpenChange={setCustom}>
       <PP.Anchor asChild>

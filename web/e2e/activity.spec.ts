@@ -34,7 +34,7 @@ chk(24, 'event catalogue: a row opens the event sheet; an occurrence opens that 
   const name: string = rows[0].name
   const table = page.getByRole('table')
   for (const c of ['Event', 'Count', 'People', 'Last seen', 'Properties']) await expect(table.getByRole('columnheader', { name: new RegExp(c) })).toBeVisible()
-  await table.getByRole('row', { name: new RegExp(name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')) }).first().click()
+  await table.getByRole('button', { name: new RegExp(name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')) }).first().click()
   const sheet = page.getByRole('dialog')
   await expect(sheet).toBeVisible()
   expect(await loc(page)).toContain('evn=')

@@ -9,7 +9,7 @@ import { rowLabel } from '../data/columns'
 import { fmtInt } from '../lib/format'
 import { apiQuery } from '../state/url'
 import { navigate, useUrlState } from '../state/useUrlState'
-import { viewerTz } from '../shell/labels'
+import { useReportTz } from '../shell/useReportTz'
 import { Avatar } from '../ui/avatar'
 import { Button } from '../ui/button'
 import { Sheet } from '../ui/dialog'
@@ -40,12 +40,12 @@ function download(href: string) {
 export function DropoffSheet() {
   const s = useUrlState()
   const sheet = s.sheet?.kind === 'dropoff' ? s.sheet : null
-  const tz = viewerTz()
-  const q = apiQuery(s, tz)
+  const tz = useReportTz()
+  const q = apiQuery(s)
   const key = sheet ? `${sheet.funnel}:${sheet.step}` : ''
   const share = s.prefix.startsWith('/share/')
-  const rep = useQuery(`f4|funnel:${sheet?.funnel}|${q}|${s.prefix}`, (sig) => api.funnelReport(q, sheet!.funnel, sig), { enabled: !!sheet })
-  const list = useQuery(`f4|dropoff:${key}|${q}|${s.prefix}`, (sig) => api.funnelDropoff(q, sheet!.funnel, sheet!.step, { limit: 1000 }, sig), { enabled: !!sheet })
+  const rep = useQuery(`f4|funnel:${sheet?.funnel}|${q}|${s.prefix}`, (sig) => api.funnelReport(q, sheet!.funnel, sig), { enabled: !!sheet, keepPrevious: false })
+  const list = useQuery(`f4|dropoff:${key}|${q}|${s.prefix}`, (sig) => api.funnelDropoff(q, sheet!.funnel, sheet!.step, { limit: 1000 }, sig), { enabled: !!sheet, keepPrevious: false })
 
   const stale = rep.error && 'status' in rep.error && (rep.error as { status: number }).status === 404
   const r = rep.data

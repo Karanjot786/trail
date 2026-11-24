@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, render } from '@testing-library/react'
-import { invalidate, onGone, onUnauthorized, useQuery, type QueryResult } from './useQuery'
+import { CACHE_MAX, invalidate, onGone, onUnauthorized, useQuery, type QueryOpts, type QueryResult } from './useQuery'
+import { navigate } from '../state/useUrlState'
 import { Gone, Unauthorized } from './client'
 
 afterEach(() => {
@@ -11,8 +12,8 @@ beforeEach(() => invalidate())
 
 const flush = () => act(() => new Promise((r) => setTimeout(r, 0)))
 
-function Probe<T>({ k, fn, poll, out }: { k: string; fn: (s: AbortSignal) => Promise<T>; poll?: number; out: { r?: QueryResult<T> } }) {
-  out.r = useQuery(k, fn, { pollMs: poll })
+function Probe<T>({ k, fn, poll, out, opts }: { k: string; fn: (s: AbortSignal) => Promise<T>; poll?: number; out: { r?: QueryResult<T> }; opts?: QueryOpts }) {
+  out.r = useQuery(k, fn, { pollMs: poll, ...opts })
   return null
 }
 
@@ -109,5 +110,153 @@ describe('useQuery', () => {
     expect(g).toHaveBeenCalled()
     off1()
     off2()
+  })
+
+  it("does not show the previous site's data after a site switch", async () => {
+    history.replaceState(null, '', '/?site=a')
+    const out: { r?: QueryResult<string> } = {}
+    const r = render(<Probe k="k|a" fn={async () => 'A'} out={out} />)
+    await flush()
+    expect(out.r!.data).toBe('A')
+    act(() => {
+      navigate({ site: 'b' })
+      r.rerender(<Probe k="k|b" fn={() => new Promise<string>(() => {})} out={out} />)
+    })
+    expect(out.r!.data).toBeUndefined()
+    expect(out.r!.loading).toBe(true)
+  })
+
+  it("an error on a new key in another site does not fall back to the previous site's data", async () => {
+    history.replaceState(null, '', '/?site=a')
+    const out: { r?: QueryResult<string> } = {}
+    const r = render(<Probe k="x|a" fn={async () => 'X'} out={out} />)
+    await flush()
+    act(() => {
+      navigate({ site: 'b' })
+      r.rerender(<Probe k="x|b" fn={async () => Promise.reject(new Error('boom'))} out={out} />)
+    })
+    await flush()
+    expect(out.r!.data).toBeUndefined()
+    expect(out.r!.error?.message).toBe('boom')
+  })
+
+  it("an error on a new key does not fall back to the previous key's data", async () => {
+    history.replaceState(null, '', '/?site=a')
+    const out: { r?: QueryResult<string> } = {}
+    const r = render(<Probe k="x" fn={async () => 'X'} out={out} />)
+    await flush()
+    r.rerender(<Probe k="y" fn={async () => Promise.reject(new Error('boom'))} out={out} />)
+    await flush()
+    expect(out.r!.data).toBeUndefined()
+    expect(out.r!.error?.message).toBe('boom')
+  })
+
+  it('keepOnError keeps the previous numbers in the same site and still sets error', async () => {
+    history.replaceState(null, '', '/?site=a')
+    const out: { r?: QueryResult<string> } = {}
+    const o = { keepOnError: true }
+    const r = render(<Probe k="x" fn={async () => 'X'} out={out} opts={o} />)
+    await flush()
+    r.rerender(<Probe k="y" fn={async () => Promise.reject(new Error('boom'))} out={out} opts={o} />)
+    await flush()
+    expect(out.r!.data).toBe('X')
+    expect(out.r!.error?.message).toBe('boom')
+    expect(out.r!.updatedAt).not.toBeNull()
+  })
+
+  it("keepPrevious:false drops the previous key's data while loading", async () => {
+    history.replaceState(null, '', '/?site=a')
+    const out: { r?: QueryResult<string> } = {}
+    const r = render(<Probe k="a" fn={async () => 'A'} out={out} opts={{ keepPrevious: false }} />)
+    await flush()
+    r.rerender(<Probe k="b" fn={() => new Promise<string>(() => {})} out={out} opts={{ keepPrevious: false }} />)
+    expect(out.r!.data).toBeUndefined()
+    expect(out.r!.loading).toBe(true)
+  })
+
+  it('evicts the oldest entries beyond CACHE_MAX', async () => {
+    const fn = vi.fn(async () => 1)
+    for (let i = 0; i <= CACHE_MAX; i++) {
+      const u = render(<Probe k={`ev${i}`} fn={fn} out={{}} />)
+      await flush()
+      u.unmount()
+    }
+    expect(fn).toHaveBeenCalledTimes(CACHE_MAX + 1)
+    render(<Probe k="ev0" fn={fn} out={{}} />)
+    await flush()
+    expect(fn).toHaveBeenCalledTimes(CACHE_MAX + 2)
+    render(<Probe k={`ev${CACHE_MAX}`} fn={fn} out={{}} />)
+    await flush()
+    expect(fn).toHaveBeenCalledTimes(CACHE_MAX + 2)
+  })
+
+  it('a poll does not abort its own request in flight', async () => {
+    vi.useFakeTimers()
+    setHidden(false)
+    const fn = vi.fn(() => new Promise<number>((res) => setTimeout(() => res(7), 8000)))
+    const out: { r?: QueryResult<number> } = {}
+    render(<Probe k="slow-live" fn={fn} poll={5000} out={out} />)
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(8000)
+    })
+    expect(out.r!.data).toBe(7)
+    expect(fn).toHaveBeenCalledTimes(1)
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000)
+    })
+    expect(fn).toHaveBeenCalledTimes(2)
+  })
+
+  it('loading clears when the key changes to a fresh cached key', async () => {
+    const prime = render(<Probe k="fresh-b" fn={async () => 'B'} out={{}} />)
+    await flush()
+    prime.unmount()
+    const out: { r?: QueryResult<string> } = {}
+    const r = render(<Probe k="fresh-a" fn={() => new Promise<string>(() => {})} out={out} />)
+    await flush()
+    expect(out.r!.loading).toBe(true)
+    r.rerender(<Probe k="fresh-b" fn={async () => 'B'} out={out} />)
+    await flush()
+    expect(out.r!.loading).toBe(false)
+    expect(out.r!.data).toBe('B')
+  })
+
+  it('loading clears when enabled turns false mid-request', async () => {
+    const out: { r?: QueryResult<string> } = {}
+    const r = render(<Probe k="dis" fn={() => new Promise<string>(() => {})} out={out} />)
+    await flush()
+    expect(out.r!.loading).toBe(true)
+    r.rerender(<Probe k="dis" fn={() => new Promise<string>(() => {})} out={out} opts={{ enabled: false }} />)
+    await flush()
+    expect(out.r!.loading).toBe(false)
+  })
+
+  it('two hooks sharing a key both see loading false after it resolves, and a later run of one does not abort the other', async () => {
+    let n = 0
+    let release: (v: string) => void = () => {}
+    const fn = vi.fn(() => {
+      n++
+      return n === 1 ? Promise.resolve('one') : new Promise<string>((res) => (release = res))
+    })
+    const a: { r?: QueryResult<string> } = {}
+    const b: { r?: QueryResult<string> } = {}
+    render(
+      <>
+        <Probe k="shared" fn={fn} out={a} />
+        <Probe k="shared" fn={fn} out={b} />
+      </>,
+    )
+    await flush()
+    expect(fn).toHaveBeenCalledTimes(1)
+    expect(a.r!.loading).toBe(false)
+    expect(b.r!.loading).toBe(false)
+    // B refetches and is in flight; A refetching joins it and must not abort it for B.
+    act(() => b.r!.refetch())
+    act(() => a.r!.refetch())
+    expect(fn).toHaveBeenCalledTimes(2)
+    await act(async () => release('two'))
+    expect(a.r!.loading).toBe(false)
+    expect(b.r!.loading).toBe(false)
+    expect(b.r!.data).toBe('two')
   })
 })

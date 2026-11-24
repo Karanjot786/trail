@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { suggestId } from '../../lib/install'
 import { apiCall, expiresText, MCP_CLIENTS, mcpSetup, scopeText, siteFromForm } from './model'
 
 const DAY = 86_400_000
@@ -52,15 +53,23 @@ describe('apiCall', () => {
 })
 
 describe('siteFromForm', () => {
-  it('derives the id from the name and cleans the domain', () => {
-    expect(siteFromForm('Shop', '', 'https://shop.example.com/')).toEqual({ ok: true, site: { id: 'shop', domain: 'shop.example.com', origins: [] } })
+  it('derives the id from the domain and cleans the domain', () => {
+    expect(siteFromForm('', 'https://shop.example.com/')).toEqual({ ok: true, site: { id: suggestId('shop.example.com'), domain: 'shop.example.com', origins: [] } })
   })
   it('keeps an id the person typed', () => {
-    expect(siteFromForm('Shop', 'my-shop', 'shop.example.com')).toMatchObject({ ok: true, site: { id: 'my-shop' } })
+    expect(siteFromForm('my-shop', 'shop.example.com')).toMatchObject({ ok: true, site: { id: 'my-shop' } })
   })
   it('says how to fix each field', () => {
-    expect(siteFromForm('', '', 'shop.example.com')).toEqual({ ok: false, field: 'name', error: 'Give the site a name.' })
-    expect(siteFromForm('Shop', '', 'shop')).toEqual({ ok: false, field: 'domain', error: 'Enter a domain like example.com, without a path.' })
-    expect(siteFromForm('Shop', 'Bad Id!', 'shop.example.com')).toEqual({ ok: false, field: 'id', error: 'Use lowercase letters, digits and dashes for the ID.' })
+    expect(siteFromForm('', 'shop')).toEqual({ ok: false, field: 'domain', error: 'Enter a domain like example.com, without a path.' })
+    expect(siteFromForm('Bad Id!', 'shop.example.com')).toEqual({ ok: false, field: 'id', error: 'Use lowercase letters, digits and dashes for the ID.' })
+  })
+  it.each(['localhost', '127.0.0.1', 'shop.example.com', 'my-app.vercel.app'])('accepts %s as the server does', (d) => {
+    expect(siteFromForm('x', d)).toMatchObject({ ok: true, site: { domain: d } })
+  })
+  it.each(['shop', '*.example.com', 'a_b.com', '', '-a.com', 'a..com'])('rejects %s', (d) => {
+    expect(siteFromForm('x', d)).toMatchObject({ ok: false, field: 'domain' })
+  })
+  it('rejects a domain longer than 253 characters', () => {
+    expect(siteFromForm('x', `${'a'.repeat(60)}.${'b'.repeat(60)}.${'c'.repeat(60)}.${'d'.repeat(60)}.${'e'.repeat(20)}.com`)).toMatchObject({ ok: false, field: 'domain' })
   })
 })

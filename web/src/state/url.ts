@@ -279,10 +279,28 @@ export function viewState(s: UrlState): string {
   return viewParams(s).toString()
 }
 
-/** site, range, cmp, env, tz, actor (only when all), f… for /api calls. */
-export function apiQuery(s: UrlState, tz: string): URLSearchParams {
-  const q = new URLSearchParams({ site: s.site, range: s.range, cmp: s.cmp, env: s.env, tz })
+/** True when the URL names one real site. Report routes (stats, series, breakdown, lists) answer site=all with zeros,
+ *  so a hook that reads them stays off for the All websites view. Only `stats` is read there, for its window. */
+export function reportSite(s: UrlState): boolean {
+  return !!s.site && s.site !== 'all'
+}
+
+/** site, range, cmp, env, actor (only when all), f… for /api calls. No `tz`: the server reports in its own zone and names it in `window.tz`. */
+export function apiQuery(s: UrlState): URLSearchParams {
+  const q = new URLSearchParams({ site: s.site, range: s.range, cmp: s.cmp, env: s.env })
   if (s.actor === 'all') q.set('actor', 'all')
   for (const f of s.filters) q.append('f', `${f.dim}:${f.value}`)
   return q
+}
+
+/**
+ * The patch that puts a share link's URL on the view the link was saved with (site, range, comparison, env,
+ * actor and filters), or null when it already is there. `state` is the link's saved `viewState` query string.
+ * What the viewer may still choose (metric, panels, tabs, sheets) is left alone.
+ */
+export function shareView(cur: UrlState, siteId: string, state: string): Partial<UrlState> | null {
+  const v = parseUrl('/', `?${state}`).state
+  const key = (fs: Filter[]) => fs.map((f) => `${f.dim}:${f.value}`).join('\n')
+  if (cur.site === siteId && cur.range === v.range && cur.cmp === v.cmp && cur.env === v.env && cur.actor === v.actor && key(cur.filters) === key(v.filters)) return null
+  return { site: siteId, range: v.range, cmp: v.cmp, env: v.env, actor: v.actor, filters: v.filters }
 }

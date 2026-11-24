@@ -2,7 +2,7 @@
 // Import it only through React.lazy so the TanStack code lands in table chunks:
 //   const DataTable = lazy(() => import('../../data/DataTable'))
 // Look: prototype D v3.1 `.dt*` and design-system/components/data-table.md.
-import { useState, type KeyboardEvent, type ReactNode } from 'react'
+import { useId, useState, type ReactNode } from 'react'
 import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, ChevronsUpDown, Columns3, Download, Funnel, Search, X } from 'lucide-react'
 import { fmtInt } from '../lib/format'
 import { Button } from '../ui/button'
@@ -95,6 +95,7 @@ export default function DataTable<T>(props: DataTableProps<T>) {
     getRowLabel,
   } = props
   const dt = useDataTable({ columns, data, getSearchText, initialSort, pageSize, manualSorting, onSortingChange })
+  const uid = useId()
   const [announce, setAnnounce] = useState('')
 
   if (error) {
@@ -118,14 +119,6 @@ export default function DataTable<T>(props: DataTableProps<T>) {
   const goTo = (i: number) => {
     dt.setPageIndex(i)
     setAnnounce(`Page ${i + 1} of ${dt.pageCount}`)
-  }
-
-  const onRowKey = (row: T) => (e: KeyboardEvent<HTMLTableRowElement>) => {
-    if (e.target !== e.currentTarget) return
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault()
-      onRowOpen?.(row)
-    }
   }
 
   return (
@@ -272,20 +265,38 @@ export default function DataTable<T>(props: DataTableProps<T>) {
                     return (
                       <tr
                         key={row.id}
-                        tabIndex={onRowOpen ? 0 : undefined}
-                        aria-label={onRowOpen && getRowLabel ? getRowLabel(r) : undefined}
                         onClick={onRowOpen ? () => onRowOpen(r) : undefined}
-                        onKeyDown={onRowOpen ? onRowKey(r) : undefined}
-                        className={`border-b border-border last:border-b-0 ${onRowOpen ? `cursor-pointer transition-colors duration-[120ms] motion-reduce:transition-none ${HOVER}bg-hover focus-visible:outline-2 focus-visible:outline-ring focus-visible:-outline-offset-2` : ''}`}
+                        className={`border-b border-border last:border-b-0 ${onRowOpen ? `cursor-pointer transition-colors duration-[120ms] motion-reduce:transition-none ${HOVER}bg-hover focus-within:bg-hover` : ''}`}
                       >
-                        {visible.map((c) => (
-                          <td
-                            key={c.id}
-                            className={`h-11 px-3 py-1 align-middle leading-[1.3] pointer-coarse:h-12 ${alignCls(c as TableColumn<unknown>)}`}
-                          >
-                            {c.cell ? c.cell(r) : String(c.accessorFn(r) ?? '')}
-                          </td>
-                        ))}
+                        {visible.map((c, ci) => {
+                          const content = c.cell ? c.cell(r) : String(c.accessorFn(r) ?? '')
+                          return (
+                            <td
+                              key={c.id}
+                              className={`h-11 px-3 py-1 align-middle leading-[1.3] pointer-coarse:h-12 ${alignCls(c as TableColumn<unknown>)}`}
+                            >
+                              {onRowOpen && ci === 0 ? (
+                                <>
+                                  {/* The button keeps its visible text as its name (WCAG 2.5.3); the action goes in the description. */}
+                                  <button
+                                    type="button"
+                                    className={`row-open w-full cursor-pointer rounded-control text-left ${RING}`}
+                                    aria-describedby={getRowLabel ? `${uid}-${row.id}` : undefined}
+                                  >
+                                    {content}
+                                  </button>
+                                  {getRowLabel && (
+                                    <span id={`${uid}-${row.id}`} className="sr-only">
+                                      {getRowLabel(r)}
+                                    </span>
+                                  )}
+                                </>
+                              ) : (
+                                content
+                              )}
+                            </td>
+                          )
+                        })}
                         {onRowFilter && (
                           <td className="h-11 w-12 px-2 py-1 text-right pointer-coarse:h-12">
                             <button

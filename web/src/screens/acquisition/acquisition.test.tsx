@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, render, screen, within } from '@testing-library/react'
+import { act, cleanup, render, screen, within } from '@testing-library/react'
 import type { Campaign, Row } from '../../api/types'
 import { site, stats } from '../../shell/testkit'
 
@@ -28,12 +28,14 @@ vi.mock('../../api/client', async (orig) => {
 import Acquisition from './index'
 import { startRouter } from '../../shell/router'
 import { invalidate } from '../../api/useQuery'
+import { api } from '../../api/client'
 
 function visit(url: string) {
   history.replaceState(null, '', url)
   startRouter()
 }
 beforeEach(() => {
+  vi.clearAllMocks()
   invalidate()
   m.revenue = false
 })
@@ -75,5 +77,9 @@ describe('Acquisition', () => {
     visit('/acquisition?site=all')
     render(<Acquisition />)
     expect(await screen.findByText('Pick a website')).toBeTruthy()
+    await act(() => new Promise((r) => setTimeout(r, 30)))
+    expect(api.breakdown).not.toHaveBeenCalled()
+    expect(api.aiReferrals).not.toHaveBeenCalled()
+    expect(api.campaigns).not.toHaveBeenCalled()
   })
 })
