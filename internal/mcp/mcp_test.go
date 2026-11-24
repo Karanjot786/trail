@@ -426,9 +426,13 @@ func toolEquals(t *testing.T, h http.Handler, name string, args map[string]any, 
 	}
 }
 
-func mcpParams(t *testing.T, key string) query.Params {
+func mcpParams(t *testing.T, db *sql.DB, key string) query.Params {
 	t.Helper()
-	w, err := query.ResolveWindow(key, "prev", fixedNow, time.UTC, 0)
+	ds, err := query.DataStart(db, "s")
+	if err != nil {
+		t.Fatal(err)
+	}
+	w, err := query.ResolveWindow(key, "prev", fixedNow, time.UTC, ds)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -439,7 +443,7 @@ func mcpParams(t *testing.T, key string) query.Params {
 func TestGetAgentsTool(t *testing.T) {
 	h, db := setup(t)
 	addAgents(t, db)
-	want, err := query.Agents(db, mcpParams(t, "7d"))
+	want, err := query.Agents(db, mcpParams(t, db, "7d"))
 	if err != nil || want.Sessions != 2 || want.VerifiedSessions != 1 {
 		t.Fatalf("query %+v %v", want, err)
 	}
@@ -448,7 +452,7 @@ func TestGetAgentsTool(t *testing.T) {
 
 func TestGetAIVisibilityTool(t *testing.T) {
 	h, db := setup(t)
-	want, err := query.AIVisibility(db, mcpParams(t, "30d"))
+	want, err := query.AIVisibility(db, mcpParams(t, db, "30d"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -496,5 +500,23 @@ func TestMCP24hComparesPrevious24h(t *testing.T) {
 	var se struct{ Bucket string }
 	if err := json.Unmarshal(res.StructuredContent, &se); err != nil || se.Bucket != "hour" {
 		t.Fatalf("series %s", res.StructuredContent)
+	}
+}
+
+func TestMCPClampsToFirstEvent(t *testing.T) {
+	h, _ := setup(t)
+	res := callTool(t, h, "get_stats", map[string]any{"site": "s", "range": "30d"})
+	var st struct {
+		Window struct {
+			Clamped bool
+			Basis   struct{ None bool }
+		}
+	}
+	if err := json.Unmarshal(res.StructuredContent, &st); err != nil || !st.Window.Clamped || !st.Window.Basis.None {
+		t.Fatalf("window not clamped: %s", res.StructuredContent)
+	}
+	wc := callTool(t, h, "what_changed", map[string]any{"site": "s", "range": "30d"})
+	if strings.Contains(string(wc.StructuredContent), `"kind":"source"`) {
+		t.Errorf("what_changed reports sources on a new site: %s", wc.StructuredContent)
 	}
 }

@@ -379,12 +379,17 @@ func (s *server) params(ctx context.Context, in Scope) (query.Params, error) {
 	default:
 		return p, errors.New("bad range: want a range key or {from,to}")
 	}
+	dataStart, err := query.DataStart(s.db, in.Site)
+	if err != nil {
+		log.Printf("mcp: data start: %v", err) // same fallback as the API: no clamp
+		dataStart = 0
+	}
 	var win query.Window
 	if legacyTo != 0 {
-		win = query.ExactWindow(legacyFrom, legacyTo, cmp, p.Now, p.TZ, 0)
+		win = query.ExactWindow(legacyFrom, legacyTo, cmp, p.Now, p.TZ, dataStart)
 	} else {
 		var err error
-		if win, err = query.ResolveWindow(key, cmp, p.Now, p.TZ, 0); err != nil {
+		if win, err = query.ResolveWindow(key, cmp, p.Now, p.TZ, dataStart); err != nil {
 			return p, fmt.Errorf("bad range or cmp: %w", err)
 		}
 		if win.Invalid != "" {

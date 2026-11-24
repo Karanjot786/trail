@@ -1,6 +1,7 @@
 package query
 
 import (
+	"database/sql"
 	"fmt"
 	"math"
 	"strings"
@@ -232,6 +233,16 @@ func ResolveWindow(rangeKey, cmp string, now time.Time, loc *time.Location, data
 		w.Basis.Short = fmt.Sprintf("prev. %d days", n)
 	}
 	return w, nil
+}
+
+// DataStart is the site's first event (unix ms), 0 when it has none. min(ts) on the
+// events_site_ts prefix is O(log n).
+func DataStart(db *sql.DB, site string) (int64, error) {
+	var ts sql.NullInt64
+	if err := db.QueryRow(`SELECT min(ts) FROM events WHERE site_id=?`, site).Scan(&ts); err != nil {
+		return 0, err
+	}
+	return ts.Int64, nil
 }
 
 // exactHourSpan is the longest exact window bucketed by hour (the legacyBuckets threshold).

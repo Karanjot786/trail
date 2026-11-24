@@ -227,3 +227,13 @@ func TestExactWindowCustomComparison(t *testing.T) {
 		t.Fatalf("overlap not ignored: %v %+v", o.PrevTo, o.Basis)
 	}
 }
+
+func TestDataStart(t *testing.T) {
+	db := fixture(t, pv("A", "sa", "/", t0+hour), pv("B", "sb", "/", t0))
+	if got, err := DataStart(db, "s"); err != nil || got != t0 {
+		t.Fatalf("got %d %v, want %d", got, err, t0)
+	}
+	if got, err := DataStart(db, "empty"); err != nil || got != 0 {
+		t.Fatalf("empty site: %d %v", got, err)
+	}
+}

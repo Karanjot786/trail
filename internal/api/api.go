@@ -402,12 +402,12 @@ func (s *server) dataStart(site string) int64 {
 	if c, ok := s.starts[site]; ok && s.now().Sub(c.at) < time.Minute {
 		return c.ts
 	}
-	var ts sql.NullInt64
-	if err := s.db.QueryRow(`SELECT min(ts) FROM events WHERE site_id=?`, site).Scan(&ts); err != nil {
+	ts, err := query.DataStart(s.db, site)
+	if err != nil {
 		return 0
 	}
-	s.starts[site] = startCache{ts: ts.Int64, at: s.now()}
-	return ts.Int64
+	s.starts[site] = startCache{ts: ts, at: s.now()}
+	return ts
 }
 
 func writeJSON(w http.ResponseWriter, v any) {
