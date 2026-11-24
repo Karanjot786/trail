@@ -1,5 +1,5 @@
-import { beforeEach, describe, expect, it } from 'vitest'
-import { current, linkTo, navigate, startRouter } from './router'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { current, go, linkTo, navigate, startRouter } from './router'
 
 function visit(url: string) {
   history.replaceState(null, '', url)
@@ -29,6 +29,31 @@ describe('router', () => {
     visit('/?site=demo&range=d:2026-11-12&cmp=c:2026-07-01')
     navigate({ range: 'yesterday' })
     expect(current().cmp).toBe('c:2026-07-01')
+  })
+
+  it('current() does not touch history', () => {
+    history.pushState(null, '', '/people?x=1')
+    const spy = vi.spyOn(history, 'replaceState')
+    try {
+      current()
+      expect(spy).not.toHaveBeenCalled()
+      expect(location.pathname).toBe('/people')
+    } finally {
+      spy.mockRestore()
+    }
+  })
+
+  it('popstate onto a legacy URL still redirects', () => {
+    visit('/')
+    history.pushState(null, '', '/crawlers')
+    window.dispatchEvent(new PopStateEvent('popstate'))
+    expect(location.pathname).toBe('/ai/crawlers')
+    expect(current().screen).toBe('crawlers')
+  })
+
+  it('go() to a legacy URL lands canonical', () => {
+    go('/crawlers')
+    expect(location.pathname).toBe('/ai/crawlers')
   })
 
   it('replaces ?view=visitors with /activity/visitors', () => {
