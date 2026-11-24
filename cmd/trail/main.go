@@ -30,6 +30,7 @@ import (
 	"strings"
 	"syscall"
 	"time"
+	_ "time/tzdata" // zone names work on hosts and images without a zoneinfo database
 
 	"trail/internal/agents"
 	"trail/internal/api"
@@ -249,10 +250,11 @@ func runServe() error {
 	if err != nil {
 		return err
 	}
-	tz, err := time.LoadLocation(env("TRAIL_TZ", "Asia/Kolkata"))
+	tz, err := serverTZ()
 	if err != nil {
-		return fmt.Errorf("TRAIL_TZ: %w", err)
+		return err
 	}
+	log.Printf("time zone: %s (TRAIL_TZ)", tz)
 	geo, err := enrich.OpenGeo(os.Getenv("TRAIL_GEO_DB"))
 	if err != nil {
 		return err
@@ -412,6 +414,12 @@ type appConfig struct {
 
 func routes(st *store.Store, geo *enrich.Geo, reg *sites.Registry, tz *time.Location, a *auth.Auth, dist fs.FS, demoH http.Handler, rps float64, ips *netx.Resolver, dir agentDirectory, cfg appConfig) *http.ServeMux {
 	a.SetLookup(func(plain string) (auth.Token, bool) { return meta.LookupToken(st.DB(), plain) })
+	// Failed logins are counted per visitor, not per proxy.
+	loginIPs := ips
+	if loginIPs == nil {
+		loginIPs = netx.Default()
+	}
+	a.SetClientIP(loginIPs.ClientIP)
 	apiOpts := []api.Option{api.WithEnvTokens(a.EnvTokens())}
 	// Client IP and location: signed first-party proxy forwards (keyed by the
 	// site's crawl tokens) and Cloudflare edges, else netx and the database.
@@ -604,4 +612,13 @@ func spaHandler(fsys fs.FS) http.Handler {
 		w.Header().Set("Cache-Control", "no-cache")
 		_, _ = w.Write(index)
 	})
+}
+
+// serverTZ is the zone for day boundaries: TRAIL_TZ, else UTC.
+func serverTZ() (*time.Location, error) {
+	loc, err := time.LoadLocation(env("TRAIL_TZ", "UTC"))
+	if err != nil {
+		return nil, fmt.Errorf("TRAIL_TZ: %w", err)
+	}
+	return loc, nil
 }

@@ -1,9 +1,11 @@
 package api
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -53,15 +55,25 @@ func TestParamsRangeKeyResolves(t *testing.T) {
 	}
 }
 
-func TestParamsBadTZFallsBack(t *testing.T) {
-	s := testServer(t)
-	for _, tz := range []string{"Mars/Base", "../../etc/passwd", strings.Repeat("A", 65), ""} {
-		p, err := s.params(req("/api/stats?site=s&range=7d&tz=" + tz))
-		if err != nil {
-			t.Fatalf("%q: %v", tz, err)
+func TestParamsBadTZIs400(t *testing.T) {
+	h := setup(t)
+	for _, tz := range []string{"Mars/Base", "../../etc/passwd", strings.Repeat("A", 65)} {
+		w := get(h, "/api/stats?site=s&range=7d&tz="+url.QueryEscape(tz))
+		if w.Code != http.StatusBadRequest || !strings.Contains(w.Body.String(), "bad tz") {
+			t.Errorf("tz %q: %d %s", tz, w.Code, w.Body)
 		}
-		if p.TZ.String() != "Asia/Kolkata" {
-			t.Errorf("%q: tz %v, want the server default", tz, p.TZ)
+	}
+	w := get(h, "/api/stats?site=s&range=7d&tz=")
+	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), `"tz":"Asia/Kolkata"`) {
+		t.Errorf("empty tz: %d %s", w.Code, w.Body)
+	}
+}
+
+func TestParamsTZAliasesAccepted(t *testing.T) {
+	h := setup(t)
+	for _, tz := range []string{"Asia/Calcutta", "US/Eastern", "UTC", "Etc/GMT+5"} {
+		if w := get(h, "/api/stats?site=s&range=7d&tz="+url.QueryEscape(tz)); w.Code != http.StatusOK {
+			t.Errorf("tz %q: %d %s", tz, w.Code, w.Body)
 		}
 	}
 }
@@ -79,6 +91,21 @@ func TestParamsLegacyFromTo(t *testing.T) {
 	}
 	if !strings.HasPrefix(p.Win.Key, "c:") {
 		t.Errorf("window key %q, want c:…", p.Win.Key)
+	}
+	if p.Win.Bucket != "day" || p.Win.PrevTo == nil || *p.Win.PrevTo != from-1 {
+		t.Errorf("bucket %q prevTo %v, want day and %d", p.Win.Bucket, p.Win.PrevTo, from-1)
+	}
+}
+
+func TestParamsLegacy24hHourly(t *testing.T) {
+	s := testServer(t)
+	now := time.Now().UnixMilli()
+	p, err := s.params(req(fmt.Sprintf("/api/stats?site=s&from=%d", now-24*3600_000)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.Win.Bucket != "hour" || p.Win.Basis.Short != "prev. 24 hours" {
+		t.Errorf("bucket %q basis %q", p.Win.Bucket, p.Win.Basis.Short)
 	}
 }
 
@@ -102,7 +129,7 @@ func TestParamsSiteAllOnlyWhereAllowed(t *testing.T) {
 		t.Fatalf("sessions site=all: %d %s", w.Code, w.Body)
 	}
 	s := testServer(t)
-	if _, err := s.paramsFor(req("/api/stats?site=all"), true); err != nil {
+	if _, err := s.paramsFor(req("/api/stats?site=all"), allCookie); err != nil {
 		t.Fatalf("stats site=all: %v", err)
 	}
 }
@@ -154,5 +181,21 @@ func TestParamsActor(t *testing.T) {
 		if w.Code != http.StatusBadRequest || !strings.Contains(w.Body.String(), "bad actor") {
 			t.Fatalf("actor=%s: %d %s", bad, w.Code, w.Body.String())
 		}
+	}
+}
+
+func TestSiteAllCookieStillServesWindow(t *testing.T) {
+	h := setup(t)
+	w := get(h, "/api/stats?site=all&range=7d")
+	if w.Code != http.StatusOK {
+		t.Fatalf("stats site=all: %d %s", w.Code, w.Body)
+	}
+	var out struct {
+		Window struct {
+			Key string `json:"key"`
+		} `json:"window"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &out); err != nil || out.Window.Key == "" {
+		t.Fatalf("window key missing: %v %s", err, w.Body)
 	}
 }

@@ -13,7 +13,7 @@ Trail reads its settings from the environment at startup. Nothing is stored in a
 | `TRAIL_SITES` | empty | Optional comma list of `id=domain`, e.g. `blog=example.com,docs=docs.example.com`. Each entry is added at startup if the database lacks it; sites you edited in the dashboard keep their edits. You can add sites in Settings instead. Events for ids that are not registered are rejected. The domain decides the environment tag (below) |
 | `TRAIL_DB` | `trail.db` (`/data/trail.db` in the Docker image) | Path of the SQLite file |
 | `TRAIL_ADDR` | `:8080` | Listen address. Use `127.0.0.1:8080` behind a local proxy |
-| `TRAIL_TZ` | `Asia/Kolkata` | IANA timezone for daily buckets and the private-mode key rotation |
+| `TRAIL_TZ` | `UTC` | IANA timezone for daily buckets and the private-mode key rotation. The dashboard shows days in this zone. install.sh writes the server's own zone |
 | `TRAIL_SECRET` | stored in the database | Signs dashboard session cookies. At least 32 characters. When unset, a random key is created on first start and kept in the database, so logins survive restarts with no setup. Set it only to share one key between databases or to rotate it |
 | `TRAIL_GEO_DB` | unset | Path to your own City `.mmdb`, such as GeoLite2 City, for region and city. Without it, the built-in database gives country only. See [Geo database](/operations/geo) |
 | `TRAIL_API_TOKENS` | unset | Comma list of `name:token:scope` for the [read API and MCP](/api/tokens). Scope is `read` or `write`; tokens shorter than 24 characters stop the server at startup |

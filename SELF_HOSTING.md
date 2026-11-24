@@ -166,12 +166,12 @@ None are required.
 
 | Variable | Default | What it does |
 |---|---|---|
-| `TRAIL_PASSWORD` | generated | Dashboard password. Unset: one is generated on first start, printed once in the log, and only its hash is stored |
+| `TRAIL_PASSWORD` | generated | Dashboard password. Unset: one is generated on first start, printed once in the log, and only its hash is stored. 5 wrong passwords from one address lock it out for 15 minutes; failures are logged as `auth: failed login from ...` |
 | `TRAIL_SECRET` | stored in the database | Signs session cookies, 32+ characters. Unset: a random key is created on first start and kept in the database, so logins survive restarts |
 | `TRAIL_DB` | `trail.db` (`/data/trail.db` in Docker, `/var/lib/trail/trail.db` with install.sh) | Path of the SQLite file |
 | `TRAIL_ADDR` | `:8080` | Listen address. `127.0.0.1:8080` keeps it private behind a local proxy |
 | `TRAIL_SITES` | empty | `id=domain,id2=domain2`, added at startup if missing. Or add sites in **Settings** |
-| `TRAIL_TZ` | `Asia/Kolkata` (`UTC` in compose.yaml and install.sh) | IANA timezone for daily buckets, e.g. `Europe/Berlin` |
+| `TRAIL_TZ` | `UTC` (install.sh writes the server's own zone) | IANA timezone for daily buckets, e.g. `Europe/Berlin`. The dashboard shows days in this zone. A bad name stops the server at start |
 | `TRAIL_TRUSTED_PROXIES` | `private,cloudflare` | Which proxies may report the visitor IP. See below |
 | `TRAIL_GEO_DB` | unset | Path to a City `.mmdb` (DB-IP Lite City, GeoLite2 City) for region and city. Country works without it |
 | `TRAIL_API_TOKENS` | unset | `name:token:scope,...` for the read API and MCP. You can also create tokens in **Settings** |

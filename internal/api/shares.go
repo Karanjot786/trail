@@ -2,6 +2,7 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -172,7 +173,7 @@ func (h *shareHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	r2 := r.Clone(r.Context())
+	r2 := r.Clone(withShare(r.Context()))
 	r2.URL.Path, r2.URL.RawPath, r2.URL.RawQuery = "/api/"+route, "", q.Encode()
 	r2.Header.Del("Authorization")
 	r2.Header.Del("Cookie")
@@ -195,6 +196,16 @@ func (h *shareHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(out)
 }
 
+type shareCtxKey struct{}
+
+// withShare marks a request that came in through a share link.
+func withShare(ctx context.Context) context.Context {
+	return context.WithValue(ctx, shareCtxKey{}, true)
+}
+
+// inShare reports whether the request came in through a share link.
+func inShare(ctx context.Context) bool { v, _ := ctx.Value(shareCtxKey{}).(bool); return v }
+
 // rewriteQuery forces the link's site and filters, drops what a share may not
 // use (search by id, exports), and turns opaque visitor ids back into person
 // ids. false means an id this link did not make.
@@ -206,6 +217,12 @@ func (h *shareHandler) rewriteQuery(q url.Values, sh meta.Share, key []byte) boo
 	if state, err := url.ParseQuery(sh.State); err == nil {
 		for _, f := range state["f"] {
 			q.Add("f", f)
+		}
+		// env and actor are the link's too: a viewer cannot widen them. Range, cmp and tz stay theirs.
+		for _, k := range []string{"env", "actor"} {
+			if v := state.Get(k); v != "" {
+				q.Set(k, v)
+			}
 		}
 	}
 	if opaque := q.Get("person"); opaque != "" {
@@ -245,15 +262,19 @@ func scrubJSON(body []byte, key []byte, hideRevenue bool) ([]byte, error) {
 	if err := dec.Decode(&v); err != nil {
 		return nil, err
 	}
-	scrub(v, key, hideRevenue)
+	scrub(v, key, hideRevenue, false)
 	return json.Marshal(v)
 }
 
-func scrub(v any, key []byte, hideRevenue bool) {
+// purchaseNames are the Purchase event names, as query.purchaseWhere in
+// internal/query/defs.go.
+var purchaseNames = map[string]bool{"Purchase": true, "purchase": true}
+
+func scrub(v any, key []byte, hideRevenue, inPurchase bool) {
 	switch x := v.(type) {
 	case []any:
 		for _, e := range x {
-			scrub(e, key, hideRevenue)
+			scrub(e, key, hideRevenue, inPurchase)
 		}
 	case map[string]any:
 		if p, ok := x["person"].(string); ok && p != "" {
@@ -278,9 +299,19 @@ func scrub(v any, key []byte, hideRevenue bool) {
 			if f, ok := x["features"].(map[string]any); ok {
 				f["revenue"] = false
 			}
+			// Purchase properties carry amount and currency.
+			if n, _ := x["name"].(string); inPurchase || purchaseNames[n] {
+				inPurchase = true
+				switch x["props"].(type) {
+				case []any:
+					x["props"] = []any{}
+				case map[string]any:
+					x["props"] = map[string]any{}
+				}
+			}
 		}
 		for _, e := range x {
-			scrub(e, key, hideRevenue)
+			scrub(e, key, hideRevenue, inPurchase)
 		}
 	}
 }

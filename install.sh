@@ -12,6 +12,7 @@
 # Settings (environment variables):
 #   TRAIL_VERSION      release tag to install, e.g. v0.3.0 (default: latest)
 #   TRAIL_ADDR         listen address written to a new /etc/trail.env (default: 127.0.0.1:8080)
+#   TRAIL_TZ           IANA time zone written to a new /etc/trail.env (default: this server's zone, else UTC)
 #   TRAIL_INSTALL_DIR  where the binary goes (default: /usr/local/bin)
 #   TRAIL_NO_SERVICE   1 skips the systemd setup
 #   TRAIL_DOWNLOAD_URL base URL holding the archives and checksums.txt (default: GitHub Releases)
@@ -103,6 +104,28 @@ install_binary() {
 	say "Installed $("$BIN" version) to $BIN"
 }
 
+# host_tz prints this server's IANA time zone, or UTC when it cannot tell.
+host_tz() {
+	tz=
+	if have timedatectl; then
+		tz=$(timedatectl show -p Timezone --value 2>/dev/null || true)
+	fi
+	if [ -z "$tz" ] && [ -r /etc/timezone ]; then
+		tz=$(head -n 1 /etc/timezone 2>/dev/null || true)
+	fi
+	if [ -z "$tz" ] && [ -L /etc/localtime ]; then
+		tz=$(readlink /etc/localtime 2>/dev/null || true)
+		tz=${tz#*zoneinfo/}
+	fi
+	case $tz in
+	"" | */../* | ../* | /* | *..*) tz=UTC ;;
+	esac
+	if [ ! -e "/usr/share/zoneinfo/$tz" ]; then
+		tz=UTC
+	fi
+	printf '%s\n' "$tz"
+}
+
 setup_service() {
 	if [ -f /etc/systemd/system/trail.service ]; then
 		as_root systemctl restart trail
@@ -120,7 +143,7 @@ setup_service() {
 # Trail settings, read by trail.service. See SELF_HOSTING.md for every option.
 TRAIL_DB=/var/lib/trail/trail.db
 TRAIL_ADDR=${TRAIL_ADDR:-127.0.0.1:8080}
-TRAIL_TZ=UTC
+TRAIL_TZ=${TRAIL_TZ:-$(host_tz)}
 # Leave TRAIL_PASSWORD unset to use the password printed in the log on first start.
 #TRAIL_PASSWORD=
 #TRAIL_SITES=blog=example.com

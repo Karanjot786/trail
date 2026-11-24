@@ -344,10 +344,12 @@ func (s *server) params(ctx context.Context, in Scope) (query.Params, error) {
 	if p.Filters == nil {
 		p.Filters = map[string]string{}
 	}
-	if in.TZ != "" && len(in.TZ) <= 64 {
-		if loc, err := time.LoadLocation(in.TZ); err == nil {
-			p.TZ = loc
+	if in.TZ != "" {
+		loc, err := time.LoadLocation(in.TZ)
+		if len(in.TZ) > 64 || err != nil {
+			return p, fmt.Errorf("bad tz %q: want an IANA name like Europe/Berlin", in.TZ)
 		}
+		p.TZ = loc
 	}
 	cmp := in.Cmp
 	if cmp == "" {
@@ -379,19 +381,22 @@ func (s *server) params(ctx context.Context, in Scope) (query.Params, error) {
 	default:
 		return p, errors.New("bad range: want a range key or {from,to}")
 	}
-	if legacyTo != 0 {
-		day := func(ms int64) string { return time.UnixMilli(ms).In(p.TZ).Format(time.DateOnly) }
-		key = "c:" + day(legacyFrom) + "~" + day(legacyTo)
-	}
-	win, err := query.ResolveWindow(key, cmp, p.Now, p.TZ, 0)
+	dataStart, err := query.DataStart(s.db, in.Site)
 	if err != nil {
-		return p, fmt.Errorf("bad range or cmp: %w", err)
+		log.Printf("mcp: data start: %v", err) // same fallback as the API: no clamp
+		dataStart = 0
 	}
-	if win.Invalid != "" {
-		return p, fmt.Errorf("bad range %q: want %s", key, rangeDoc)
-	}
+	var win query.Window
 	if legacyTo != 0 {
-		win.From, win.To = legacyFrom, legacyTo
+		win = query.ExactWindow(legacyFrom, legacyTo, cmp, p.Now, p.TZ, dataStart)
+	} else {
+		var err error
+		if win, err = query.ResolveWindow(key, cmp, p.Now, p.TZ, dataStart); err != nil {
+			return p, fmt.Errorf("bad range or cmp: %w", err)
+		}
+		if win.Invalid != "" {
+			return p, fmt.Errorf("bad range %q: want %s", key, rangeDoc)
+		}
 	}
 	p.Win, p.From, p.To = win, win.From, win.To
 	return p, nil

@@ -85,10 +85,35 @@ func TestViewsRejectsHugeState(t *testing.T) {
 	if len(list) != maxViews || list[0].Site == nil || *list[0].Site != "s" || list[1].Site != nil {
 		t.Fatalf("list: %d %+v", len(list), list[:2])
 	}
-	if err := DeleteView(db, list[0].ID); err != nil {
+	if err := DeleteView(db, list[0].ID, ""); err != nil {
 		t.Fatal(err)
 	}
-	if err := DeleteView(db, list[0].ID); !errors.Is(err, ErrNotFound) {
+	if err := DeleteView(db, list[0].ID, ""); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("delete twice: %v", err)
+	}
+}
+
+func TestDeleteViewSiteScoped(t *testing.T) {
+	db := openDB(t)
+	site := "s"
+	a, err := AddView(db, SavedView{Name: "a", Site: &site})
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := AddView(db, SavedView{Name: "b"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := DeleteView(db, a.ID, "o"); !errors.Is(err, ErrNotFound) {
+		t.Errorf("other site's token: %v", err)
+	}
+	if err := DeleteView(db, b.ID, "s"); !errors.Is(err, ErrNotFound) {
+		t.Errorf("all-sites view by site token: %v", err)
+	}
+	if err := DeleteView(db, a.ID, "s"); err != nil {
+		t.Errorf("own view: %v", err)
+	}
+	if err := DeleteView(db, b.ID, ""); err != nil {
+		t.Errorf("unbound: %v", err)
 	}
 }

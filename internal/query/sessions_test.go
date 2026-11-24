@@ -2,6 +2,7 @@ package query
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 
 	"trail/internal/store"
@@ -176,5 +177,75 @@ func TestVisitorsTotalMatchesJourney(t *testing.T) {
 	}
 	if vs[1].Person != "ada" || vs[1].Visits != 1 || vs[1].VisitsAll != 3 {
 		t.Fatalf("%+v", vs[1])
+	}
+}
+
+func TestJourneyUsesAnonIndex(t *testing.T) {
+	db := fixture(t, pv("A", "sa", "/", t0), identify("A", "sa", "u1", t0+1))
+	rows, err := db.Query("EXPLAIN QUERY PLAN "+journeySQL, "s", "s", "u1", "u1", "u1", "s")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	var plan strings.Builder
+	for rows.Next() {
+		var id, parent, notused int
+		var detail string
+		if err := rows.Scan(&id, &parent, &notused, &detail); err != nil {
+			t.Fatal(err)
+		}
+		plan.WriteString(detail + "\n")
+		if strings.HasPrefix(detail, "SCAN e") {
+			t.Fatalf("journey scans events:\n%s", plan.String())
+		}
+	}
+	if !strings.Contains(plan.String(), "events_site_anon_ts") {
+		t.Fatalf("anon index unused:\n%s", plan.String())
+	}
+}
+
+func TestJourneyEquivalence(t *testing.T) {
+	db := fixture(t,
+		pv("A", "sa", "/", t0), identify("A", "sa", "u1", t0+1),
+		pv("B", "sb", "/", t0+hour), identify("B", "sb", "u1", t0+hour+1), identify("B", "sb", "u2", t0+hour+2),
+		pv("C", "sc", "/", t0+2*hour),
+		pv("u1", "su", "/", t0+3*hour), identify("u1", "su", "u3", t0+3*hour+1),
+	)
+	ids := func(person string) []string {
+		j, err := Journey(db, "s", person, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		out := []string{}
+		for _, s := range j {
+			out = append(out, s.SessionID)
+		}
+		return out
+	}
+	for person, want := range map[string]string{"u1": "sa,sb", "C": "sc", "u2": "", "u3": "su"} {
+		if got := strings.Join(ids(person), ","); got != want {
+			t.Errorf("%s: got %q want %q", person, got, want)
+		}
+	}
+}
+
+func TestKeepSessions(t *testing.T) {
+	db := fixture(t,
+		pv("A", "sa", "/", t0),
+		store.Event{Type: "pageview", AnonID: "A", SessionID: "sb", Path: "/x", Country: "US", TS: t0 + hour},
+	)
+	js, err := Journey(db, "s", "A", nil)
+	if err != nil || len(js) != 2 {
+		t.Fatalf("%v %+v", err, js)
+	}
+	p := around()
+	p.Filters = map[string]string{"country": "IN"}
+	got, err := KeepSessions(db, p, js)
+	if err != nil || len(got) != 1 || got[0].SessionID != "sa" {
+		t.Fatalf("%v %+v", err, got)
+	}
+	empty, err := KeepSessions(db, p, []JourneySession{})
+	if err != nil || empty == nil || len(empty) != 0 {
+		t.Fatalf("empty: %v %#v", err, empty)
 	}
 }
