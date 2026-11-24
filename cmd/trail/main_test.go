@@ -410,7 +410,7 @@ func TestRoutesWireProxy(t *testing.T) {
 	if w.Code != http.StatusNoContent {
 		t.Fatalf("status %d", w.Code)
 	}
-	if got := storedRow(t, st, `country || '|' || region || '|' || city || '|' || geo_src`); got != "IN|MH|Mumbai|vercel" {
+	if got := storedRow(t, st, `country || '|' || region || '|' || city || '|' || geo_src`); got != "IN|Maharashtra|Mumbai|vercel" {
 		t.Fatalf("stored %q", got)
 	}
 }
